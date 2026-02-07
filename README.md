@@ -10,7 +10,18 @@ infrastructure is adapted from the
 [evgam](https://CRAN.R-project.org/package=evgam) package by Ben Youngman.
 
 Models 1--4 are supported for each distribution family, following the
-parameterizations of Naveau et al. (2016).
+parameterizations of Naveau et al. (2016). Each model extends the
+standard GPD by composing it with a transformation function *G*:
+
+| Model | G-function | Parameters | Description |
+|-------|------------|------------|-------------|
+| 1 | Power: *G*(*u*) = *u*^*κ* | *σ*, *ξ*, *κ* | Simplest; reduces to standard GPD when *κ* = 1 |
+| 2 | Mixture: *G*(*u*) = *p* *u*^*κ*₁ + (1−*p*) *u*^*κ*₂ | *σ*, *ξ*, *κ*₁, Δ*κ*, *p* | Mixture of two power transformations |
+| 3 | Incomplete beta | *σ*, *ξ*, *δ* | Beta CDF transformation; more flexible bulk |
+| 4 | Power-beta | *σ*, *ξ*, *δ*, *κ* | Combines power and beta; most flexible |
+
+Here *σ* is the GPD scale, *ξ* is the GPD shape, and the remaining
+parameters control the *G*-function.
 
 ## Installation
 
