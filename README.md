@@ -2,7 +2,10 @@
 
 The **egpd** package fits Extended Generalized Pareto Distribution (EGPD),
 Discrete EGPD (DEGPD), and Zero-Inflated Discrete EGPD (ZIDEGPD) models
-within a GAM (Generalized Additive Model) framework. The fitting
+within a GAM (Generalized Additive Model) framework, with additional
+support for fitting via
+[gamlss](https://CRAN.R-project.org/package=gamlss) and
+[bamlss](https://CRAN.R-project.org/package=bamlss). The fitting
 infrastructure is adapted from the
 [evgam](https://CRAN.R-project.org/package=evgam) package by Ben Youngman.
 
