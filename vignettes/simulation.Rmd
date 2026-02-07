@@ -1,0 +1,342 @@
+---
+title: "Simulation Examples"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Simulation Examples}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 6,
+  fig.height = 4
+)
+```
+
+This vignette demonstrates the `egpd` package using simulated data. Because
+the true parameters are known, we can verify that the models recover them
+correctly. We also show how to fit models with covariate-dependent parameters
+using smooth terms --- the key advantage of the GAM framework.
+
+## 1. Continuous EGPD: intercept-only
+
+We simulate from a continuous EGPD Model 1 with G(u) = u^kappa and fit
+the model back.
+
+```{r egpd-intercept}
+library(egpd)
+set.seed(1)
+
+# True parameters
+sigma_true <- 2
+xi_true    <- 0.2
+kappa_true <- 1.5
+
+# Simulate
+n <- 2000
+y <- regpd(n, sigma = sigma_true, xi = xi_true, kappa = kappa_true, type = 1)
+df <- data.frame(y = y, x = rep(1, n))
+
+# Fit
+fit <- egpd(list(lpsi = y ~ 1, xi = ~ 1, lkappa = ~ 1),
+            data = df, family = "egpd", egpd.args = list(m = 1))
+summary(fit)
+```
+
+Compare fitted parameters with truth on the response scale:
+
+```{r egpd-intercept-check}
+pars <- predict(fit, type = "response")[1, ]
+truth <- c(scale = sigma_true, shape = xi_true, kappa = kappa_true)
+cbind(true = truth, fitted = round(unlist(pars), 4))
+```
+
+A Q-Q plot of randomized quantile residuals confirms the fit:
+
+```{r egpd-intercept-qq, fig.width = 5, fig.height = 5}
+set.seed(1)
+r <- rqresid(fit)
+qqnorm(r, main = "Q-Q Plot (EGPD-1)", pch = 20, col = "grey60")
+qqline(r, col = "red")
+```
+
+## 2. Continuous EGPD: smooth covariate effect on scale
+
+The GAM framework allows any parameter to depend on covariates through
+smooth functions. Here the scale parameter varies with a covariate `x` via
+a sinusoidal function, while the shape and kappa remain constant.
+
+```{r egpd-smooth-sim}
+set.seed(42)
+n <- 2000
+x <- runif(n, 0, 1)
+
+# Scale varies smoothly with x
+sigma_x <- exp(0.5 + 1.5 * sin(2 * pi * x))
+xi_true  <- 0.1
+kappa_true <- 1.5
+
+y <- regpd(n, sigma = sigma_x, xi = xi_true, kappa = kappa_true, type = 1)
+df <- data.frame(y = y, x = x)
+```
+
+Fit with a smooth term on the log-scale parameter:
+
+```{r egpd-smooth-fit}
+fit_smooth <- egpd(list(lpsi = y ~ s(x, k = 15), xi = ~ 1, lkappa = ~ 1),
+                   data = df, family = "egpd", egpd.args = list(m = 1))
+summary(fit_smooth)
+```
+
+The `plot` method shows the estimated smooth effect. The true function is
+`0.5 + 1.5 * sin(2*pi*x)` on the log-scale, centered around the intercept.
+
+```{r egpd-smooth-plot, fig.width = 7, fig.height = 5}
+plot(fit_smooth)
+```
+
+We can also extract the predicted scale on a fine grid and compare with the
+truth.
+
+```{r egpd-smooth-compare, fig.width = 7, fig.height = 5}
+xgrid <- data.frame(x = seq(0, 1, length = 200))
+pred <- predict(fit_smooth, newdata = xgrid, type = "response")
+
+plot(xgrid$x, exp(0.5 + 1.5 * sin(2 * pi * xgrid$x)), type = "l",
+     lwd = 2, col = "black", ylim = c(0, 15),
+     xlab = "x", ylab = expression(sigma(x)),
+     main = "Recovered smooth scale function")
+lines(xgrid$x, pred$scale, col = "steelblue", lwd = 2, lty = 2)
+legend("topright", legend = c("True", "Fitted"),
+       col = c("black", "steelblue"), lwd = 2, lty = c(1, 2))
+```
+
+## 3. Discrete DEGPD: parameter recovery
+
+Simulate from a Discrete EGPD Model 1 and verify parameter recovery.
+
+```{r degpd-intercept}
+set.seed(2)
+sigma_true <- 3
+xi_true    <- 0.3
+kappa_true <- 2.0
+
+n <- 2000
+y <- rdiscegpd(n, sigma = sigma_true, xi = xi_true, kappa = kappa_true,
+               type = 1)
+df <- data.frame(y = y, x = rep(1, n))
+
+fit_d <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
+              data = df, family = "degpd", degpd.args = list(m = 1))
+summary(fit_d)
+```
+
+```{r degpd-intercept-check}
+pars_d <- predict(fit_d, type = "response")[1, ]
+truth_d <- c(scale = sigma_true, shape = xi_true, kappa = kappa_true)
+cbind(true = truth_d, fitted = round(unlist(pars_d), 4))
+```
+
+Compare fitted and empirical PMFs:
+
+```{r degpd-pmf, fig.width = 7, fig.height = 5}
+xvals <- 0:20
+emp_pmf <- tabulate(y + 1, nbins = max(xvals) + 1) / n
+fit_pmf <- ddiscegpd(xvals, sigma = pars_d$scale[1], xi = pars_d$shape[1],
+                     kappa = pars_d$kappa[1], type = 1)
+
+plot(xvals, emp_pmf[seq_along(xvals)], type = "h", lwd = 3, col = "grey60",
+     main = "Empirical vs fitted PMF (DEGPD-1)",
+     xlab = "Count", ylab = "Probability")
+lines(xvals + 0.2, fit_pmf, type = "h", lwd = 3, col = "steelblue")
+legend("topright", legend = c("Empirical", "Fitted"),
+       col = c("grey60", "steelblue"), lwd = 3)
+```
+
+Q-Q plot of randomized quantile residuals:
+
+```{r degpd-intercept-qq, fig.width = 5, fig.height = 5}
+set.seed(1)
+r_d <- rqresid(fit_d)
+qqnorm(r_d, main = "Q-Q Plot (DEGPD-1)", pch = 20, col = "grey60")
+qqline(r_d, col = "red")
+```
+
+## 3b. Discrete DEGPD Model 2: parameter recovery
+
+Model 2 uses a mixture of two power transformations:
+G(u) = p·u^kappa1 + (1-p)·u^kappa2. We simulate from `rdiscegpd()` with
+`type = 6` and recover the five parameters.
+
+```{r degpd2-sim}
+set.seed(22)
+sigma_true <- 3
+xi_true    <- 0.3
+kappa1_true <- 1.5
+kappa2_true <- 3.0
+prob_true   <- 0.6
+
+n <- 2000
+y <- rdiscegpd(n, sigma = sigma_true, xi = xi_true, kappa = kappa1_true,
+               delta = kappa2_true, prob = prob_true, type = 6)
+df <- data.frame(y = y, x = rep(1, n))
+
+cat("Range:", range(y), "\n")
+cat("Mean:", mean(y), "\n")
+```
+
+```{r degpd2-fit}
+fit_d2 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa1 = ~ 1, ldkappa = ~ 1,
+                    logitp = ~ 1),
+               data = df, family = "degpd", degpd.args = list(m = 2))
+summary(fit_d2)
+```
+
+Compare fitted parameters with truth on the response scale. Note the
+reparameterization: kappa2 = kappa1 + exp(ldkappa), so the model estimates
+`ldkappa` (log of the difference) rather than kappa2 directly.
+
+```{r degpd2-check}
+pars_d2 <- predict(fit_d2, type = "response")[1, ]
+truth_d2 <- c(scale = sigma_true, shape = xi_true, kappa1 = kappa1_true,
+              kappa2 = kappa2_true, p = prob_true)
+fitted_d2 <- round(unlist(pars_d2), 4)
+cbind(true = truth_d2, fitted = fitted_d2)
+```
+
+Q-Q plot of randomized quantile residuals for the Model 2 fit:
+
+```{r degpd2-qq, fig.width = 5, fig.height = 5}
+set.seed(1)
+r_d2 <- rqresid(fit_d2)
+qqnorm(r_d2, main = "Q-Q Plot (DEGPD-2)", pch = 20, col = "grey60")
+qqline(r_d2, col = "red")
+```
+
+## 4. Discrete DEGPD: smooth covariate effect
+
+Now simulate discrete data where the scale varies with a covariate.
+
+```{r degpd-smooth-sim}
+set.seed(7)
+n <- 2000
+x <- runif(n, 0, 1)
+sigma_x <- exp(1 + 2 * x)
+xi_true  <- 0.3
+kappa_true <- 1.5
+
+y <- rdiscegpd(n, sigma = sigma_x, xi = xi_true, kappa = kappa_true, type = 1)
+df <- data.frame(y = y, x = x)
+```
+
+```{r degpd-smooth-fit}
+fit_ds <- egpd(list(lsigma = y ~ s(x, k = 10), lxi = ~ 1, lkappa = ~ 1),
+               data = df, family = "degpd", degpd.args = list(m = 1))
+summary(fit_ds)
+```
+
+```{r degpd-smooth-plot, fig.width = 7, fig.height = 5}
+plot(fit_ds)
+```
+
+Compare fitted and true scale on a grid:
+
+```{r degpd-smooth-compare, fig.width = 7, fig.height = 5}
+xgrid <- data.frame(x = seq(0, 1, length = 200))
+pred_ds <- predict(fit_ds, newdata = xgrid, type = "response")
+
+plot(xgrid$x, exp(1 + 2 * xgrid$x), type = "l", lwd = 2, col = "black",
+     xlab = "x", ylab = expression(sigma(x)),
+     main = "Recovered smooth scale function (DEGPD-1)")
+lines(xgrid$x, pred_ds$scale, col = "steelblue", lwd = 2, lty = 2)
+legend("topleft", legend = c("True", "Fitted"),
+       col = c("black", "steelblue"), lwd = 2, lty = c(1, 2))
+```
+
+## 5. Zero-inflated DEGPD: estimating zero-inflation
+
+Simulate from a ZIDEGPD with known zero-inflation probability and verify
+the model recovers it.
+
+```{r zidegpd-sim}
+set.seed(3)
+sigma_true <- 3
+xi_true    <- 0.3
+kappa_true <- 1.5
+pi_true    <- 0.3
+
+n <- 2000
+y <- rzidiscegpd(n, pi = pi_true, sigma = sigma_true, xi = xi_true,
+                 kappa = kappa_true, type = 1)
+df <- data.frame(y = y, x = rep(1, n))
+
+cat("Proportion of zeros:", mean(y == 0), "\n")
+cat("Expected proportion: pi + (1-pi)*P(Y=0) =",
+    round(pi_true + (1 - pi_true) * ddiscegpd(0, sigma = sigma_true,
+          xi = xi_true, kappa = kappa_true, type = 1), 3), "\n")
+```
+
+```{r zidegpd-fit}
+fit_zi <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1, logitpi = ~ 1),
+               data = df, family = "zidegpd", zidegpd.args = list(m = 1))
+summary(fit_zi)
+```
+
+```{r zidegpd-check}
+pars_zi <- predict(fit_zi, type = "response")[1, ]
+truth_zi <- c(scale = sigma_true, shape = xi_true, kappa = kappa_true,
+              pi = pi_true)
+cbind(true = truth_zi, fitted = round(unlist(pars_zi), 4))
+```
+
+Q-Q plot of randomized quantile residuals for the ZIDEGPD fit:
+
+```{r zidegpd-qq, fig.width = 5, fig.height = 5}
+set.seed(1)
+r_zi <- rqresid(fit_zi)
+qqnorm(r_zi, main = "Q-Q Plot (ZIDEGPD-1)", pch = 20, col = "grey60")
+qqline(r_zi, col = "red")
+```
+
+## 6. Model selection: DEGPD vs ZIDEGPD
+
+A key question in practice is whether zero-inflation is needed. We fit both
+a DEGPD and a ZIDEGPD to the zero-inflated data above and compare by AIC.
+
+```{r model-selection}
+fit_nozi <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
+                 data = df, family = "degpd", degpd.args = list(m = 1))
+
+data.frame(
+  Model = c("DEGPD-1 (no ZI)", "ZIDEGPD-1"),
+  logLik = c(logLik(fit_nozi), logLik(fit_zi)),
+  AIC = c(AIC(fit_nozi), AIC(fit_zi))
+)
+```
+
+The ZIDEGPD model correctly fits better, confirming that zero-inflation
+is present in the data.
+
+## 7. Quantile prediction
+
+The `predict` method with `type = "quantile"` computes quantile estimates
+from any fitted model.
+
+```{r quantile-pred}
+probs <- c(0.5, 0.9, 0.95, 0.99)
+
+# Theoretical quantiles from the known distribution
+true_q <- qzidiscegpd(probs, pi = pi_true, sigma = sigma_true,
+                       xi = xi_true, kappa = kappa_true, type = 1)
+
+# Fitted quantiles
+fit_q <- predict(fit_zi, type = "quantile", prob = probs)
+
+data.frame(prob = probs,
+           true = true_q,
+           fitted = unlist(fit_q[1, ]),
+           empirical = quantile(y, probs))
+```

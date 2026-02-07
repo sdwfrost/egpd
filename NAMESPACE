@@ -1,0 +1,139 @@
+# Generated manually for egpd package
+
+# Dynamic library
+useDynLib(egpd, .registration = TRUE)
+
+# Rcpp imports
+importFrom(Rcpp, sourceCpp)
+importFrom(Rcpp, evalCpp)
+
+# Standard package imports
+import(stats)
+import(graphics)
+import(grDevices)
+import(utils)
+
+# Main fitting function
+export(egpd)
+
+# S3 methods
+S3method(fitted, egpd)
+S3method(simulate, egpd)
+S3method(logLik, egpd)
+S3method(plot, egpd)
+S3method(summary, egpd)
+S3method(print, summary.egpd)
+S3method(print, egpd)
+S3method(predict, egpd)
+S3method(nobs, egpd)
+S3method(confint, egpd)
+S3method(vcov, egpd)
+S3method(rqresid, egpd)
+
+# Generic exports
+export(rqresid)
+export(predictive_coverage)
+S3method(predictive_coverage, egpd)
+S3method(predictive_coverage, gamlss)
+S3method(predictive_coverage, bamlss)
+
+# Helper exports
+export(dfbind)
+export(pinv)
+export(ginv.egpd)
+export(seq_between)
+
+# Distribution function exports
+export(p.G)
+export(d.G)
+export(q.G)
+export(r.G)
+export(pegpd)
+export(degpd_density)
+export(qegpd)
+export(regpd)
+export(ddiscegpd)
+export(pdiscegpd)
+export(qdiscegpd)
+export(rdiscegpd)
+export(dzidiscegpd)
+export(pzidiscegpd)
+export(qzidiscegpd)
+export(rzidiscegpd)
+export(dziegpd)
+export(pziegpd)
+export(qziegpd)
+export(rziegpd)
+
+# bamlss family constructors
+export(egpd_bamlss)
+export(ziegpd_bamlss)
+export(degpd_bamlss)
+export(zidegpd_bamlss)
+
+# gamlss family constructors
+export(EGPD1)
+export(EGPD3)
+export(EGPD4)
+export(DEGPD1)
+export(DEGPD3)
+export(DEGPD4)
+export(ZIEGPD1)
+export(ZIEGPD3)
+export(ZIDEGPD1)
+export(ZIDEGPD3)
+
+# gamlss d/p/q/r wrappers: Continuous EGPD
+export(dEGPD1)
+export(pEGPD1)
+export(qEGPD1)
+export(rEGPD1)
+export(dEGPD3)
+export(pEGPD3)
+export(qEGPD3)
+export(rEGPD3)
+export(dEGPD4)
+export(pEGPD4)
+export(qEGPD4)
+export(rEGPD4)
+
+# gamlss d/p/q/r wrappers: Discrete EGPD
+export(dDEGPD1)
+export(pDEGPD1)
+export(qDEGPD1)
+export(rDEGPD1)
+export(dDEGPD3)
+export(pDEGPD3)
+export(qDEGPD3)
+export(rDEGPD3)
+export(dDEGPD4)
+export(pDEGPD4)
+export(qDEGPD4)
+export(rDEGPD4)
+
+# gamlss d/p/q/r wrappers: Zero-Inflated Continuous EGPD
+export(dZIEGPD1)
+export(pZIEGPD1)
+export(qZIEGPD1)
+export(rZIEGPD1)
+export(dZIEGPD3)
+export(pZIEGPD3)
+export(qZIEGPD3)
+export(rZIEGPD3)
+
+# gamlss d/p/q/r wrappers: Zero-Inflated Discrete EGPD
+export(dZIDEGPD1)
+export(pZIDEGPD1)
+export(qZIDEGPD1)
+export(rZIDEGPD1)
+export(dZIDEGPD3)
+export(pZIDEGPD3)
+export(qZIDEGPD3)
+export(rZIDEGPD3)
+
+# gamlss internal helpers (used by gamlss family function bodies)
+export(.egpd_nd3)
+export(.egpd_nd4)
+
+# gamlss.dist imports
+importFrom(gamlss.dist, checklink)

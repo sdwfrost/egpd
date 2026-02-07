@@ -1,0 +1,29 @@
+Package: egpd
+Type: Package
+Title: Extended Generalized Pareto Distribution GAMs
+Version: 0.1.0
+Authors@R: c(
+    person("Touqeer", "Ahmad", role = "aut"),
+    person("Simon", "Frost", role = c("aut", "cre"),
+           email = "sdwfrost@gmail.com"))
+Description: Fits Extended Generalized Pareto Distribution (EGPD), Discrete
+    EGPD (DEGPD), Zero-Inflated EGPD (ZIEGPD), and Zero-Inflated Discrete
+    EGPD (ZIDEGPD) models within a GAM (Generalized Additive Model) framework,
+    with additional support for fitting via 'gamlss' and 'bamlss'. The fitting
+    infrastructure is adapted from the 'evgam' package by Ben Youngman.
+    P-value testing code is adapted from the 'mgcv' package by Simon Wood.
+    Models 1-4 are supported for each distribution family. References:
+    Abbas, Ahmad, Ahmad (2025) <arxiv:2504.11058>,
+    Ahmad, Arshad (2024) <arxiv:2409.18719>,
+    Ahmad, Hussain (2025) <arxiv:2510.27365>.
+License: GPL-3
+URL: https://github.com/sdwfrost/egpd, https://sdwfrost.github.io/egpd/
+BugReports: https://github.com/sdwfrost/egpd/issues
+Encoding: UTF-8
+Depends: R (>= 3.5.0)
+Imports: Rcpp (>= 1.0.0), mgcv, gamlss.dist
+LinkingTo: Rcpp, RcppArmadillo
+Suggests: bamlss, evgam, gamlss, knitr, pkgdown, rmarkdown, testthat (>= 3.0.0)
+VignetteBuilder: knitr
+LazyData: true
+RoxygenNote: 7.3.2

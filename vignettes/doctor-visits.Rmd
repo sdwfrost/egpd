@@ -1,0 +1,176 @@
+---
+title: "Zero-Inflated Discrete EGPD Models for Doctor Visit Counts"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Zero-Inflated Discrete EGPD Models for Doctor Visit Counts}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 6,
+  fig.height = 4
+)
+```
+
+This vignette demonstrates fitting Zero-Inflated Discrete Extended Generalized
+Pareto Distribution (ZIDEGPD) models to doctor visit count data. The
+zero-inflated models account for an excess of zero counts beyond what the
+DEGPD alone would predict.
+
+## Data
+
+```{r data}
+library(egpd)
+data(docvisits)
+str(docvisits)
+```
+
+```{r eda}
+y <- docvisits$visits
+plot(table(y[y <= 30]), main = "Doctor visits",
+     xlab = "Number of visits", ylab = "Frequency")
+cat("n =", length(y), "\n")
+cat("Proportion of zeros:", mean(y == 0), "\n")
+cat("Range:", range(y), "\n")
+```
+
+The high proportion of zeros suggests a zero-inflated model may be
+appropriate.
+
+## Fitting ZIDEGPD models
+
+The ZIDEGPD family adds a zero-inflation probability `pi` (on the logit
+scale: `logitpi`) to the DEGPD parameters. For intercept-only models, all
+parameters get `~ 1` formulae.
+
+### ZIDEGPD Model 1: Power transformation with zero-inflation
+
+Four parameters: sigma, xi, kappa, pi.
+
+```{r zidegpd1}
+df <- data.frame(y = y, x = rep(1, length(y)))
+fit1 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1, logitpi = ~ 1),
+             data = df, family = "zidegpd", zidegpd.args = list(m = 1))
+summary(fit1)
+cat("Log-likelihood:", logLik(fit1), "\n")
+cat("AIC:", AIC(fit1), "\n")
+```
+
+### ZIDEGPD Model 2: Mixture of power transformations with zero-inflation
+
+Six parameters: sigma, xi, kappa1, dkappa, p, pi.
+
+```{r zidegpd2}
+fit2 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa1 = ~ 1, ldkappa = ~ 1,
+                  logitp = ~ 1, logitpi = ~ 1),
+             data = df, family = "zidegpd", zidegpd.args = list(m = 2))
+summary(fit2)
+cat("Log-likelihood:", logLik(fit2), "\n")
+cat("AIC:", AIC(fit2), "\n")
+```
+
+### ZIDEGPD Model 3: Incomplete beta with zero-inflation
+
+Four parameters: sigma, xi, delta, pi.
+
+```{r zidegpd3}
+fit3 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, ldelta = ~ 1, logitpi = ~ 1),
+             data = df, family = "zidegpd", zidegpd.args = list(m = 3))
+summary(fit3)
+cat("Log-likelihood:", logLik(fit3), "\n")
+cat("AIC:", AIC(fit3), "\n")
+```
+
+### ZIDEGPD Model 4: Power-beta with zero-inflation
+
+Five parameters: sigma, xi, kappa, delta, pi.
+
+```{r zidegpd4}
+fit4 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1, ldelta = ~ 1,
+                  logitpi = ~ 1),
+             data = df, family = "zidegpd", zidegpd.args = list(m = 4))
+summary(fit4)
+cat("Log-likelihood:", logLik(fit4), "\n")
+cat("AIC:", AIC(fit4), "\n")
+```
+
+## Model comparison
+
+```{r compare}
+aic_table <- data.frame(
+  Model = c("ZIDEGPD-1", "ZIDEGPD-2", "ZIDEGPD-3", "ZIDEGPD-4"),
+  npar = c(4, 6, 4, 5),
+  logLik = c(logLik(fit1), logLik(fit2), logLik(fit3), logLik(fit4)),
+  AIC = c(AIC(fit1), AIC(fit2), AIC(fit3), AIC(fit4))
+)
+aic_table
+```
+
+## Goodness of fit
+
+```{r gof, fig.width = 7, fig.height = 5}
+# Extract fitted parameters on the response scale
+pars1 <- predict(fit1, type = "response")
+sigma1 <- pars1$scale[1]; xi1 <- pars1$shape[1]
+kappa1 <- pars1$kappa[1]; pi1 <- pars1$pi[1]
+
+xvals <- 0:30
+emp_pmf <- tabulate(y + 1, nbins = max(xvals) + 1) / length(y)
+emp_pmf <- emp_pmf[seq_along(xvals)]
+
+fit_pmf1 <- dzidiscegpd(xvals, pi = pi1, sigma = sigma1, xi = xi1,
+                         kappa = kappa1, type = 1)
+
+plot(xvals, emp_pmf, type = "h", lwd = 2, col = "grey60",
+     main = "Empirical vs fitted PMF (ZIDEGPD-1)",
+     xlab = "Count", ylab = "Probability")
+lines(xvals + 0.2, fit_pmf1, type = "h", lwd = 2, col = "firebrick")
+legend("topright", legend = c("Empirical", "ZIDEGPD-1"),
+       col = c("grey60", "firebrick"), lwd = 2)
+```
+
+## Q-Q plots
+
+Randomized quantile residuals provide a model-agnostic diagnostic: if the
+model is correct, the residuals should follow a standard normal distribution.
+
+```{r qq, fig.width = 7, fig.height = 7}
+set.seed(1)
+par(mfrow = c(2, 2))
+
+r1 <- rqresid(fit1)
+qqnorm(r1, main = "Q-Q Plot (ZIDEGPD-1)", pch = 20, col = "grey60")
+qqline(r1, col = "red")
+
+r2 <- rqresid(fit2)
+qqnorm(r2, main = "Q-Q Plot (ZIDEGPD-2)", pch = 20, col = "grey60")
+qqline(r2, col = "red")
+
+r3 <- rqresid(fit3)
+qqnorm(r3, main = "Q-Q Plot (ZIDEGPD-3)", pch = 20, col = "grey60")
+qqline(r3, col = "red")
+
+r4 <- rqresid(fit4)
+qqnorm(r4, main = "Q-Q Plot (ZIDEGPD-4)", pch = 20, col = "grey60")
+qqline(r4, col = "red")
+
+par(mfrow = c(1, 1))
+```
+
+## Comparing DEGPD and ZIDEGPD
+
+To see whether zero-inflation is needed, we can also fit a standard
+DEGPD model and compare.
+
+```{r degpd-compare}
+fit_degpd1 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
+                   data = df, family = "degpd", degpd.args = list(m = 1))
+
+cat("DEGPD-1  AIC:", AIC(fit_degpd1), "\n")
+cat("ZIDEGPD-1 AIC:", AIC(fit1), "\n")
+cat("Estimated zero-inflation probability:", round(pi1, 3), "\n")
+```

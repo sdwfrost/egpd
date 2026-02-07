@@ -1,0 +1,139 @@
+url: https://sdwfrost.github.io/egpd/
+
+template:
+  bootstrap: 5
+
+navbar:
+  structure:
+    left: [intro, reference, articles]
+  components:
+    intro:
+      text: Home
+      href: index.html
+    reference:
+      text: Reference
+      href: reference/index.html
+    articles:
+      text: Articles
+      menu:
+        - text: "Discrete EGPD Models for Insurance Complaint Counts"
+          href: articles/insurance-complaints.html
+        - text: "Zero-Inflated Discrete EGPD Models for Doctor Visit Counts"
+          href: articles/doctor-visits.html
+        - text: "Threshold Exceedance Modeling with DEGPD"
+          href: articles/gaming-offenses.html
+        - text: "Simulation Examples"
+          href: articles/simulation.html
+        - text: "Continuous EGPD Models for Temperature Extremes"
+          href: articles/temperature-extremes.html
+        - text: "Comparing egpd and bamlss Fits"
+          href: articles/bamlss-comparison.html
+        - text: "Comparing egpd and gamlss Fits"
+          href: articles/gamlss-comparison.html
+        - text: "Predictive Coverage Assessment"
+          href: articles/predictive-coverage.html
+        - text: "Parameter Estimate Coverage Assessment"
+          href: articles/parameter-coverage.html
+
+reference:
+  - title: "Package Overview"
+    contents:
+      - egpd-package
+
+  - title: "Model Fitting"
+    desc: "Main function for fitting EGPD, DEGPD, and ZIDEGPD GAMs."
+    contents:
+      - egpd
+
+  - title: "Prediction and Methods"
+    desc: "S3 methods for fitted egpd objects."
+    contents:
+      - predict.egpd
+      - fitted.egpd
+      - simulate.egpd
+      - logLik.egpd
+      - plot.egpd
+      - summary.egpd
+      - print.egpd
+      - print.summary.egpd
+      - nobs.egpd
+      - confint.egpd
+      - vcov.egpd
+      - predictive_coverage
+
+  - title: "EGPD Distributions"
+    desc: "Continuous Extended Generalized Pareto Distribution functions."
+    contents:
+      - pegpd
+      - degpd_density
+      - qegpd
+      - regpd
+
+  - title: "Discrete EGPD Distributions"
+    desc: "Discrete Extended Generalized Pareto Distribution functions."
+    contents:
+      - ddiscegpd
+      - pdiscegpd
+      - qdiscegpd
+      - rdiscegpd
+
+  - title: "Zero-Inflated Discrete EGPD Distributions"
+    desc: "Zero-inflated discrete EGPD distribution functions."
+    contents:
+      - dzidiscegpd
+      - pzidiscegpd
+      - qzidiscegpd
+      - rzidiscegpd
+
+  - title: "Zero-Inflated Continuous EGPD Distributions"
+    desc: "Zero-inflated continuous EGPD distribution functions."
+    contents:
+      - dziegpd
+      - pziegpd
+      - qziegpd
+      - rziegpd
+
+  - title: "gamlss Families"
+    desc: "Family constructors and d/p/q/r wrappers for fitting EGPD models with gamlss."
+    contents:
+      - EGPD1
+      - EGPD3
+      - EGPD4
+      - DEGPD1
+      - DEGPD3
+      - DEGPD4
+      - ZIEGPD1
+      - ZIEGPD3
+      - ZIDEGPD1
+      - ZIDEGPD3
+
+  - title: "bamlss Families"
+    desc: "Family constructors for fitting EGPD models with bamlss."
+    contents:
+      - egpd_bamlss
+      - ziegpd_bamlss
+      - degpd_bamlss
+      - zidegpd_bamlss
+
+  - title: "G-function Utilities"
+    desc: "Transformation functions for the EGPD G-function (types 1--6)."
+    contents:
+      - p.G
+      - d.G
+      - q.G
+      - r.G
+
+  - title: "Helpers"
+    desc: "Utility functions."
+    contents:
+      - dfbind
+      - pinv
+      - ginv.egpd
+      - seq_between
+
+  - title: "Datasets"
+    desc: "Example datasets included in the package."
+    contents:
+      - ny_complaints
+      - docvisits
+      - nsw_offenses
