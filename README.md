@@ -50,15 +50,15 @@ summary(fit)
 
 ## Vignettes
 
-- [Discrete EGPD Models for Insurance Complaint Counts](articles/insurance-complaints.html)
-- [Zero-Inflated Discrete EGPD Models for Doctor Visit Counts](articles/doctor-visits.html)
-- [Threshold Exceedance Modeling with DEGPD](articles/gaming-offenses.html)
-- [Continuous EGPD Models for Temperature Extremes](articles/temperature-extremes.html)
-- [Simulation Examples](articles/simulation.html)
-- [Comparing egpd and bamlss Fits](articles/bamlss-comparison.html)
-- [Comparing egpd and gamlss Fits](articles/gamlss-comparison.html)
-- [Predictive Coverage Assessment](articles/predictive-coverage.html)
-- [Parameter Estimate Coverage Assessment](articles/parameter-coverage.html)
+- [Discrete EGPD Models for Insurance Complaint Counts](articles/insurance-complaints.md)
+- [Zero-Inflated Discrete EGPD Models for Doctor Visit Counts](articles/doctor-visits.md)
+- [Threshold Exceedance Modeling with DEGPD](articles/gaming-offenses.md)
+- [Continuous EGPD Models for Temperature Extremes](articles/temperature-extremes.md)
+- [Simulation Examples](articles/simulation.md)
+- [Comparing egpd and bamlss Fits](articles/bamlss-comparison.md)
+- [Comparing egpd and gamlss Fits](articles/gamlss-comparison.md)
+- [Predictive Coverage Assessment](articles/predictive-coverage.md)
+- [Parameter Estimate Coverage Assessment](articles/parameter-coverage.md)
 
 ## References
 

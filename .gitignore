@@ -6,3 +6,4 @@ egpd.Rcheck/
 docs/
 figure/
 vignettes/*_cache/
+articles/*.html
