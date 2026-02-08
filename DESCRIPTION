@@ -3,7 +3,7 @@ Type: Package
 Title: Extended Generalized Pareto Distribution GAMs
 Version: 0.1.0
 Authors@R: c(
-    person("Touqeer", "Ahmad", role = "aut", email = "touqeer.ahmad8960@gmail.com"),
+    person("Touqeer", "Ahmad", role = c("aut", "cre"), email = "touqeer.ahmad8960@gmail.com"),
     person("Simon", "Frost", role = c("aut", "cre"),
            email = "sdwfrost@gmail.com"))
 Description: Fits Extended Generalized Pareto Distribution (EGPD), Discrete
