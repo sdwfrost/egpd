@@ -66,8 +66,8 @@ summary(fit)
 ## References
 
 Abbas, A., Ahmad, T. and Ahmad, I. (2025). Modeling zero-inflated
-precipitation extremes. *arXiv preprint* arXiv:2504.11058.
-<https://arxiv.org/abs/2504.11058>
+precipitation extremes. *Communications in Statistics-Simulation and Computation,* 1-17.
+<https://doi.org/10.1080/03610918.2025.2585398>
 
 Ahmad, T. and Arshad, I. A. (2024). New flexible versions of extended
 generalized Pareto model for count data. *arXiv preprint*
