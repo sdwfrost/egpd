@@ -247,14 +247,103 @@ cat("AIC:", AIC(fit4), "\n")
 
     AIC: 7748.81 
 
+### ZIDEGPD Model 5: Truncated normal with zero-inflation
+
+Four parameters: sigma, xi, kappa, pi.
+
+``` r
+fit5 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1, logitpi = ~ 1),
+             data = df, family = "zidegpd", zidegpd.args = list(m = 5))
+summary(fit5)
+```
+
+
+    ** Parametric terms **
+
+    logscale
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     0.51       0.19    2.75  0.00298
+
+    logshape
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -0.97       0.15   -6.65 1.48e-11
+
+    logkappa
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     2.27        0.4    5.76 4.32e-09
+
+    logitpi
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -0.54        0.1   -5.34 4.65e-08
+
+    ** Smooth terms **
+
+``` r
+cat("Log-likelihood:", logLik(fit5), "\n")
+```
+
+    Log-likelihood: -3868.477 
+
+``` r
+cat("AIC:", AIC(fit5), "\n")
+```
+
+    AIC: 7744.953 
+
+### ZIDEGPD Model 6: Truncated beta with zero-inflation
+
+Four parameters: sigma, xi, kappa, pi.
+
+``` r
+fit6 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1, logitpi = ~ 1),
+             data = df, family = "zidegpd", zidegpd.args = list(m = 6))
+summary(fit6)
+```
+
+
+    ** Parametric terms **
+
+    logscale
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     0.57       0.18    3.11 0.000929
+
+    logshape
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)       -1       0.15   -6.59 2.14e-11
+
+    logkappa
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     1.67       0.35    4.82  7.2e-07
+
+    logitpi
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -0.49       0.08   -6.34 1.14e-10
+
+    ** Smooth terms **
+
+``` r
+cat("Log-likelihood:", logLik(fit6), "\n")
+```
+
+    Log-likelihood: -3868.112 
+
+``` r
+cat("AIC:", AIC(fit6), "\n")
+```
+
+    AIC: 7744.225 
+
 ## Model comparison
 
 ``` r
 aic_table <- data.frame(
-  Model = c("ZIDEGPD-1", "ZIDEGPD-2", "ZIDEGPD-3", "ZIDEGPD-4"),
-  npar = c(4, 6, 4, 5),
-  logLik = c(logLik(fit1), logLik(fit2), logLik(fit3), logLik(fit4)),
-  AIC = c(AIC(fit1), AIC(fit2), AIC(fit3), AIC(fit4))
+  Model = c("ZIDEGPD-1", "ZIDEGPD-2", "ZIDEGPD-3", "ZIDEGPD-4",
+            "ZIDEGPD-5", "ZIDEGPD-6"),
+  npar = c(4, 6, 4, 5, 4, 4),
+  logLik = c(logLik(fit1), logLik(fit2), logLik(fit3), logLik(fit4),
+             logLik(fit5), logLik(fit6)),
+  AIC = c(AIC(fit1), AIC(fit2), AIC(fit3), AIC(fit4),
+          AIC(fit5), AIC(fit6))
 )
 aic_table
 ```
@@ -264,6 +353,8 @@ aic_table
     2 ZIDEGPD-2    6 -3870.550 7753.101
     3 ZIDEGPD-3    4 -3871.392 7750.784
     4 ZIDEGPD-4    5 -3869.405 7748.810
+    5 ZIDEGPD-5    4 -3868.477 7744.953
+    6 ZIDEGPD-6    4 -3868.112 7744.225
 
 ## Goodness of fit
 
@@ -298,7 +389,7 @@ distribution.
 
 ``` r
 set.seed(1)
-par(mfrow = c(2, 2))
+par(mfrow = c(3, 2))
 
 r1 <- rqresid(fit1)
 qqnorm(r1, main = "Q-Q Plot (ZIDEGPD-1)", pch = 20, col = "grey60")
@@ -315,6 +406,14 @@ qqline(r3, col = "red")
 r4 <- rqresid(fit4)
 qqnorm(r4, main = "Q-Q Plot (ZIDEGPD-4)", pch = 20, col = "grey60")
 qqline(r4, col = "red")
+
+r5 <- rqresid(fit5)
+qqnorm(r5, main = "Q-Q Plot (ZIDEGPD-5)", pch = 20, col = "grey60")
+qqline(r5, col = "red")
+
+r6 <- rqresid(fit6)
+qqnorm(r6, main = "Q-Q Plot (ZIDEGPD-6)", pch = 20, col = "grey60")
+qqline(r6, col = "red")
 ```
 
 ![](doctor-visits_files/figure-gfm/qq-1.png)

@@ -319,6 +319,151 @@ qqline(r_d2, col = "red")
 
 ![](simulation_files/figure-gfm/degpd2-qq-1.png)
 
+## 3c. Discrete DEGPD Model 5: truncated normal parameter recovery
+
+Model 5 uses a truncated normal G-transformation. We simulate and verify
+parameter recovery.
+
+``` r
+set.seed(55)
+sigma_true <- 3
+xi_true    <- 0.3
+kappa_true <- 2.0
+
+n <- 2000
+y <- rdiscegpd(n, sigma = sigma_true, xi = xi_true, kappa = kappa_true,
+               type = 2)
+df <- data.frame(y = y, x = rep(1, n))
+
+cat("Range:", range(y), "\n")
+```
+
+    Range: 0 120 
+
+``` r
+cat("Mean:", mean(y), "\n")
+```
+
+    Mean: 4.934 
+
+``` r
+fit_d5 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
+               data = df, family = "degpd", degpd.args = list(m = 5))
+summary(fit_d5)
+```
+
+
+    ** Parametric terms **
+
+    logscale
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     1.13       0.09   13.24   <2e-16
+
+    logshape
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -1.15       0.12   -9.55   <2e-16
+
+    logkappa
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     0.52       0.26       2   0.0226
+
+    ** Smooth terms **
+
+``` r
+pars_d5 <- predict(fit_d5, type = "response")[1, ]
+truth_d5 <- c(scale = sigma_true, shape = xi_true, kappa = kappa_true)
+cbind(true = truth_d5, fitted = round(unlist(pars_d5), 4))
+```
+
+          true fitted
+    scale  3.0 3.0847
+    shape  0.3 0.3169
+    kappa  2.0 1.6820
+
+``` r
+set.seed(1)
+r_d5 <- rqresid(fit_d5)
+qqnorm(r_d5, main = "Q-Q Plot (DEGPD-5)", pch = 20, col = "grey60")
+qqline(r_d5, col = "red")
+```
+
+![](simulation_files/figure-gfm/degpd5-qq-1.png)
+
+## 3d. Discrete DEGPD Model 6: truncated beta parameter recovery
+
+Model 6 uses a truncated beta G-transformation. We simulate and verify
+parameter recovery.
+
+``` r
+set.seed(66)
+sigma_true <- 3
+xi_true    <- 0.3
+kappa_true <- 2.0
+
+n <- 2000
+y <- rdiscegpd(n, sigma = sigma_true, xi = xi_true, kappa = kappa_true,
+               type = 3)
+df <- data.frame(y = y, x = rep(1, n))
+
+cat("Range:", range(y), "\n")
+```
+
+    Range: 0 97 
+
+``` r
+cat("Mean:", mean(y), "\n")
+```
+
+    Mean: 5.0585 
+
+``` r
+fit_d6 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
+               data = df, family = "degpd", degpd.args = list(m = 6))
+summary(fit_d6)
+```
+
+
+    ** Parametric terms **
+
+    logscale
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     1.01       0.07   15.12   <2e-16
+
+    logshape
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -1.15        0.1  -11.11   <2e-16
+
+    logkappa
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     0.85       0.08   11.32   <2e-16
+
+    ** Smooth terms **
+
+``` r
+pars_d6 <- predict(fit_d6, type = "response")[1, ]
+truth_d6 <- c(scale = sigma_true, shape = xi_true, kappa = kappa_true)
+cbind(true = truth_d6, fitted = round(unlist(pars_d6), 4))
+```
+
+          true fitted
+    scale  3.0 2.7320
+    shape  0.3 0.3178
+    kappa  2.0 2.3486
+
+``` r
+set.seed(1)
+r_d6 <- rqresid(fit_d6)
+```
+
+    Warning in qnorm(u): NaNs produced
+
+``` r
+qqnorm(r_d6, main = "Q-Q Plot (DEGPD-6)", pch = 20, col = "grey60")
+qqline(r_d6, col = "red")
+```
+
+![](simulation_files/figure-gfm/degpd6-qq-1.png)
+
 ## 4. Discrete DEGPD: smooth covariate effect
 
 Now simulate discrete data where the scale varies with a covariate.

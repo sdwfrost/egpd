@@ -66,7 +66,7 @@ hist(df$y, breaks = 30, col = "steelblue", border = "white",
 ## Fitting EGPD models
 
 The continuous EGPD family in `egpd()` uses three formula components for
-models 1 and 3:
+models 1, 3, 5, and 6:
 
 - `lpsi`: log-scale parameter (sigma)
 - `xi`: shape parameter (xi)
@@ -172,14 +172,70 @@ summary(fit4)
 
     ** Smooth terms **
 
+### EGPD Model 5: Truncated normal transformation
+
+Model 5 uses a truncated normal G-transformation with parameter kappa.
+
+``` r
+fit5 <- egpd(list(lpsi = y ~ 1, xi = ~ 1, lkappa = ~ 1),
+             data = df, family = "egpd", egpd.args = list(m = 5))
+summary(fit5)
+```
+
+
+    ** Parametric terms **
+
+    logscale
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -0.95       0.39   -2.47  0.00669
+
+    shape
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     0.36       0.14    2.66  0.00393
+
+    logkappa
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     3.13       0.57    5.45 2.49e-08
+
+    ** Smooth terms **
+
+### EGPD Model 6: Truncated beta transformation
+
+Model 6 uses a truncated beta G-transformation with parameter kappa.
+
+``` r
+fit6 <- egpd(list(lpsi = y ~ 1, xi = ~ 1, lkappa = ~ 1),
+             data = df, family = "egpd", egpd.args = list(m = 6))
+summary(fit6)
+```
+
+
+    ** Parametric terms **
+
+    logscale
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -0.33        0.2   -1.63   0.0516
+
+    shape
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     0.12        0.1    1.19    0.117
+
+    logkappa
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     1.66       0.27    6.15  3.8e-10
+
+    ** Smooth terms **
+
 ### Model comparison
 
 ``` r
 aic_table <- data.frame(
-  Model  = c("EGPD-1", "EGPD-3", "EGPD-4"),
-  npar   = c(3, 3, 4),
-  logLik = round(c(logLik(fit1), logLik(fit3), logLik(fit4)), 2),
-  AIC    = round(c(AIC(fit1), AIC(fit3), AIC(fit4)), 2)
+  Model  = c("EGPD-1", "EGPD-3", "EGPD-4", "EGPD-5", "EGPD-6"),
+  npar   = c(3, 3, 4, 3, 3),
+  logLik = round(c(logLik(fit1), logLik(fit3), logLik(fit4),
+                   logLik(fit5), logLik(fit6)), 2),
+  AIC    = round(c(AIC(fit1), AIC(fit3), AIC(fit4),
+                   AIC(fit5), AIC(fit6)), 2)
 )
 aic_table
 ```
@@ -188,6 +244,8 @@ aic_table
     1 EGPD-1    3 -478.58 963.16
     2 EGPD-3    3 -483.65 973.29
     3 EGPD-4    4 -475.05 958.09
+    4 EGPD-5    3 -482.75 971.51
+    5 EGPD-6    3 -477.95 961.91
 
 ## Goodness of fit
 
@@ -197,7 +255,7 @@ distribution.
 
 ``` r
 set.seed(1)
-par(mfrow = c(2, 2))
+par(mfrow = c(3, 2))
 
 r1 <- rqresid(fit1)
 qqnorm(r1, main = "Q-Q Plot (EGPD-1)", pch = 20, col = "grey60")
@@ -210,6 +268,14 @@ qqline(r3, col = "red")
 r4 <- rqresid(fit4)
 qqnorm(r4, main = "Q-Q Plot (EGPD-4)", pch = 20, col = "grey60")
 qqline(r4, col = "red")
+
+r5 <- rqresid(fit5)
+qqnorm(r5, main = "Q-Q Plot (EGPD-5)", pch = 20, col = "grey60")
+qqline(r5, col = "red")
+
+r6 <- rqresid(fit6)
+qqnorm(r6, main = "Q-Q Plot (EGPD-6)", pch = 20, col = "grey60")
+qqline(r6, col = "red")
 
 par(mfrow = c(1, 1))
 ```
@@ -236,9 +302,20 @@ plot(y_sorted, emp_surv, log = "y", pch = 20, col = "grey50",
      main = "Empirical vs fitted survivor functions")
 lines(y_sorted, surv1, col = "steelblue", lwd = 2)
 lines(y_sorted, surv4, col = "firebrick", lwd = 2, lty = 2)
-legend("topright", legend = c("Empirical", "EGPD-1", "EGPD-4"),
-       col = c("grey50", "steelblue", "firebrick"),
-       pch = c(20, NA, NA), lty = c(NA, 1, 2), lwd = c(NA, 2, 2))
+p5 <- predict(fit5, type = "response")[1, ]
+surv5 <- 1 - pegpd(y_sorted, sigma = p5$scale, xi = p5$shape,
+                    kappa = p5$kappa, type = 2)
+
+p6 <- predict(fit6, type = "response")[1, ]
+surv6 <- 1 - pegpd(y_sorted, sigma = p6$scale, xi = p6$shape,
+                    kappa = p6$kappa, type = 3)
+
+lines(y_sorted, surv5, col = "darkgreen", lwd = 2, lty = 3)
+lines(y_sorted, surv6, col = "purple", lwd = 2, lty = 4)
+legend("topright", legend = c("Empirical", "EGPD-1", "EGPD-4", "EGPD-5", "EGPD-6"),
+       col = c("grey50", "steelblue", "firebrick", "darkgreen", "purple"),
+       pch = c(20, NA, NA, NA, NA), lty = c(NA, 1, 2, 3, 4),
+       lwd = c(NA, 2, 2, 2, 2))
 ```
 
 ![](temperature-extremes_files/figure-gfm/survivor-1.png)

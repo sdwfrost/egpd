@@ -227,14 +227,96 @@ cat("AIC:", AIC(fit4), "\n")
 
     AIC: 7300.31 
 
+### DEGPD Model 5: Truncated normal transformation
+
+Model 5 uses a truncated normal G-transformation with three parameters:
+sigma, xi, kappa.
+
+``` r
+fit5 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
+             data = df, family = "degpd", degpd.args = list(m = 5))
+summary(fit5)
+```
+
+
+    ** Parametric terms **
+
+    logscale
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     -0.2       0.21   -0.94    0.175
+
+    logshape
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -0.31       0.08   -3.95 3.91e-05
+
+    logkappa
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     0.65       0.59    1.11    0.133
+
+    ** Smooth terms **
+
+``` r
+cat("Log-likelihood:", logLik(fit5), "\n")
+```
+
+    Log-likelihood: -3645.066 
+
+``` r
+cat("AIC:", AIC(fit5), "\n")
+```
+
+    AIC: 7296.131 
+
+### DEGPD Model 6: Truncated beta transformation
+
+Model 6 uses a truncated beta G-transformation with three parameters:
+sigma, xi, kappa.
+
+``` r
+fit6 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
+             data = df, family = "degpd", degpd.args = list(m = 6))
+summary(fit6)
+```
+
+
+    ** Parametric terms **
+
+    logscale
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -0.13       0.19   -0.68    0.249
+
+    logshape
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -0.32       0.08   -4.09 2.16e-05
+
+    logkappa
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     0.45       0.24    1.86   0.0317
+
+    ** Smooth terms **
+
+``` r
+cat("Log-likelihood:", logLik(fit6), "\n")
+```
+
+    Log-likelihood: -3645.199 
+
+``` r
+cat("AIC:", AIC(fit6), "\n")
+```
+
+    AIC: 7296.398 
+
 ## Model comparison
 
 ``` r
 aic_table <- data.frame(
-  Model = c("DEGPD-1", "DEGPD-2", "DEGPD-3", "DEGPD-4"),
-  npar = c(3, 5, 3, 4),
-  logLik = c(logLik(fit1), logLik(fit2), logLik(fit3), logLik(fit4)),
-  AIC = c(AIC(fit1), AIC(fit2), AIC(fit3), AIC(fit4))
+  Model = c("DEGPD-1", "DEGPD-2", "DEGPD-3", "DEGPD-4", "DEGPD-5", "DEGPD-6"),
+  npar = c(3, 5, 3, 4, 3, 3),
+  logLik = c(logLik(fit1), logLik(fit2), logLik(fit3), logLik(fit4),
+             logLik(fit5), logLik(fit6)),
+  AIC = c(AIC(fit1), AIC(fit2), AIC(fit3), AIC(fit4),
+          AIC(fit5), AIC(fit6))
 )
 aic_table
 ```
@@ -244,6 +326,8 @@ aic_table
     2 DEGPD-2    5 -3646.202 7302.405
     3 DEGPD-3    3 -3645.448 7296.895
     4 DEGPD-4    4 -3646.155 7300.310
+    5 DEGPD-5    3 -3645.066 7296.131
+    6 DEGPD-6    3 -3645.199 7296.398
 
 ## Goodness of fit
 
@@ -280,7 +364,7 @@ observation and transforming to the normal scale.
 
 ``` r
 set.seed(1)
-par(mfrow = c(2, 2))
+par(mfrow = c(3, 2))
 
 r1 <- rqresid(fit1)
 qqnorm(r1, main = "Q-Q Plot (DEGPD-1)", pch = 20, col = "grey60")
@@ -297,6 +381,19 @@ qqline(r3, col = "red")
 r4 <- rqresid(fit4)
 qqnorm(r4, main = "Q-Q Plot (DEGPD-4)", pch = 20, col = "grey60")
 qqline(r4, col = "red")
+
+r5 <- rqresid(fit5)
+qqnorm(r5, main = "Q-Q Plot (DEGPD-5)", pch = 20, col = "grey60")
+qqline(r5, col = "red")
+
+r6 <- rqresid(fit6)
+```
+
+    Warning in qnorm(u): NaNs produced
+
+``` r
+qqnorm(r6, main = "Q-Q Plot (DEGPD-6)", pch = 20, col = "grey60")
+qqline(r6, col = "red")
 ```
 
 ![](insurance-complaints_files/figure-gfm/qq-1.png)
