@@ -69,9 +69,8 @@ Abbas, A., Ahmad, T. and Ahmad, I. (2025). Modeling zero-inflated
 precipitation extremes. *Communications in Statistics-Simulation and Computation,* 1-17.
 <https://doi.org/10.1080/03610918.2025.2585398>
 
-Ahmad, T. and Arshad, I. A. (2024). New flexible versions of extended
-generalized Pareto model for count data. *arXiv preprint*
-arXiv:2409.18719. <https://arxiv.org/abs/2409.18719>
+Ahmad, T. and Arshad, I. A. (2024). New flexible versions of the extended
+generalized Pareto model for count data. *Journal of Applied Statistics*. <https://arxiv.org/abs/2409.18719>
 
 Ahmad, T. and Hussain, A. (2025). Flexible model for varying levels of
 zeros and outliers in count data. *arXiv preprint* arXiv:2510.27365.
