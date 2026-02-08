@@ -2,7 +2,7 @@
 #
 # Simulation-based tests for the egpd package
 #
-# For each model class (EGPD, DEGPD, ZIDEGPD) and model variants (1, 2, 3, 4),
+# For each model class (EGPD, DEGPD, ZIDEGPD) and model variants (1--6),
 # this script:
 #   1. Simulates data from known parameters
 #   2. Fits the model
@@ -15,6 +15,8 @@
 #   Fitting model 2 -> distribution type 6  (G(u) = p*u^kappa1 + (1-p)*u^kappa2)
 #   Fitting model 3 -> distribution type 4  (G(u) = 1 - barB(1-u; 1/delta, 2)^(1/delta))
 #   Fitting model 4 -> distribution type 5  (G(u) = [1 - barB(1-u; 1/delta, 2)^(1/delta)]^(kappa/2))
+#   Fitting model 5 -> distribution type 2  (truncated normal G-function)
+#   Fitting model 6 -> distribution type 3  (truncated beta G-function)
 #
 # Usage:
 #   Rscript tests/test_simulation.R              # default: nsim=100, n=2000
@@ -199,6 +201,30 @@ res_egpd4 <- run_simulation(
   family_args_name = "egpd.args", nsim = nsim, n = n
 )
 
+# EGPD model 5: truncated normal G -> distribution type 2
+egpd5_kappa <- 2.0
+res_egpd5 <- run_simulation(
+  model_name = "EGPD-5", family = "egpd", model_num = 5,
+  true_link   = c(log(egpd_sigma), egpd_xi, log(egpd5_kappa)),
+  param_names = c("lpsi", "xi", "lkappa"),
+  sim_fn   = function(nn) regpd(nn, sigma = egpd_sigma, xi = egpd_xi,
+                                kappa = egpd5_kappa, type = 2),
+  fmla_fn  = function() list(lpsi = y ~ 1, xi = ~1, lkappa = ~1),
+  family_args_name = "egpd.args", nsim = nsim, n = n
+)
+
+# EGPD model 6: truncated beta G -> distribution type 3
+egpd6_kappa <- 2.0
+res_egpd6 <- run_simulation(
+  model_name = "EGPD-6", family = "egpd", model_num = 6,
+  true_link   = c(log(egpd_sigma), egpd_xi, log(egpd6_kappa)),
+  param_names = c("lpsi", "xi", "lkappa"),
+  sim_fn   = function(nn) regpd(nn, sigma = egpd_sigma, xi = egpd_xi,
+                                kappa = egpd6_kappa, type = 3),
+  fmla_fn  = function() list(lpsi = y ~ 1, xi = ~1, lkappa = ~1),
+  family_args_name = "egpd.args", nsim = nsim, n = n
+)
+
 # ===========================================================================
 # DEGPD (Discrete Extended GPD)
 # ===========================================================================
@@ -255,6 +281,30 @@ res_degpd4 <- run_simulation(
   sim_fn   = function(nn) rdiscegpd(nn, sigma = degpd_sigma, xi = degpd_xi,
                                      delta = degpd4_delta, kappa = degpd4_kappa, type = 5),
   fmla_fn  = function() list(lsigma = y ~ 1, lxi = ~1, ldelta = ~1, lkappa = ~1),
+  family_args_name = "degpd.args", nsim = nsim, n = n
+)
+
+# DEGPD model 5: truncated normal -> distribution type 2
+degpd5_kappa <- 2.0
+res_degpd5 <- run_simulation(
+  model_name = "DEGPD-5", family = "degpd", model_num = 5,
+  true_link   = c(log(degpd_sigma), log(degpd_xi), log(degpd5_kappa)),
+  param_names = c("lsigma", "lxi", "lkappa"),
+  sim_fn   = function(nn) rdiscegpd(nn, sigma = degpd_sigma, xi = degpd_xi,
+                                     kappa = degpd5_kappa, type = 2),
+  fmla_fn  = function() list(lsigma = y ~ 1, lxi = ~1, lkappa = ~1),
+  family_args_name = "degpd.args", nsim = nsim, n = n
+)
+
+# DEGPD model 6: truncated beta -> distribution type 3
+degpd6_kappa <- 2.0
+res_degpd6 <- run_simulation(
+  model_name = "DEGPD-6", family = "degpd", model_num = 6,
+  true_link   = c(log(degpd_sigma), log(degpd_xi), log(degpd6_kappa)),
+  param_names = c("lsigma", "lxi", "lkappa"),
+  sim_fn   = function(nn) rdiscegpd(nn, sigma = degpd_sigma, xi = degpd_xi,
+                                     kappa = degpd6_kappa, type = 3),
+  fmla_fn  = function() list(lsigma = y ~ 1, lxi = ~1, lkappa = ~1),
   family_args_name = "degpd.args", nsim = nsim, n = n
 )
 
@@ -317,6 +367,28 @@ res_zi4 <- run_simulation(
   family_args_name = "zidegpd.args", nsim = nsim, n = n
 )
 
+# ZIDEGPD model 5: truncated normal with ZI -> distribution type 2
+res_zi5 <- run_simulation(
+  model_name = "ZIDEGPD-5", family = "zidegpd", model_num = 5,
+  true_link   = c(log(zi_sigma), log(zi_xi), log(zi_kappa), logit(zi_pi)),
+  param_names = c("lsigma", "lxi", "lkappa", "logitpi"),
+  sim_fn   = function(nn) rzidiscegpd(nn, pi = zi_pi, sigma = zi_sigma, xi = zi_xi,
+                                       kappa = zi_kappa, type = 2),
+  fmla_fn  = function() list(lsigma = y ~ 1, lxi = ~1, lkappa = ~1, lpi = ~1),
+  family_args_name = "zidegpd.args", nsim = nsim, n = n
+)
+
+# ZIDEGPD model 6: truncated beta with ZI -> distribution type 3
+res_zi6 <- run_simulation(
+  model_name = "ZIDEGPD-6", family = "zidegpd", model_num = 6,
+  true_link   = c(log(zi_sigma), log(zi_xi), log(zi_kappa), logit(zi_pi)),
+  param_names = c("lsigma", "lxi", "lkappa", "logitpi"),
+  sim_fn   = function(nn) rzidiscegpd(nn, pi = zi_pi, sigma = zi_sigma, xi = zi_xi,
+                                       kappa = zi_kappa, type = 3),
+  fmla_fn  = function() list(lsigma = y ~ 1, lxi = ~1, lkappa = ~1, lpi = ~1),
+  family_args_name = "zidegpd.args", nsim = nsim, n = n
+)
+
 # ===========================================================================
 # Combined summary
 # ===========================================================================
@@ -326,9 +398,9 @@ cat("OVERALL SUMMARY\n")
 cat("============================================================\n\n")
 
 all_results <- do.call(rbind, Filter(Negate(is.null),
-  list(res_egpd1, res_egpd2, res_egpd3, res_egpd4,
-       res_degpd1, res_degpd2, res_degpd3, res_degpd4,
-       res_zi1, res_zi2, res_zi3, res_zi4)))
+  list(res_egpd1, res_egpd2, res_egpd3, res_egpd4, res_egpd5, res_egpd6,
+       res_degpd1, res_degpd2, res_degpd3, res_degpd4, res_degpd5, res_degpd6,
+       res_zi1, res_zi2, res_zi3, res_zi4, res_zi5, res_zi6)))
 
 if (!is.null(all_results) && nrow(all_results) > 0) {
   # Per-model summary
