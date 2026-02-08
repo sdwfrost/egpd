@@ -74,6 +74,9 @@ Ahmad, T. and Hussain, A. (2025). Flexible model for varying levels of
 zeros and outliers in count data. *arXiv preprint* arXiv:2510.27365.
 <https://arxiv.org/abs/2510.27365>
 
+Ahmad, T., Gaetan, C., & Naveau, P. (2025). An extended generalized Pareto
+regression model for count data. *Statistical Modelling*, 25(5), 416-431.
+
 Naveau, P., Huser, R., Ribereau, P., and Hannart, A. (2016). Modeling
 jointly low, moderate, and heavy rainfall intensities without a
 threshold selection. *Water Resources Research*, 52(4), 2897--2911.
