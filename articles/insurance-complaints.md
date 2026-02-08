@@ -12,12 +12,13 @@ automobile insurance companies in New York State.
 library(egpd)
 data(ny_complaints)
 str(ny_complaints)
-#> 'data.frame':    1942 obs. of  4 variables:
-#>  $ year    : int  2020 2020 2020 2020 2020 2020 2020 2020 2020 2020 ...
-#>  $ upheld  : int  0 0 0 0 0 0 0 0 0 0 ...
-#>  $ total   : int  20 2 13 5 0 4 5 5 3 5 ...
-#>  $ premiums: num  107.1 65 63.5 53.2 43.8 ...
 ```
+
+    'data.frame':   1942 obs. of  4 variables:
+     $ year    : int  2020 2020 2020 2020 2020 2020 2020 2020 2020 2020 ...
+     $ upheld  : int  0 0 0 0 0 0 0 0 0 0 ...
+     $ total   : int  20 2 13 5 0 4 5 5 3 5 ...
+     $ premiums: num  107.1 65 63.5 53.2 43.8 ...
 
 The response variable is the number of upheld complaints per insurer per
 year. These are non-negative integer counts with a heavy right tail.
@@ -28,12 +29,13 @@ plot(table(y[y <= 30]), main = "Upheld insurance complaints (NY)",
      xlab = "Number of upheld complaints", ylab = "Frequency")
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/insurance-complaints_files/figure-gfm/eda-1.png)<!-- -->
+![](insurance-complaints_files/figure-gfm/eda-1.png)
 
 ``` r
 cat("n =", length(y), " range:", range(y), "\n")
-#> n = 1942  range: 0 265
 ```
+
+    n = 1942  range: 0 265 
 
 ## Fitting DEGPD models
 
@@ -52,27 +54,36 @@ df <- data.frame(y = y, x = rep(1, length(y)))
 fit1 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
              data = df, family = "degpd", degpd.args = list(m = 1))
 summary(fit1)
-#> 
-#> ** Parametric terms **
-#> 
-#> logscale
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)    -0.23       0.27   -0.85    0.198
-#> 
-#> logshape
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)    -0.32       0.08   -4.06 2.44e-05
-#> 
-#> logkappa
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)     0.35       0.22    1.57    0.058
-#> 
-#> ** Smooth terms **
-cat("Log-likelihood:", logLik(fit1), "\n")
-#> Log-likelihood: -3645.223
-cat("AIC:", AIC(fit1), "\n")
-#> AIC: 7296.447
 ```
+
+
+    ** Parametric terms **
+
+    logscale
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -0.23       0.27   -0.85    0.198
+
+    logshape
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -0.32       0.08   -4.06 2.44e-05
+
+    logkappa
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     0.35       0.22    1.57    0.058
+
+    ** Smooth terms **
+
+``` r
+cat("Log-likelihood:", logLik(fit1), "\n")
+```
+
+    Log-likelihood: -3645.223 
+
+``` r
+cat("AIC:", AIC(fit1), "\n")
+```
+
+    AIC: 7296.447 
 
 ### DEGPD Model 2: Mixture of power transformations
 
@@ -83,40 +94,54 @@ sigma, xi, kappa1, dkappa, p.
 fit2 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa1 = ~ 1, ldkappa = ~ 1,
                   logitp = ~ 1),
              data = df, family = "degpd", degpd.args = list(m = 2))
-#> Final Hessian of negative penalized log-likelihood not numerically positive definite.
-summary(fit2)
-#> Warning in sqrt(obj$Vp[cbind(id2, id2)]): NaNs produced
-#> Warning in sqrt(obj$Vp[cbind(id2, id2)]): NaNs produced
-#> Warning in sqrt(obj$Vp[cbind(id2, id2)]): NaNs produced
-#> 
-#> ** Parametric terms **
-#> 
-#> logscale
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)   -13.18        NaN     NaN      NaN
-#> 
-#> logshape
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)    -0.24       0.03   -8.11 2.63e-16
-#> 
-#> logkappa1
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)     3.66        NaN     NaN      NaN
-#> 
-#> logdkappa
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)     16.9        NaN     NaN      NaN
-#> 
-#> logitp
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)    -0.58       0.12    -4.7 1.32e-06
-#> 
-#> ** Smooth terms **
-cat("Log-likelihood:", logLik(fit2), "\n")
-#> Log-likelihood: -3646.202
-cat("AIC:", AIC(fit2), "\n")
-#> AIC: 7302.405
 ```
+
+    Final Hessian of negative penalized log-likelihood not numerically positive definite.
+
+``` r
+summary(fit2)
+```
+
+    Warning in sqrt(obj$Vp[cbind(id2, id2)]): NaNs produced
+    Warning in sqrt(obj$Vp[cbind(id2, id2)]): NaNs produced
+    Warning in sqrt(obj$Vp[cbind(id2, id2)]): NaNs produced
+
+
+    ** Parametric terms **
+
+    logscale
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)   -13.18        NaN     NaN      NaN
+
+    logshape
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -0.24       0.03   -8.11 2.63e-16
+
+    logkappa1
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     3.66        NaN     NaN      NaN
+
+    logdkappa
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     16.9        NaN     NaN      NaN
+
+    logitp
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -0.58       0.12    -4.7 1.32e-06
+
+    ** Smooth terms **
+
+``` r
+cat("Log-likelihood:", logLik(fit2), "\n")
+```
+
+    Log-likelihood: -3646.202 
+
+``` r
+cat("AIC:", AIC(fit2), "\n")
+```
+
+    AIC: 7302.405 
 
 ### DEGPD Model 3: Incomplete beta transformation
 
@@ -127,27 +152,36 @@ sigma, xi, delta.
 fit3 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, ldelta = ~ 1),
              data = df, family = "degpd", degpd.args = list(m = 3))
 summary(fit3)
-#> 
-#> ** Parametric terms **
-#> 
-#> logscale
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)    -0.02       0.15   -0.15    0.439
-#> 
-#> logshape
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)    -0.34       0.08   -4.29 8.93e-06
-#> 
-#> logdelta
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)     2.02       0.73    2.75  0.00295
-#> 
-#> ** Smooth terms **
-cat("Log-likelihood:", logLik(fit3), "\n")
-#> Log-likelihood: -3645.448
-cat("AIC:", AIC(fit3), "\n")
-#> AIC: 7296.895
 ```
+
+
+    ** Parametric terms **
+
+    logscale
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -0.02       0.15   -0.15    0.439
+
+    logshape
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -0.34       0.08   -4.29 8.93e-06
+
+    logdelta
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     2.02       0.73    2.75  0.00295
+
+    ** Smooth terms **
+
+``` r
+cat("Log-likelihood:", logLik(fit3), "\n")
+```
+
+    Log-likelihood: -3645.448 
+
+``` r
+cat("AIC:", AIC(fit3), "\n")
+```
+
+    AIC: 7296.895 
 
 ### DEGPD Model 4: Power-beta transformation
 
@@ -158,31 +192,40 @@ parameters: sigma, xi, delta, kappa.
 fit4 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, ldelta = ~ 1, lkappa = ~ 1),
              data = df, family = "degpd", degpd.args = list(m = 4))
 summary(fit4)
-#> 
-#> ** Parametric terms **
-#> 
-#> logscale
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)    -0.22       0.28   -0.77    0.221
-#> 
-#> logshape
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)    -0.32       0.08   -4.05  2.6e-05
-#> 
-#> logdelta
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)     4.52       7.23    0.62    0.266
-#> 
-#> logkappa
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)     1.02       0.28    3.62 0.000146
-#> 
-#> ** Smooth terms **
-cat("Log-likelihood:", logLik(fit4), "\n")
-#> Log-likelihood: -3646.155
-cat("AIC:", AIC(fit4), "\n")
-#> AIC: 7300.31
 ```
+
+
+    ** Parametric terms **
+
+    logscale
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -0.22       0.28   -0.77    0.221
+
+    logshape
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -0.32       0.08   -4.05  2.6e-05
+
+    logdelta
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     4.52       7.23    0.62    0.266
+
+    logkappa
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     1.02       0.28    3.62 0.000146
+
+    ** Smooth terms **
+
+``` r
+cat("Log-likelihood:", logLik(fit4), "\n")
+```
+
+    Log-likelihood: -3646.155 
+
+``` r
+cat("AIC:", AIC(fit4), "\n")
+```
+
+    AIC: 7300.31 
 
 ## Model comparison
 
@@ -194,12 +237,13 @@ aic_table <- data.frame(
   AIC = c(AIC(fit1), AIC(fit2), AIC(fit3), AIC(fit4))
 )
 aic_table
-#>     Model npar    logLik      AIC
-#> 1 DEGPD-1    3 -3645.223 7296.447
-#> 2 DEGPD-2    5 -3646.202 7302.405
-#> 3 DEGPD-3    3 -3645.448 7296.895
-#> 4 DEGPD-4    4 -3646.155 7300.310
 ```
+
+        Model npar    logLik      AIC
+    1 DEGPD-1    3 -3645.223 7296.447
+    2 DEGPD-2    5 -3646.202 7302.405
+    3 DEGPD-3    3 -3645.448 7296.895
+    4 DEGPD-4    4 -3646.155 7300.310
 
 ## Goodness of fit
 
@@ -224,7 +268,7 @@ legend("topright", legend = c("Empirical", "DEGPD-1"),
        col = c("grey60", "steelblue"), lwd = 2)
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/insurance-complaints_files/figure-gfm/gof-1.png)<!-- -->
+![](insurance-complaints_files/figure-gfm/gof-1.png)
 
 ## Q-Q plots
 
@@ -255,10 +299,9 @@ qqnorm(r4, main = "Q-Q Plot (DEGPD-4)", pch = 20, col = "grey60")
 qqline(r4, col = "red")
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/insurance-complaints_files/figure-gfm/qq-1.png)<!-- -->
+![](insurance-complaints_files/figure-gfm/qq-1.png)
 
 ``` r
-
 par(mfrow = c(1, 1))
 ```
 
@@ -271,18 +314,20 @@ estimates from the fitted model.
 probs <- c(0.5, 0.9, 0.95, 0.99)
 qpred <- predict(fit1, type = "quantile", prob = probs)
 qpred[1, ]
-#>   q:0.5 q:0.9 q:0.95 q:0.99
-#> 1     1     6     11     38
 ```
+
+      q:0.5 q:0.9 q:0.95 q:0.99
+    1     1     6     11     38
 
 Compare with empirical quantiles:
 
 ``` r
 emp_q <- quantile(y, probs)
 cbind(prob = probs, empirical = emp_q, fitted = unlist(qpred[1, ]))
-#>     prob empirical fitted
-#> 50% 0.50      1.00      1
-#> 90% 0.90      5.00      6
-#> 95% 0.95     10.00     11
-#> 99% 0.99     47.18     38
 ```
+
+        prob empirical fitted
+    50% 0.50      1.00      1
+    90% 0.90      5.00      6
+    95% 0.95     10.00     11
+    99% 0.99     47.18     38

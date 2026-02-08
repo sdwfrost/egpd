@@ -13,9 +13,10 @@ with gaming and betting offense counts from New South Wales, Australia.
 library(egpd)
 data(nsw_offenses)
 str(nsw_offenses)
-#> 'data.frame':    342 obs. of  1 variable:
-#>  $ offenses: int  3 3 6 8 4 7 5 2 3 4 ...
 ```
+
+    'data.frame':   342 obs. of  1 variable:
+     $ offenses: int  3 3 6 8 4 7 5 2 3 4 ...
 
 ``` r
 d <- nsw_offenses$offenses
@@ -23,12 +24,13 @@ plot(table(d), main = "Gaming and betting offenses (NSW)",
      xlab = "Number of offenses", ylab = "Frequency")
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/gaming-offenses_files/figure-gfm/eda-1.png)<!-- -->
+![](gaming-offenses_files/figure-gfm/eda-1.png)
 
 ``` r
 cat("n =", length(d), " range:", range(d), "\n")
-#> n = 342  range: 0 88
 ```
+
+    n = 342  range: 0 88 
 
 ## Threshold selection
 
@@ -44,17 +46,24 @@ We demonstrate two threshold choices: the 10th and 20th percentiles.
 ``` r
 u10 <- floor(quantile(d, 0.10))
 cat("Threshold u (10th percentile):", u10, "\n")
-#> Threshold u (10th percentile): 1
+```
+
+    Threshold u (10th percentile): 1 
+
+``` r
 y10 <- d[d >= u10] - u10
 cat("Exceedances: n =", length(y10), "\n")
-#> Exceedances: n = 328
+```
 
+    Exceedances: n = 328 
+
+``` r
 hist(y10, breaks = 50, col = "lightblue", border = "white",
      main = paste0("Threshold exceedances (u = ", u10, ")"),
      xlab = "Excess count", ylab = "Frequency")
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/gaming-offenses_files/figure-gfm/thresh10-1.png)<!-- -->
+![](gaming-offenses_files/figure-gfm/thresh10-1.png)
 
 ### Fitting DEGPD models to the 10th-percentile exceedances
 
@@ -67,8 +76,11 @@ fit10_m1 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
 fit10_m2 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa1 = ~ 1, ldkappa = ~ 1,
                       logitp = ~ 1),
                  data = df10, family = "degpd", degpd.args = list(m = 2))
-#> Final Hessian of negative penalized log-likelihood not numerically positive definite.
+```
 
+    Final Hessian of negative penalized log-likelihood not numerically positive definite.
+
+``` r
 fit10_m3 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, ldelta = ~ 1),
                  data = df10, family = "degpd", degpd.args = list(m = 3))
 
@@ -82,49 +94,58 @@ aic10 <- data.frame(
   AIC = c(AIC(fit10_m1), AIC(fit10_m2), AIC(fit10_m3), AIC(fit10_m4))
 )
 aic10
-#>     Model npar    logLik      AIC
-#> 1 DEGPD-1    3 -1126.689 2259.378
-#> 2 DEGPD-2    5 -1128.527 2267.054
-#> 3 DEGPD-3    3 -1126.477 2258.955
-#> 4 DEGPD-4    4 -1126.537 2261.075
 ```
+
+        Model npar    logLik      AIC
+    1 DEGPD-1    3 -1126.689 2259.378
+    2 DEGPD-2    5 -1128.527 2267.054
+    3 DEGPD-3    3 -1126.477 2258.955
+    4 DEGPD-4    4 -1126.537 2261.075
 
 ``` r
 summary(fit10_m1)
-#> 
-#> ** Parametric terms **
-#> 
-#> logscale
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)     2.26       0.17   13.38   <2e-16
-#> 
-#> logshape
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)    -2.23       0.84   -2.66  0.00391
-#> 
-#> logkappa
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)     0.08       0.12     0.7    0.243
-#> 
-#> ** Smooth terms **
 ```
+
+
+    ** Parametric terms **
+
+    logscale
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     2.26       0.17   13.38   <2e-16
+
+    logshape
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -2.23       0.84   -2.66  0.00391
+
+    logkappa
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     0.08       0.12     0.7    0.243
+
+    ** Smooth terms **
 
 ### Threshold at 20th percentile
 
 ``` r
 u20 <- floor(quantile(d, 0.20))
 cat("Threshold u (20th percentile):", u20, "\n")
-#> Threshold u (20th percentile): 3
+```
+
+    Threshold u (20th percentile): 3 
+
+``` r
 y20 <- d[d >= u20] - u20
 cat("Exceedances: n =", length(y20), "\n")
-#> Exceedances: n = 274
+```
 
+    Exceedances: n = 274 
+
+``` r
 hist(y20, breaks = 50, col = "lightblue", border = "white",
      main = paste0("Threshold exceedances (u = ", u20, ")"),
      xlab = "Excess count", ylab = "Frequency")
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/gaming-offenses_files/figure-gfm/thresh20-1.png)<!-- -->
+![](gaming-offenses_files/figure-gfm/thresh20-1.png)
 
 ``` r
 df20 <- data.frame(y = y20, x = rep(1, length(y20)))
@@ -135,8 +156,11 @@ fit20_m1 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
 fit20_m2 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa1 = ~ 1, ldkappa = ~ 1,
                       logitp = ~ 1),
                  data = df20, family = "degpd", degpd.args = list(m = 2))
-#> Final Hessian of negative penalized log-likelihood not numerically positive definite.
+```
 
+    Final Hessian of negative penalized log-likelihood not numerically positive definite.
+
+``` r
 fit20_m3 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, ldelta = ~ 1),
                  data = df20, family = "degpd", degpd.args = list(m = 3))
 
@@ -150,12 +174,13 @@ aic20 <- data.frame(
   AIC = c(AIC(fit20_m1), AIC(fit20_m2), AIC(fit20_m3), AIC(fit20_m4))
 )
 aic20
-#>     Model npar    logLik      AIC
-#> 1 DEGPD-1    3 -942.2068 1890.414
-#> 2 DEGPD-2    5 -944.0447 1898.089
-#> 3 DEGPD-3    3 -941.1046 1888.209
-#> 4 DEGPD-4    4 -940.8346 1889.669
 ```
+
+        Model npar    logLik      AIC
+    1 DEGPD-1    3 -942.2068 1890.414
+    2 DEGPD-2    5 -944.0447 1898.089
+    3 DEGPD-3    3 -941.1046 1888.209
+    4 DEGPD-4    4 -940.8346 1889.669
 
 ## Goodness of fit
 
@@ -176,7 +201,7 @@ legend("topright", legend = c("Empirical", "DEGPD-1"),
        col = c("grey60", "steelblue"), lwd = 2)
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/gaming-offenses_files/figure-gfm/gof-1.png)<!-- -->
+![](gaming-offenses_files/figure-gfm/gof-1.png)
 
 ## Q-Q plots
 
@@ -203,10 +228,9 @@ qqnorm(r10_4, main = "Q-Q Plot (DEGPD-4, u = 10th pctl)", pch = 20, col = "grey6
 qqline(r10_4, col = "red")
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/gaming-offenses_files/figure-gfm/qq10-1.png)<!-- -->
+![](gaming-offenses_files/figure-gfm/qq10-1.png)
 
 ``` r
-
 par(mfrow = c(1, 1))
 ```
 
@@ -233,10 +257,9 @@ qqnorm(r20_4, main = "Q-Q Plot (DEGPD-4, u = 20th pctl)", pch = 20, col = "grey6
 qqline(r20_4, col = "red")
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/gaming-offenses_files/figure-gfm/qq20-1.png)<!-- -->
+![](gaming-offenses_files/figure-gfm/qq20-1.png)
 
 ``` r
-
 par(mfrow = c(1, 1))
 ```
 
@@ -249,7 +272,8 @@ stability.
 p10 <- predict(fit10_m1, type = "response")[1, ]
 p20 <- predict(fit20_m1, type = "response")[1, ]
 rbind("u = 10th pctl" = unlist(p10), "u = 20th pctl" = unlist(p20))
-#>                  scale     shape    kappa
-#> u = 10th pctl 9.603810 0.1075324 1.085790
-#> u = 20th pctl 9.270029 0.1345322 1.100231
 ```
+
+                     scale     shape    kappa
+    u = 10th pctl 9.603810 0.1075324 1.085790
+    u = 20th pctl 9.270029 0.1345322 1.100231

@@ -41,32 +41,48 @@ We simulate from a discrete EGPD with G(u) = u^kappa and fit using both
 ``` r
 library(egpd)
 library(gamlss)
-#> Loading required package: splines
-#> Loading required package: gamlss.data
-#> 
-#> Attaching package: 'gamlss.data'
-#> The following object is masked from 'package:datasets':
-#> 
-#>     sleep
-#> Loading required package: gamlss.dist
-#> 
-#> Attaching package: 'gamlss.dist'
-#> The following object is masked from 'package:distributions3':
-#> 
-#>     GP
-#> Loading required package: parallel
-#>  **********   GAMLSS Version 5.5-0  **********
-#> For more on GAMLSS look at https://www.gamlss.com/
-#> Type gamlssNews() to see new features/changes/bug fixes.
-#> 
-#> Attaching package: 'gamlss'
-#> The following object is masked from 'package:mgcv':
-#> 
-#>     lp
-#> The following object is masked from 'package:distributions3':
-#> 
-#>     random
+```
 
+    Loading required package: splines
+
+    Loading required package: gamlss.data
+
+
+    Attaching package: 'gamlss.data'
+
+    The following object is masked from 'package:datasets':
+
+        sleep
+
+    Loading required package: gamlss.dist
+
+
+    Attaching package: 'gamlss.dist'
+
+    The following object is masked from 'package:distributions3':
+
+        GP
+
+    Loading required package: parallel
+
+     **********   GAMLSS Version 5.5-0  ********** 
+
+    For more on GAMLSS look at https://www.gamlss.com/
+
+    Type gamlssNews() to see new features/changes/bug fixes.
+
+
+    Attaching package: 'gamlss'
+
+    The following object is masked from 'package:mgcv':
+
+        lp
+
+    The following object is masked from 'package:distributions3':
+
+        random
+
+``` r
 set.seed(99)
 sigma_true <- 3
 xi_true    <- 0.15
@@ -76,8 +92,9 @@ n <- 2000
 y <- rdiscegpd(n, sigma = sigma_true, xi = xi_true, kappa = kappa_true, type = 1)
 df <- data.frame(y = y)
 cat("Range of y:", range(y), "\n")
-#> Range of y: 0 147
 ```
+
+    Range of y: 0 147 
 
 ### egpd fit
 
@@ -109,11 +126,12 @@ data.frame(
   gamlss    = round(c(mu_g, sigma_g, nu_g), 4),
   row.names = NULL
 )
-#>   parameter true   egpd gamlss
-#> 1     sigma 3.00 2.7332 2.7205
-#> 2        xi 0.15 0.1974 0.1989
-#> 3     kappa 2.00 2.1228 2.1310
 ```
+
+      parameter true   egpd gamlss
+    1     sigma 3.00 2.7332 2.7205
+    2        xi 0.15 0.1974 0.1989
+    3     kappa 2.00 2.1228 2.1310
 
 Both approaches recover similar parameter estimates for the discrete
 model.
@@ -136,8 +154,9 @@ y <- rzidiscegpd(n, pi = pi_true, sigma = sigma_true, xi = xi_true,
                  kappa = kappa_true, type = 1)
 df <- data.frame(y = y)
 cat("Proportion of zeros:", mean(y == 0), "\n")
-#> Proportion of zeros: 0.292
 ```
+
+    Proportion of zeros: 0.292 
 
 ### egpd fit
 
@@ -170,12 +189,13 @@ data.frame(
   gamlss    = round(c(mu_zg, sigma_zg, nu_zg, tau_zg), 4),
   row.names = NULL
 )
-#>   parameter true   egpd gamlss
-#> 1     sigma 3.00 3.0878 3.0460
-#> 2        xi 0.15 0.1465 0.1505
-#> 3     kappa 2.00 1.7892 1.8202
-#> 4        pi 0.25 0.2161 0.2178
 ```
+
+      parameter true   egpd gamlss
+    1     sigma 3.00 3.0878 3.0460
+    2        xi 0.15 0.1465 0.1505
+    3     kappa 2.00 1.7892 1.8202
+    4        pi 0.25 0.2161 0.2178
 
 Both fitting approaches recover all four parameters for the
 zero-inflated discrete model.
@@ -225,11 +245,12 @@ data.frame(
   gamlss    = round(c(mu_gc, sigma_gc, nu_gc), 4),
   row.names = NULL
 )
-#>   parameter true   egpd gamlss
-#> 1     sigma  2.0 2.0957 2.0900
-#> 2        xi  0.2 0.1933 0.1943
-#> 3     kappa  1.5 1.3904 1.3928
 ```
+
+      parameter true   egpd gamlss
+    1     sigma  2.0 2.0957 2.0900
+    2        xi  0.2 0.1933 0.1943
+    3     kappa  1.5 1.3904 1.3928
 
 Both approaches recover very similar estimates for the continuous model
 as well.

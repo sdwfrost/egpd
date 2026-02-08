@@ -102,13 +102,14 @@ tab_sigma <- do.call(rbind, lapply(seq_along(sigma_vals), function(j) {
              n_ok      = r$n_ok)
 }))
 tab_sigma
-#>        sigma_true cov_sigma cov_xi cov_kappa n_ok
-#> sigma           1     0.905  0.970     0.894  199
-#> sigma1          2     0.950  0.970     0.945  199
-#> sigma2          3     0.960  0.965     0.945  200
-#> sigma3          5     0.965  0.965     0.945  200
-#> sigma4         10     0.980  0.945     0.945  200
 ```
+
+           sigma_true cov_sigma cov_xi cov_kappa n_ok
+    sigma           1     0.905  0.970     0.894  199
+    sigma1          2     0.950  0.970     0.945  199
+    sigma2          3     0.960  0.965     0.945  200
+    sigma3          5     0.965  0.965     0.945  200
+    sigma4         10     0.980  0.945     0.945  200
 
 ``` r
 se_cov <- sqrt(0.95 * 0.05 / 200)
@@ -131,7 +132,7 @@ legend("bottomright",
        pch = c(16, 17, 15), lwd = 2)
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/parameter-coverage_files/figure-gfm/sigma-coverage-plot-1.png)<!-- -->
+![](parameter-coverage_files/figure-gfm/sigma-coverage-plot-1.png)
 
 ## Varying xi
 
@@ -157,13 +158,14 @@ tab_xi <- do.call(rbind, lapply(seq_along(xi_vals), function(j) {
              n_ok      = r$n_ok)
 }))
 tab_xi
-#>        xi_true cov_sigma cov_xi cov_kappa n_ok
-#> sigma     0.05     0.905   0.91     0.940  200
-#> sigma1    0.10     0.915   0.94     0.930  200
-#> sigma2    0.20     0.945   0.95     0.950  200
-#> sigma3    0.50     0.955   0.95     0.970  200
-#> sigma4    1.00     0.965   0.95     0.975  199
 ```
+
+           xi_true cov_sigma cov_xi cov_kappa n_ok
+    sigma     0.05     0.905   0.91     0.940  200
+    sigma1    0.10     0.915   0.94     0.930  200
+    sigma2    0.20     0.945   0.95     0.950  200
+    sigma3    0.50     0.955   0.95     0.970  200
+    sigma4    1.00     0.965   0.95     0.975  199
 
 ``` r
 plot(xi_vals, tab_xi$cov_sigma, type = "b", pch = 16,
@@ -184,7 +186,7 @@ legend("bottomright",
        pch = c(16, 17, 15), lwd = 2)
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/parameter-coverage_files/figure-gfm/xi-coverage-plot-1.png)<!-- -->
+![](parameter-coverage_files/figure-gfm/xi-coverage-plot-1.png)
 
 ## Varying kappa
 
@@ -210,13 +212,14 @@ tab_kappa <- do.call(rbind, lapply(seq_along(kappa_vals), function(j) {
              n_ok       = r$n_ok)
 }))
 tab_kappa
-#>        kappa_true cov_sigma cov_xi cov_kappa n_ok
-#> sigma         0.5     0.905  0.950      0.93  200
-#> sigma1        1.0     0.955  0.970      0.96  200
-#> sigma2        2.0     0.945  0.955      0.94  200
-#> sigma3        3.0     0.950  0.975      0.96  199
-#> sigma4        5.0     0.960  0.970      0.96  200
 ```
+
+           kappa_true cov_sigma cov_xi cov_kappa n_ok
+    sigma         0.5     0.905  0.950      0.93  200
+    sigma1        1.0     0.955  0.970      0.96  200
+    sigma2        2.0     0.945  0.955      0.94  200
+    sigma3        3.0     0.950  0.975      0.96  199
+    sigma4        5.0     0.960  0.970      0.96  200
 
 ``` r
 plot(kappa_vals, tab_kappa$cov_sigma, type = "b", pch = 16,
@@ -237,7 +240,7 @@ legend("bottomright",
        pch = c(16, 17, 15), lwd = 2)
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/parameter-coverage_files/figure-gfm/kappa-coverage-plot-1.png)<!-- -->
+![](parameter-coverage_files/figure-gfm/kappa-coverage-plot-1.png)
 
 ## Bias and precision
 
@@ -284,7 +287,7 @@ boxplot(kappa ~ scenario, data = bias_sigma,
 abline(h = 0, lty = 2, col = "grey40")
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/parameter-coverage_files/figure-gfm/bias-sigma-plot-1.png)<!-- -->
+![](parameter-coverage_files/figure-gfm/bias-sigma-plot-1.png)
 
 ``` r
 par(mfrow = c(1, 3), mar = c(7, 4, 3, 1))
@@ -308,7 +311,7 @@ boxplot(kappa ~ scenario, data = bias_xi,
 abline(h = 0, lty = 2, col = "grey40")
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/parameter-coverage_files/figure-gfm/bias-xi-plot-1.png)<!-- -->
+![](parameter-coverage_files/figure-gfm/bias-xi-plot-1.png)
 
 ``` r
 par(mfrow = c(1, 3), mar = c(7, 4, 3, 1))
@@ -332,7 +335,7 @@ boxplot(kappa ~ scenario, data = bias_kappa,
 abline(h = 0, lty = 2, col = "grey40")
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/parameter-coverage_files/figure-gfm/bias-kappa-plot-1.png)<!-- -->
+![](parameter-coverage_files/figure-gfm/bias-kappa-plot-1.png)
 
 ## Wald Summary
 
@@ -373,21 +376,34 @@ ci_wald    <- confint(fit, method = "wald")
 ci_profile <- confint(fit, method = "profile")
 
 cat("Wald CIs (response scale):\n")
-#> Wald CIs (response scale):
-print(ci_wald)
-#>           lower     upper
-#> scale 1.9367855 3.2081659
-#> shape 0.1469172 0.3449858
-#> kappa 1.9318300 3.1180295
-cat("\nProfile CIs (response scale):\n")
-#> 
-#> Profile CIs (response scale):
-print(ci_profile)
-#>           lower     upper
-#> scale 1.8889002 3.1513029
-#> shape 0.1374116 0.3294722
-#> kappa 1.9591248 3.1810526
 ```
+
+    Wald CIs (response scale):
+
+``` r
+print(ci_wald)
+```
+
+              lower     upper
+    scale 1.9367855 3.2081659
+    shape 0.1469172 0.3449858
+    kappa 1.9318300 3.1180295
+
+``` r
+cat("\nProfile CIs (response scale):\n")
+```
+
+
+    Profile CIs (response scale):
+
+``` r
+print(ci_profile)
+```
+
+              lower     upper
+    scale 1.8889002 3.1513029
+    shape 0.1374116 0.3294722
+    kappa 1.9591248 3.1810526
 
 ## Wald vs Profile Coverage
 
@@ -505,31 +521,50 @@ make_both_table <- function(res_list, varied_name, varied_vals) {
 }
 
 cat("Varying sigma:\n")
-#> Varying sigma:
-make_both_table(res_both_sigma, "sigma", sigma_vals_b)
-#>        param_value wald_sigma prof_sigma wald_xi prof_xi wald_kappa prof_kappa
-#> sigma            1       0.95       0.94    0.98    0.95       0.96       0.95
-#> sigma1           3       0.97       0.96    0.98    0.96       0.97       0.96
-#> sigma2          10       0.93       0.92    0.95    0.95       0.94       0.94
-
-cat("\nVarying xi:\n")
-#> 
-#> Varying xi:
-make_both_table(res_both_xi, "xi", xi_vals_b)
-#>        param_value wald_sigma prof_sigma wald_xi prof_xi wald_kappa prof_kappa
-#> sigma          0.1      0.900      0.910    0.95    0.92      0.970      0.970
-#> sigma1         0.2      0.960      0.949    0.99    0.97      0.949      0.949
-#> sigma2         0.5      0.929      0.940    0.96    0.95      0.970      0.950
-
-cat("\nVarying kappa:\n")
-#> 
-#> Varying kappa:
-make_both_table(res_both_kappa, "kappa", kappa_vals_b)
-#>        param_value wald_sigma prof_sigma wald_xi prof_xi wald_kappa prof_kappa
-#> sigma          0.5       0.96       0.97    0.99    0.98       0.96       0.97
-#> sigma1         2.0       0.97       0.97    0.98    0.95       0.99       1.00
-#> sigma2         5.0       0.97       0.96    0.99    0.98       0.94       0.97
 ```
+
+    Varying sigma:
+
+``` r
+make_both_table(res_both_sigma, "sigma", sigma_vals_b)
+```
+
+           param_value wald_sigma prof_sigma wald_xi prof_xi wald_kappa prof_kappa
+    sigma            1       0.95       0.94    0.98    0.95       0.96       0.95
+    sigma1           3       0.97       0.96    0.98    0.96       0.97       0.96
+    sigma2          10       0.93       0.92    0.95    0.95       0.94       0.94
+
+``` r
+cat("\nVarying xi:\n")
+```
+
+
+    Varying xi:
+
+``` r
+make_both_table(res_both_xi, "xi", xi_vals_b)
+```
+
+           param_value wald_sigma prof_sigma wald_xi prof_xi wald_kappa prof_kappa
+    sigma          0.1      0.900      0.910    0.95    0.92      0.970      0.970
+    sigma1         0.2      0.960      0.949    0.99    0.97      0.949      0.949
+    sigma2         0.5      0.929      0.940    0.96    0.95      0.970      0.950
+
+``` r
+cat("\nVarying kappa:\n")
+```
+
+
+    Varying kappa:
+
+``` r
+make_both_table(res_both_kappa, "kappa", kappa_vals_b)
+```
+
+           param_value wald_sigma prof_sigma wald_xi prof_xi wald_kappa prof_kappa
+    sigma          0.5       0.96       0.97    0.99    0.98       0.96       0.97
+    sigma1         2.0       0.97       0.97    0.98    0.95       0.99       1.00
+    sigma2         5.0       0.97       0.96    0.99    0.98       0.94       0.97
 
 ### Coverage comparison plot
 
@@ -609,7 +644,7 @@ legend("bottomright",
        lty = rep(c(1, 2), 3), cex = 0.8)
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/parameter-coverage_files/figure-gfm/both-coverage-plot-1.png)<!-- -->
+![](parameter-coverage_files/figure-gfm/both-coverage-plot-1.png)
 
 ## Summary
 

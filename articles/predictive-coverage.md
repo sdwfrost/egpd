@@ -36,12 +36,21 @@ y <- rdiscegpd(n, sigma = sigma_true, xi = xi_true,
 df <- data.frame(y = y)
 
 cat("n =", n, "\n")
-#> n = 1000
-cat("Range:", range(y), "\n")
-#> Range: 0 38
-cat("Mean:", round(mean(y), 2), "\n")
-#> Mean: 4.73
 ```
+
+    n = 1000 
+
+``` r
+cat("Range:", range(y), "\n")
+```
+
+    Range: 0 38 
+
+``` r
+cat("Mean:", round(mean(y), 2), "\n")
+```
+
+    Mean: 4.73 
 
 ## 2. Fit models
 
@@ -51,23 +60,24 @@ cat("Mean:", round(mean(y), 2), "\n")
 fit_e <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
               data = df, family = "degpd", degpd.args = list(m = 1))
 summary(fit_e)
-#> 
-#> ** Parametric terms **
-#> 
-#> logscale
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)     1.14        0.1   11.58   <2e-16
-#> 
-#> logshape
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)    -2.12       0.36   -5.87 2.23e-09
-#> 
-#> logkappa
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)     0.63       0.09    7.33 1.17e-13
-#> 
-#> ** Smooth terms **
 ```
+
+
+    ** Parametric terms **
+
+    logscale
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     1.14        0.1   11.58   <2e-16
+
+    logshape
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)    -2.12       0.36   -5.87 2.23e-09
+
+    logkappa
+                Estimate Std. Error t value Pr(>|t|)
+    (Intercept)     0.63       0.09    7.33 1.17e-13
+
+    ** Smooth terms **
 
 ### gamlss
 
@@ -104,11 +114,12 @@ data.frame(
   bamlss    = round(c(sigma_b, xi_b, kappa_b), 4),
   row.names = NULL
 )
-#>   parameter true   egpd gamlss bamlss
-#> 1     sigma 3.00 3.1202 3.1009 3.1162
-#> 2        xi 0.15 0.1198 0.1221 0.1203
-#> 3     kappa 2.00 1.8744 1.8838 1.8763
 ```
+
+      parameter true   egpd gamlss bamlss
+    1     sigma 3.00 3.1202 3.1009 3.1162
+    2        xi 0.15 0.1198 0.1221 0.1203
+    3     kappa 2.00 1.8744 1.8838 1.8763
 
 ## 3. Predictive coverage at the 95% level
 
@@ -141,14 +152,15 @@ data.frame(
   nominal     = 0.95,
   row.names   = NULL
 )
-#>   approach     method coverage nominal
-#> 1     egpd    plug-in    0.952    0.95
-#> 2     egpd parametric    0.944    0.95
-#> 3   gamlss    plug-in    0.961    0.95
-#> 4   gamlss parametric    0.954    0.95
-#> 5   bamlss    plug-in    0.949    0.95
-#> 6   bamlss parametric    0.953    0.95
 ```
+
+      approach     method coverage nominal
+    1     egpd    plug-in    0.952    0.95
+    2     egpd parametric    0.944    0.95
+    3   gamlss    plug-in    0.961    0.95
+    4   gamlss parametric    0.954    0.95
+    5   bamlss    plug-in    0.949    0.95
+    6   bamlss parametric    0.953    0.95
 
 All approaches achieve empirical coverage close to the nominal 95%
 level. The parametric method tends to produce slightly wider intervals
@@ -202,7 +214,7 @@ legend("bottomright",
        pch = c(16, 17, 15, NA), lty = c(1, 1, 1, 2), lwd = 2)
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/predictive-coverage_files/figure-gfm/calibration-plugin-plot-1.png)<!-- -->
+![](predictive-coverage_files/figure-gfm/calibration-plugin-plot-1.png)
 
 ### Calibration plot: parametric prediction
 
@@ -222,7 +234,7 @@ legend("bottomright",
        pch = c(16, 17, 15, NA), lty = c(1, 1, 1, 2), lwd = 2)
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/predictive-coverage_files/figure-gfm/calibration-parametric-plot-1.png)<!-- -->
+![](predictive-coverage_files/figure-gfm/calibration-parametric-plot-1.png)
 
 Both plots show that all three fitting approaches are well-calibrated,
 with empirical coverage closely tracking the nominal level. The small
@@ -292,7 +304,7 @@ legend("bottomright",
        pch = c(16, 17, 15, NA), lty = c(1, 1, 1, 2), lwd = 2)
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/predictive-coverage_files/figure-gfm/smooth-calibration-plot-1.png)<!-- -->
+![](predictive-coverage_files/figure-gfm/smooth-calibration-plot-1.png)
 
 Even with covariate-dependent parameters, all three fitting approaches
 produce well-calibrated prediction intervals.
@@ -331,12 +343,21 @@ df_test  <- df_all[(n_train + 1):n_total, ]
 y_test   <- df_test$y
 
 cat("Training set: n =", n_train, "\n")
-#> Training set: n = 1000
-cat("Test set:     n =", n_test, "\n")
-#> Test set:     n = 200
-cat("Test x range:", round(range(df_test$x), 3), "\n")
-#> Test x range: 0.834 1
 ```
+
+    Training set: n = 1000 
+
+``` r
+cat("Test set:     n =", n_test, "\n")
+```
+
+    Test set:     n = 200 
+
+``` r
+cat("Test x range:", round(range(df_test$x), 3), "\n")
+```
+
+    Test x range: 0.834 1 
 
 ### Fit models on training data only
 
@@ -386,14 +407,15 @@ data.frame(
   nominal     = 0.95,
   row.names   = NULL
 )
-#>   approach     method coverage nominal
-#> 1     egpd    plug-in    0.960    0.95
-#> 2     egpd parametric    0.960    0.95
-#> 3   gamlss    plug-in    0.945    0.95
-#> 4   gamlss parametric    0.950    0.95
-#> 5   bamlss    plug-in    0.955    0.95
-#> 6   bamlss parametric    0.960    0.95
 ```
+
+      approach     method coverage nominal
+    1     egpd    plug-in    0.960    0.95
+    2     egpd parametric    0.960    0.95
+    3   gamlss    plug-in    0.945    0.95
+    4   gamlss parametric    0.950    0.95
+    5   bamlss    plug-in    0.955    0.95
+    6   bamlss parametric    0.960    0.95
 
 ### Forecast calibration across levels
 
@@ -439,7 +461,7 @@ legend("bottomright",
        pch = c(16, 17, 15, NA), lty = c(1, 1, 1, 2), lwd = 2)
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/predictive-coverage_files/figure-gfm/forecast-cal-plugin-plot-1.png)<!-- -->
+![](predictive-coverage_files/figure-gfm/forecast-cal-plugin-plot-1.png)
 
 ### Forecast calibration plot: parametric
 
@@ -460,7 +482,7 @@ legend("bottomright",
        pch = c(16, 17, 15, NA), lty = c(1, 1, 1, 2), lwd = 2)
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/predictive-coverage_files/figure-gfm/forecast-cal-parametric-plot-1.png)<!-- -->
+![](predictive-coverage_files/figure-gfm/forecast-cal-parametric-plot-1.png)
 
 ### Forecast prediction intervals vs observations
 
@@ -497,7 +519,7 @@ legend("topleft",
        pt.cex = c(0.8, 1.2, NA))
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/predictive-coverage_files/figure-gfm/forecast-interval-plot-1.png)<!-- -->
+![](predictive-coverage_files/figure-gfm/forecast-interval-plot-1.png)
 
 The prediction band widens with `x`, reflecting the increasing scale
 parameter. Held-out observations that fall outside the interval (red)
@@ -524,14 +546,15 @@ data.frame(
   nominal     = 0.95,
   row.names   = NULL
 )
-#>   approach    evaluation coverage nominal
-#> 1     egpd     in-sample    0.935    0.95
-#> 2     egpd out-of-sample    0.960    0.95
-#> 3   gamlss     in-sample    0.945    0.95
-#> 4   gamlss out-of-sample    0.950    0.95
-#> 5   bamlss     in-sample    0.944    0.95
-#> 6   bamlss out-of-sample    0.960    0.95
 ```
+
+      approach    evaluation coverage nominal
+    1     egpd     in-sample    0.935    0.95
+    2     egpd out-of-sample    0.960    0.95
+    3   gamlss     in-sample    0.945    0.95
+    4   gamlss out-of-sample    0.950    0.95
+    5   bamlss     in-sample    0.944    0.95
+    6   bamlss out-of-sample    0.960    0.95
 
 Both in-sample and out-of-sample coverage are close to the nominal 95%
 level, confirming that the models generalise well to unseen data within
@@ -558,10 +581,11 @@ data.frame(
                               mean(cov_hdr$U - cov_hdr$L)), 2),
   row.names        = NULL
 )
-#>    interval_type coverage mean_width
-#> 1   Equal-tailed    0.948      16.61
-#> 2 Shortest (HDR)    0.955      13.85
 ```
+
+       interval_type coverage mean_width
+    1   Equal-tailed    0.948      16.61
+    2 Shortest (HDR)    0.955      13.85
 
 The shortest interval achieves similar coverage with narrower (or equal)
 interval width, making it the more efficient choice for discrete data.

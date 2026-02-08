@@ -17,28 +17,43 @@ with the `egpd_bamlss()` family).
 ``` r
 library(egpd)
 library(bamlss)
-#> Loading required package: coda
-#> Loading required package: colorspace
-#> Loading required package: distributions3
-#> 
-#> Attaching package: 'distributions3'
-#> The following object is masked from 'package:stats':
-#> 
-#>     Gamma
-#> The following object is masked from 'package:grDevices':
-#> 
-#>     pdf
-#> Loading required package: mgcv
-#> Loading required package: nlme
-#> This is mgcv 1.9-3. For overview type 'help("mgcv-package")'.
-#> -
-#> For citation info, use citation("bamlss") and see http://www.bamlss.org/.
-#> 
-#> Attaching package: 'bamlss'
-#> The following object is masked from 'package:mgcv':
-#> 
-#>     smooth.construct
+```
 
+    Loading required package: coda
+
+    Loading required package: colorspace
+
+    Loading required package: distributions3
+
+
+    Attaching package: 'distributions3'
+
+    The following object is masked from 'package:stats':
+
+        Gamma
+
+    The following object is masked from 'package:grDevices':
+
+        pdf
+
+    Loading required package: mgcv
+
+    Loading required package: nlme
+
+    This is mgcv 1.9-3. For overview type 'help("mgcv-package")'.
+
+    -
+
+    For citation info, use citation("bamlss") and see http://www.bamlss.org/.
+
+
+    Attaching package: 'bamlss'
+
+    The following object is masked from 'package:mgcv':
+
+        smooth.construct
+
+``` r
 set.seed(42)
 sigma_true <- 2
 xi_true    <- 0.2
@@ -79,11 +94,12 @@ data.frame(
   bamlss    = round(c(sigma_b, xi_b, kappa_b), 4),
   row.names = NULL
 )
-#>   parameter true   egpd bamlss
-#> 1     sigma  2.0 2.0957 2.0949
-#> 2        xi  0.2 0.1933 0.1934
-#> 3     kappa  1.5 1.3904 1.3907
 ```
+
+      parameter true   egpd bamlss
+    1     sigma  2.0 2.0957 2.0949
+    2        xi  0.2 0.1933 0.1934
+    3     kappa  1.5 1.3904 1.3907
 
 Both approaches recover very similar parameter estimates.
 
@@ -134,7 +150,7 @@ legend("topright", legend = c("True", "egpd", "bamlss"),
        col = c("black", "steelblue", "firebrick"), lwd = 2, lty = 1:3)
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/bamlss-comparison_files/figure-gfm/egpd-smooth-compare-1.png)<!-- -->
+![](bamlss-comparison_files/figure-gfm/egpd-smooth-compare-1.png)
 
 ## Zero-inflated continuous EGPD
 
@@ -154,8 +170,9 @@ y <- rziegpd(n, pi = pi_true, sigma = sigma_true, xi = xi_true,
              kappa = kappa_true, type = 1)
 df <- data.frame(y = y)
 cat("Proportion of zeros:", mean(y == 0), "\n")
-#> Proportion of zeros: 0.296
 ```
+
+    Proportion of zeros: 0.296 
 
 ``` r
 fit_zi <- bamlss(list(y ~ 1, ~ 1, ~ 1, ~ 1),
@@ -175,12 +192,13 @@ data.frame(
   bamlss    = round(c(sigma_zb, xi_zb, kappa_zb, pi_zb), 4),
   row.names = NULL
 )
-#>   parameter true bamlss
-#> 1     sigma  2.0 1.9946
-#> 2        xi  0.2 0.2015
-#> 3     kappa  1.5 1.4613
-#> 4        pi  0.3 0.2960
 ```
+
+      parameter true bamlss
+    1     sigma  2.0 1.9946
+    2        xi  0.2 0.2015
+    3     kappa  1.5 1.4613
+    4        pi  0.3 0.2960
 
 The bamlss fit recovers all four parameters, including the
 zero-inflation probability.
@@ -201,8 +219,9 @@ n <- 2000
 y <- rdiscegpd(n, sigma = sigma_true, xi = xi_true, kappa = kappa_true, type = 1)
 df <- data.frame(y = y)
 cat("Range of y:", range(y), "\n")
-#> Range of y: 0 147
 ```
+
+    Range of y: 0 147 
 
 ### egpd fit
 
@@ -234,11 +253,12 @@ data.frame(
   bamlss    = round(c(sigma_db, xi_db, kappa_db), 4),
   row.names = NULL
 )
-#>   parameter true   egpd bamlss
-#> 1     sigma 3.00 2.7332 2.7301
-#> 2        xi 0.15 0.1974 0.1977
-#> 3     kappa 2.00 2.1228 2.1248
 ```
+
+      parameter true   egpd bamlss
+    1     sigma 3.00 2.7332 2.7301
+    2        xi 0.15 0.1974 0.1977
+    3     kappa 2.00 2.1228 2.1248
 
 Both approaches recover similar estimates for the discrete model.
 
@@ -259,8 +279,9 @@ y <- rzidiscegpd(n, pi = pi_true, sigma = sigma_true, xi = xi_true,
                  kappa = kappa_true, type = 1)
 df <- data.frame(y = y)
 cat("Proportion of zeros:", mean(y == 0), "\n")
-#> Proportion of zeros: 0.292
 ```
+
+    Proportion of zeros: 0.292 
 
 ### egpd fit
 
@@ -293,12 +314,13 @@ data.frame(
   bamlss    = round(c(sigma_zdb, xi_zdb, kappa_zdb, pi_zdb), 4),
   row.names = NULL
 )
-#>   parameter true   egpd bamlss
-#> 1     sigma 3.00 3.0878 3.0733
-#> 2        xi 0.15 0.1465 0.1479
-#> 3     kappa 2.00 1.7892 1.8001
-#> 4        pi 0.25 0.2161 0.2167
 ```
+
+      parameter true   egpd bamlss
+    1     sigma 3.00 3.0878 3.0733
+    2        xi 0.15 0.1465 0.1479
+    3     kappa 2.00 1.7892 1.8001
+    4        pi 0.25 0.2161 0.2167
 
 Both fitting approaches recover all four parameters for the
 zero-inflated discrete model.
