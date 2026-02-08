@@ -1132,3 +1132,499 @@ ZIDEGPD3 <- function(mu.link = "log", sigma.link = "log", nu.link = "log", tau.l
   fam$tau.valid     <- function(tau) all(tau > 0 & tau < 1)
   fam
 }
+
+## ---------------------------------------------------------------
+## d/p/q/r wrappers: Continuous EGPD Model 5 (truncated normal)
+## ---------------------------------------------------------------
+
+#' @title gamlss Distribution Functions for Continuous EGPD Model 5
+#' @name EGPD5
+#' @description Density, distribution function, quantile function, and random
+#'   generation for the continuous EGPD with G-transformation type 2
+#'   (truncated normal), parameterised for use with \code{gamlss}.
+#' @param x,q vector of quantiles
+#' @param p vector of probabilities
+#' @param n number of observations
+#' @param mu GPD scale parameter (sigma), positive
+#' @param sigma GPD shape parameter (xi), positive
+#' @param nu G-transformation parameter (kappa), positive
+#' @param log,log.p logical; if TRUE, probabilities/densities are given as log
+#' @param lower.tail logical; if TRUE (default), probabilities are P(X <= x)
+#' @return Numeric vector
+#' @export
+dEGPD5 <- function(x, mu = 1, sigma = 0.5, nu = 1, log = FALSE) {
+  degpd_density(x, sigma = mu, xi = sigma, kappa = nu, type = 2L, log = log)
+}
+
+#' @rdname EGPD5
+#' @export
+pEGPD5 <- function(q, mu = 1, sigma = 0.5, nu = 1, lower.tail = TRUE, log.p = FALSE) {
+  p <- pegpd(q, sigma = mu, xi = sigma, kappa = nu, type = 2L)
+  if (!lower.tail) p <- 1 - p
+  if (log.p) p <- log(p)
+  p
+}
+
+#' @rdname EGPD5
+#' @export
+qEGPD5 <- function(p, mu = 1, sigma = 0.5, nu = 1, lower.tail = TRUE, log.p = FALSE) {
+  if (log.p) p <- exp(p)
+  if (!lower.tail) p <- 1 - p
+  qegpd(p, sigma = mu, xi = sigma, kappa = nu, type = 2L)
+}
+
+#' @rdname EGPD5
+#' @export
+rEGPD5 <- function(n, mu = 1, sigma = 0.5, nu = 1) {
+  regpd(n, sigma = mu, xi = sigma, kappa = nu, type = 2L)
+}
+
+#' @title gamlss Distribution Functions for Continuous EGPD Model 6
+#' @name EGPD6
+#' @description Density, distribution function, quantile function, and random
+#'   generation for the continuous EGPD with G-transformation type 3
+#'   (truncated beta), parameterised for use with \code{gamlss}.
+#' @param x,q vector of quantiles
+#' @param p vector of probabilities
+#' @param n number of observations
+#' @param mu GPD scale parameter (sigma), positive
+#' @param sigma GPD shape parameter (xi), positive
+#' @param nu G-transformation parameter (kappa), positive
+#' @param log,log.p logical; if TRUE, probabilities/densities are given as log
+#' @param lower.tail logical; if TRUE (default), probabilities are P(X <= x)
+#' @return Numeric vector
+#' @export
+dEGPD6 <- function(x, mu = 1, sigma = 0.5, nu = 1, log = FALSE) {
+  degpd_density(x, sigma = mu, xi = sigma, kappa = nu, type = 3L, log = log)
+}
+
+#' @rdname EGPD6
+#' @export
+pEGPD6 <- function(q, mu = 1, sigma = 0.5, nu = 1, lower.tail = TRUE, log.p = FALSE) {
+  p <- pegpd(q, sigma = mu, xi = sigma, kappa = nu, type = 3L)
+  if (!lower.tail) p <- 1 - p
+  if (log.p) p <- log(p)
+  p
+}
+
+#' @rdname EGPD6
+#' @export
+qEGPD6 <- function(p, mu = 1, sigma = 0.5, nu = 1, lower.tail = TRUE, log.p = FALSE) {
+  if (log.p) p <- exp(p)
+  if (!lower.tail) p <- 1 - p
+  qegpd(p, sigma = mu, xi = sigma, kappa = nu, type = 3L)
+}
+
+#' @rdname EGPD6
+#' @export
+rEGPD6 <- function(n, mu = 1, sigma = 0.5, nu = 1) {
+  regpd(n, sigma = mu, xi = sigma, kappa = nu, type = 3L)
+}
+
+## ---------------------------------------------------------------
+## d/p/q/r wrappers: Discrete EGPD Models 5 and 6
+## ---------------------------------------------------------------
+
+#' @title gamlss Distribution Functions for Discrete EGPD Model 5
+#' @name DEGPD5
+#' @description PMF, distribution function, quantile function, and random
+#'   generation for the discrete EGPD with G-transformation type 2
+#'   (truncated normal), parameterised for use with \code{gamlss}.
+#' @param x,q vector of quantiles (non-negative integers)
+#' @param p vector of probabilities
+#' @param n number of observations
+#' @param mu GPD scale parameter (sigma), positive
+#' @param sigma GPD shape parameter (xi), positive
+#' @param nu G-transformation parameter (kappa), positive
+#' @param log,log.p logical; if TRUE, probabilities/densities are given as log
+#' @param lower.tail logical; if TRUE (default), probabilities are P(X <= x)
+#' @return Numeric vector
+#' @export
+dDEGPD5 <- function(x, mu = 1, sigma = 0.5, nu = 1, log = FALSE) {
+  d <- ddiscegpd(x, sigma = mu, xi = sigma, kappa = nu, type = 2L)
+  if (log) d <- ifelse(d > 0, log(d), -Inf)
+  d
+}
+
+#' @rdname DEGPD5
+#' @export
+pDEGPD5 <- function(q, mu = 1, sigma = 0.5, nu = 1, lower.tail = TRUE, log.p = FALSE) {
+  p <- pdiscegpd(q, sigma = mu, xi = sigma, kappa = nu, type = 2L)
+  if (!lower.tail) p <- 1 - p
+  if (log.p) p <- log(p)
+  p
+}
+
+#' @rdname DEGPD5
+#' @export
+qDEGPD5 <- function(p, mu = 1, sigma = 0.5, nu = 1, lower.tail = TRUE, log.p = FALSE) {
+  if (log.p) p <- exp(p)
+  if (!lower.tail) p <- 1 - p
+  qdiscegpd(p, sigma = mu, xi = sigma, kappa = nu, type = 2L)
+}
+
+#' @rdname DEGPD5
+#' @export
+rDEGPD5 <- function(n, mu = 1, sigma = 0.5, nu = 1) {
+  rdiscegpd(n, sigma = mu, xi = sigma, kappa = nu, type = 2L)
+}
+
+#' @title gamlss Distribution Functions for Discrete EGPD Model 6
+#' @name DEGPD6
+#' @description PMF, distribution function, quantile function, and random
+#'   generation for the discrete EGPD with G-transformation type 3
+#'   (truncated beta), parameterised for use with \code{gamlss}.
+#' @param x,q vector of quantiles (non-negative integers)
+#' @param p vector of probabilities
+#' @param n number of observations
+#' @param mu GPD scale parameter (sigma), positive
+#' @param sigma GPD shape parameter (xi), positive
+#' @param nu G-transformation parameter (kappa), positive
+#' @param log,log.p logical; if TRUE, probabilities/densities are given as log
+#' @param lower.tail logical; if TRUE (default), probabilities are P(X <= x)
+#' @return Numeric vector
+#' @export
+dDEGPD6 <- function(x, mu = 1, sigma = 0.5, nu = 1, log = FALSE) {
+  d <- ddiscegpd(x, sigma = mu, xi = sigma, kappa = nu, type = 3L)
+  if (log) d <- ifelse(d > 0, log(d), -Inf)
+  d
+}
+
+#' @rdname DEGPD6
+#' @export
+pDEGPD6 <- function(q, mu = 1, sigma = 0.5, nu = 1, lower.tail = TRUE, log.p = FALSE) {
+  p <- pdiscegpd(q, sigma = mu, xi = sigma, kappa = nu, type = 3L)
+  if (!lower.tail) p <- 1 - p
+  if (log.p) p <- log(p)
+  p
+}
+
+#' @rdname DEGPD6
+#' @export
+qDEGPD6 <- function(p, mu = 1, sigma = 0.5, nu = 1, lower.tail = TRUE, log.p = FALSE) {
+  if (log.p) p <- exp(p)
+  if (!lower.tail) p <- 1 - p
+  qdiscegpd(p, sigma = mu, xi = sigma, kappa = nu, type = 3L)
+}
+
+#' @rdname DEGPD6
+#' @export
+rDEGPD6 <- function(n, mu = 1, sigma = 0.5, nu = 1) {
+  rdiscegpd(n, sigma = mu, xi = sigma, kappa = nu, type = 3L)
+}
+
+## ---------------------------------------------------------------
+## Zero-Inflated EGPD Models 5 and 6
+## ---------------------------------------------------------------
+
+#' @title gamlss Distribution Functions for Zero-Inflated EGPD Model 5
+#' @name ZIEGPD5
+#' @param x,q vector of quantiles
+#' @param p vector of probabilities
+#' @param n number of observations
+#' @param mu GPD scale parameter (sigma), positive
+#' @param sigma GPD shape parameter (xi), positive
+#' @param nu G-transformation parameter (kappa), positive
+#' @param tau zero-inflation probability (pi), in (0,1)
+#' @param log,log.p logical
+#' @param lower.tail logical
+#' @return Numeric vector
+#' @export
+dZIEGPD5 <- function(x, mu = 1, sigma = 0.5, nu = 1, tau = 0.1, log = FALSE) {
+  dziegpd(x, pi = tau, sigma = mu, xi = sigma, kappa = nu, type = 2L, log = log)
+}
+#' @rdname ZIEGPD5
+#' @export
+pZIEGPD5 <- function(q, mu = 1, sigma = 0.5, nu = 1, tau = 0.1, lower.tail = TRUE, log.p = FALSE) {
+  p <- pziegpd(q, pi = tau, sigma = mu, xi = sigma, kappa = nu, type = 2L)
+  if (!lower.tail) p <- 1 - p
+  if (log.p) p <- log(p)
+  p
+}
+#' @rdname ZIEGPD5
+#' @export
+qZIEGPD5 <- function(p, mu = 1, sigma = 0.5, nu = 1, tau = 0.1, lower.tail = TRUE, log.p = FALSE) {
+  if (log.p) p <- exp(p)
+  if (!lower.tail) p <- 1 - p
+  qziegpd(p, pi = tau, sigma = mu, xi = sigma, kappa = nu, type = 2L)
+}
+#' @rdname ZIEGPD5
+#' @export
+rZIEGPD5 <- function(n, mu = 1, sigma = 0.5, nu = 1, tau = 0.1) {
+  rziegpd(n, pi = tau, sigma = mu, xi = sigma, kappa = nu, type = 2L)
+}
+
+#' @title gamlss Distribution Functions for Zero-Inflated EGPD Model 6
+#' @name ZIEGPD6
+#' @param x,q vector of quantiles
+#' @param p vector of probabilities
+#' @param n number of observations
+#' @param mu GPD scale parameter (sigma), positive
+#' @param sigma GPD shape parameter (xi), positive
+#' @param nu G-transformation parameter (kappa), positive
+#' @param tau zero-inflation probability (pi), in (0,1)
+#' @param log,log.p logical
+#' @param lower.tail logical
+#' @return Numeric vector
+#' @export
+dZIEGPD6 <- function(x, mu = 1, sigma = 0.5, nu = 1, tau = 0.1, log = FALSE) {
+  dziegpd(x, pi = tau, sigma = mu, xi = sigma, kappa = nu, type = 3L, log = log)
+}
+#' @rdname ZIEGPD6
+#' @export
+pZIEGPD6 <- function(q, mu = 1, sigma = 0.5, nu = 1, tau = 0.1, lower.tail = TRUE, log.p = FALSE) {
+  p <- pziegpd(q, pi = tau, sigma = mu, xi = sigma, kappa = nu, type = 3L)
+  if (!lower.tail) p <- 1 - p
+  if (log.p) p <- log(p)
+  p
+}
+#' @rdname ZIEGPD6
+#' @export
+qZIEGPD6 <- function(p, mu = 1, sigma = 0.5, nu = 1, tau = 0.1, lower.tail = TRUE, log.p = FALSE) {
+  if (log.p) p <- exp(p)
+  if (!lower.tail) p <- 1 - p
+  qziegpd(p, pi = tau, sigma = mu, xi = sigma, kappa = nu, type = 3L)
+}
+#' @rdname ZIEGPD6
+#' @export
+rZIEGPD6 <- function(n, mu = 1, sigma = 0.5, nu = 1, tau = 0.1) {
+  rziegpd(n, pi = tau, sigma = mu, xi = sigma, kappa = nu, type = 3L)
+}
+
+## ---------------------------------------------------------------
+## Zero-Inflated Discrete EGPD Models 5 and 6
+## ---------------------------------------------------------------
+
+#' @title gamlss Distribution Functions for Zero-Inflated Discrete EGPD Model 5
+#' @name ZIDEGPD5
+#' @param x,q vector of quantiles (non-negative integers)
+#' @param p vector of probabilities
+#' @param n number of observations
+#' @param mu GPD scale parameter (sigma), positive
+#' @param sigma GPD shape parameter (xi), positive
+#' @param nu G-transformation parameter (kappa), positive
+#' @param tau zero-inflation probability (pi), in (0,1)
+#' @param log,log.p logical
+#' @param lower.tail logical
+#' @return Numeric vector
+#' @export
+dZIDEGPD5 <- function(x, mu = 1, sigma = 0.5, nu = 1, tau = 0.1, log = FALSE) {
+  d <- dzidiscegpd(x, pi = tau, sigma = mu, xi = sigma, kappa = nu, type = 2L)
+  if (log) d <- ifelse(d > 0, log(d), -Inf)
+  d
+}
+#' @rdname ZIDEGPD5
+#' @export
+pZIDEGPD5 <- function(q, mu = 1, sigma = 0.5, nu = 1, tau = 0.1, lower.tail = TRUE, log.p = FALSE) {
+  p <- pzidiscegpd(q, pi = tau, sigma = mu, xi = sigma, kappa = nu, type = 2L)
+  if (!lower.tail) p <- 1 - p
+  if (log.p) p <- log(p)
+  p
+}
+#' @rdname ZIDEGPD5
+#' @export
+qZIDEGPD5 <- function(p, mu = 1, sigma = 0.5, nu = 1, tau = 0.1, lower.tail = TRUE, log.p = FALSE) {
+  if (log.p) p <- exp(p)
+  if (!lower.tail) p <- 1 - p
+  qzidiscegpd(p, pi = tau, sigma = mu, xi = sigma, kappa = nu, type = 2L)
+}
+#' @rdname ZIDEGPD5
+#' @export
+rZIDEGPD5 <- function(n, mu = 1, sigma = 0.5, nu = 1, tau = 0.1) {
+  rzidiscegpd(n, pi = tau, sigma = mu, xi = sigma, kappa = nu, type = 2L)
+}
+
+#' @title gamlss Distribution Functions for Zero-Inflated Discrete EGPD Model 6
+#' @name ZIDEGPD6
+#' @param x,q vector of quantiles (non-negative integers)
+#' @param p vector of probabilities
+#' @param n number of observations
+#' @param mu GPD scale parameter (sigma), positive
+#' @param sigma GPD shape parameter (xi), positive
+#' @param nu G-transformation parameter (kappa), positive
+#' @param tau zero-inflation probability (pi), in (0,1)
+#' @param log,log.p logical
+#' @param lower.tail logical
+#' @return Numeric vector
+#' @export
+dZIDEGPD6 <- function(x, mu = 1, sigma = 0.5, nu = 1, tau = 0.1, log = FALSE) {
+  d <- dzidiscegpd(x, pi = tau, sigma = mu, xi = sigma, kappa = nu, type = 3L)
+  if (log) d <- ifelse(d > 0, log(d), -Inf)
+  d
+}
+#' @rdname ZIDEGPD6
+#' @export
+pZIDEGPD6 <- function(q, mu = 1, sigma = 0.5, nu = 1, tau = 0.1, lower.tail = TRUE, log.p = FALSE) {
+  p <- pzidiscegpd(q, pi = tau, sigma = mu, xi = sigma, kappa = nu, type = 3L)
+  if (!lower.tail) p <- 1 - p
+  if (log.p) p <- log(p)
+  p
+}
+#' @rdname ZIDEGPD6
+#' @export
+qZIDEGPD6 <- function(p, mu = 1, sigma = 0.5, nu = 1, tau = 0.1, lower.tail = TRUE, log.p = FALSE) {
+  if (log.p) p <- exp(p)
+  if (!lower.tail) p <- 1 - p
+  qzidiscegpd(p, pi = tau, sigma = mu, xi = sigma, kappa = nu, type = 3L)
+}
+#' @rdname ZIDEGPD6
+#' @export
+rZIDEGPD6 <- function(n, mu = 1, sigma = 0.5, nu = 1, tau = 0.1) {
+  rzidiscegpd(n, pi = tau, sigma = mu, xi = sigma, kappa = nu, type = 3L)
+}
+
+## ---------------------------------------------------------------
+## gamlss Family Constructors for new models
+## ---------------------------------------------------------------
+
+#' gamlss Family for Continuous EGPD Model 5 (truncated normal)
+#' @param mu.link,sigma.link,nu.link link functions
+#' @return An object of class \code{gamlss.family}
+#' @export
+EGPD5 <- function(mu.link = "log", sigma.link = "log", nu.link = "log") {
+  fam <- .make_gamlss_family(
+    dfun = "dEGPD5", pfun = "pEGPD5",
+    family_name = "EGPD5", dist_type = "Continuous",
+    npar = 3,
+    default_links = c(mu = "log", sigma = "log", nu = "log"),
+    mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link
+  )
+  fam$mu.initial    <- expression(mu    <- rep(max(sd(y), 0.1), length(y)))
+  fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
+  fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
+  fam
+}
+
+#' gamlss Family for Continuous EGPD Model 6 (truncated beta)
+#' @param mu.link,sigma.link,nu.link link functions
+#' @return An object of class \code{gamlss.family}
+#' @export
+EGPD6 <- function(mu.link = "log", sigma.link = "log", nu.link = "log") {
+  fam <- .make_gamlss_family(
+    dfun = "dEGPD6", pfun = "pEGPD6",
+    family_name = "EGPD6", dist_type = "Continuous",
+    npar = 3,
+    default_links = c(mu = "log", sigma = "log", nu = "log"),
+    mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link
+  )
+  fam$mu.initial    <- expression(mu    <- rep(max(sd(y), 0.1), length(y)))
+  fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
+  fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
+  fam
+}
+
+#' gamlss Family for Discrete EGPD Model 5 (truncated normal)
+#' @param mu.link,sigma.link,nu.link link functions
+#' @return An object of class \code{gamlss.family}
+#' @export
+DEGPD5 <- function(mu.link = "log", sigma.link = "log", nu.link = "log") {
+  fam <- .make_gamlss_family(
+    dfun = "dDEGPD5", pfun = "pDEGPD5",
+    family_name = "DEGPD5", dist_type = "Discrete",
+    npar = 3,
+    default_links = c(mu = "log", sigma = "log", nu = "log"),
+    mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link
+  )
+  fam$mu.initial    <- expression(mu    <- rep(max(sd(y), 0.1), length(y)))
+  fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
+  fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
+  fam
+}
+
+#' gamlss Family for Discrete EGPD Model 6 (truncated beta)
+#' @param mu.link,sigma.link,nu.link link functions
+#' @return An object of class \code{gamlss.family}
+#' @export
+DEGPD6 <- function(mu.link = "log", sigma.link = "log", nu.link = "log") {
+  fam <- .make_gamlss_family(
+    dfun = "dDEGPD6", pfun = "pDEGPD6",
+    family_name = "DEGPD6", dist_type = "Discrete",
+    npar = 3,
+    default_links = c(mu = "log", sigma = "log", nu = "log"),
+    mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link
+  )
+  fam$mu.initial    <- expression(mu    <- rep(max(sd(y), 0.1), length(y)))
+  fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
+  fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
+  fam
+}
+
+#' gamlss Family for Zero-Inflated Continuous EGPD Model 5
+#' @param mu.link,sigma.link,nu.link,tau.link link functions
+#' @return An object of class \code{gamlss.family}
+#' @export
+ZIEGPD5 <- function(mu.link = "log", sigma.link = "log", nu.link = "log", tau.link = "logit") {
+  fam <- .make_gamlss_family(
+    dfun = "dZIEGPD5", pfun = "pZIEGPD5",
+    family_name = "ZIEGPD5", dist_type = "Mixed",
+    npar = 4,
+    default_links = c(mu = "log", sigma = "log", nu = "log", tau = "logit"),
+    mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link, tau.link = tau.link
+  )
+  fam$mu.initial    <- expression(mu    <- rep(max(sd(y[y > 0]), 0.1), length(y)))
+  fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
+  fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
+  fam$tau.initial   <- expression(tau   <- rep(max(mean(y == 0), 0.01), length(y)))
+  fam$tau.valid     <- function(tau) all(tau > 0 & tau < 1)
+  fam
+}
+
+#' gamlss Family for Zero-Inflated Continuous EGPD Model 6
+#' @param mu.link,sigma.link,nu.link,tau.link link functions
+#' @return An object of class \code{gamlss.family}
+#' @export
+ZIEGPD6 <- function(mu.link = "log", sigma.link = "log", nu.link = "log", tau.link = "logit") {
+  fam <- .make_gamlss_family(
+    dfun = "dZIEGPD6", pfun = "pZIEGPD6",
+    family_name = "ZIEGPD6", dist_type = "Mixed",
+    npar = 4,
+    default_links = c(mu = "log", sigma = "log", nu = "log", tau = "logit"),
+    mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link, tau.link = tau.link
+  )
+  fam$mu.initial    <- expression(mu    <- rep(max(sd(y[y > 0]), 0.1), length(y)))
+  fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
+  fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
+  fam$tau.initial   <- expression(tau   <- rep(max(mean(y == 0), 0.01), length(y)))
+  fam$tau.valid     <- function(tau) all(tau > 0 & tau < 1)
+  fam
+}
+
+#' gamlss Family for Zero-Inflated Discrete EGPD Model 5
+#' @param mu.link,sigma.link,nu.link,tau.link link functions
+#' @return An object of class \code{gamlss.family}
+#' @export
+ZIDEGPD5 <- function(mu.link = "log", sigma.link = "log", nu.link = "log", tau.link = "logit") {
+  fam <- .make_gamlss_family(
+    dfun = "dZIDEGPD5", pfun = "pZIDEGPD5",
+    family_name = "ZIDEGPD5", dist_type = "Discrete",
+    npar = 4,
+    default_links = c(mu = "log", sigma = "log", nu = "log", tau = "logit"),
+    mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link, tau.link = tau.link
+  )
+  fam$mu.initial    <- expression(mu    <- rep(max(sd(y[y > 0]), 0.1), length(y)))
+  fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
+  fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
+  fam$tau.initial   <- expression(tau   <- rep(max(mean(y == 0), 0.01), length(y)))
+  fam$tau.valid     <- function(tau) all(tau > 0 & tau < 1)
+  fam
+}
+
+#' gamlss Family for Zero-Inflated Discrete EGPD Model 6
+#' @param mu.link,sigma.link,nu.link,tau.link link functions
+#' @return An object of class \code{gamlss.family}
+#' @export
+ZIDEGPD6 <- function(mu.link = "log", sigma.link = "log", nu.link = "log", tau.link = "logit") {
+  fam <- .make_gamlss_family(
+    dfun = "dZIDEGPD6", pfun = "pZIDEGPD6",
+    family_name = "ZIDEGPD6", dist_type = "Discrete",
+    npar = 4,
+    default_links = c(mu = "log", sigma = "log", nu = "log", tau = "logit"),
+    mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link, tau.link = tau.link
+  )
+  fam$mu.initial    <- expression(mu    <- rep(max(sd(y[y > 0]), 0.1), length(y)))
+  fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
+  fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
+  fam$tau.initial   <- expression(tau   <- rep(max(mean(y == 0), 0.01), length(y)))
+  fam$tau.valid     <- function(tau) all(tau > 0 & tau < 1)
+  fam
+}

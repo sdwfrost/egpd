@@ -25,7 +25,7 @@
 }
 
 ## m -> internal type mapping (same as families.R)
-.m_to_type <- function(m) c(1L, 6L, 4L, 5L)[m]
+.m_to_type <- function(m) c(1L, 6L, 4L, 5L, 2L, 3L)[m]
 
 
 #' bamlss family for continuous EGPD
@@ -45,7 +45,7 @@
 #' @return An object of class \code{family.bamlss}
 #' @export
 egpd_bamlss <- function(m = 1, ...) {
-  if (!m %in% 1:4) stop("m must be 1, 2, 3, or 4.")
+  if (!m %in% 1:6) stop("m must be 1, 2, 3, 4, 5, or 6.")
   dtype <- .m_to_type(m)
 
   if (m == 1) {
@@ -58,9 +58,12 @@ egpd_bamlss <- function(m = 1, ...) {
   } else if (m == 3) {
     params <- c("sigma", "xi", "delta")
     default_links <- c(sigma = "log", xi = "log", delta = "log")
-  } else {
+  } else if (m == 4) {
     params <- c("sigma", "xi", "delta", "kappa")
     default_links <- c(sigma = "log", xi = "log", delta = "log", kappa = "log")
+  } else if (m %in% c(5, 6)) {
+    params <- c("sigma", "xi", "kappa")
+    default_links <- c(sigma = "log", xi = "log", kappa = "log")
   }
 
   rval <- list(
@@ -106,7 +109,7 @@ egpd_bamlss <- function(m = 1, ...) {
   )
 
   ## initialization
-  if (m == 1) {
+  if (m %in% c(1, 5, 6)) {
     rval$initialize <- list(
       sigma = function(y, ...) rep(max(sd(y), 1e-6), length(y)),
       xi    = function(y, ...) rep(0.3, length(y)),
@@ -153,7 +156,7 @@ egpd_bamlss <- function(m = 1, ...) {
 #' @return An object of class \code{family.bamlss}
 #' @export
 ziegpd_bamlss <- function(m = 1, ...) {
-  if (!m %in% 1:4) stop("m must be 1, 2, 3, or 4.")
+  if (!m %in% 1:6) stop("m must be 1, 2, 3, 4, 5, or 6.")
   dtype <- .m_to_type(m)
 
   if (m == 1) {
@@ -166,10 +169,13 @@ ziegpd_bamlss <- function(m = 1, ...) {
   } else if (m == 3) {
     params <- c("sigma", "xi", "delta", "pi")
     default_links <- c(sigma = "log", xi = "log", delta = "log", pi = "logit")
-  } else {
+  } else if (m == 4) {
     params <- c("sigma", "xi", "delta", "kappa", "pi")
     default_links <- c(sigma = "log", xi = "log", delta = "log",
                        kappa = "log", pi = "logit")
+  } else if (m %in% c(5, 6)) {
+    params <- c("sigma", "xi", "kappa", "pi")
+    default_links <- c(sigma = "log", xi = "log", kappa = "log", pi = "logit")
   }
 
   rval <- list(
@@ -226,7 +232,7 @@ ziegpd_bamlss <- function(m = 1, ...) {
     xi    = function(y, ...) rep(0.3, length(y))
   )
 
-  if (m == 1) {
+  if (m %in% c(1, 5, 6)) {
     rval$initialize <- c(base, list(
       kappa = function(y, ...) rep(max(mean(y), 1e-6), length(y)),
       pi = pi_init))
@@ -264,7 +270,7 @@ ziegpd_bamlss <- function(m = 1, ...) {
 #' @return An object of class \code{family.bamlss}
 #' @export
 degpd_bamlss <- function(m = 1, ...) {
-  if (!m %in% 1:4) stop("m must be 1, 2, 3, or 4.")
+  if (!m %in% 1:6) stop("m must be 1, 2, 3, 4, 5, or 6.")
   dtype <- .m_to_type(m)
 
   if (m == 1) {
@@ -277,9 +283,12 @@ degpd_bamlss <- function(m = 1, ...) {
   } else if (m == 3) {
     params <- c("sigma", "xi", "delta")
     default_links <- c(sigma = "log", xi = "log", delta = "log")
-  } else {
+  } else if (m == 4) {
     params <- c("sigma", "xi", "delta", "kappa")
     default_links <- c(sigma = "log", xi = "log", delta = "log", kappa = "log")
+  } else if (m %in% c(5, 6)) {
+    params <- c("sigma", "xi", "kappa")
+    default_links <- c(sigma = "log", xi = "log", kappa = "log")
   }
 
   rval <- list(
@@ -327,7 +336,7 @@ degpd_bamlss <- function(m = 1, ...) {
   )
 
   ## initialization
-  if (m == 1) {
+  if (m %in% c(1, 5, 6)) {
     rval$initialize <- list(
       sigma = function(y, ...) rep(max(sd(y), 1e-6), length(y)),
       xi    = function(y, ...) rep(0.3, length(y)),
@@ -374,7 +383,7 @@ degpd_bamlss <- function(m = 1, ...) {
 #' @return An object of class \code{family.bamlss}
 #' @export
 zidegpd_bamlss <- function(m = 1, ...) {
-  if (!m %in% 1:4) stop("m must be 1, 2, 3, or 4.")
+  if (!m %in% 1:6) stop("m must be 1, 2, 3, 4, 5, or 6.")
   dtype <- .m_to_type(m)
 
   if (m == 1) {
@@ -387,10 +396,13 @@ zidegpd_bamlss <- function(m = 1, ...) {
   } else if (m == 3) {
     params <- c("sigma", "xi", "delta", "pi")
     default_links <- c(sigma = "log", xi = "log", delta = "log", pi = "logit")
-  } else {
+  } else if (m == 4) {
     params <- c("sigma", "xi", "delta", "kappa", "pi")
     default_links <- c(sigma = "log", xi = "log", delta = "log",
                        kappa = "log", pi = "logit")
+  } else if (m %in% c(5, 6)) {
+    params <- c("sigma", "xi", "kappa", "pi")
+    default_links <- c(sigma = "log", xi = "log", kappa = "log", pi = "logit")
   }
 
   rval <- list(
@@ -448,7 +460,7 @@ zidegpd_bamlss <- function(m = 1, ...) {
     xi    = function(y, ...) rep(0.3, length(y))
   )
 
-  if (m == 1) {
+  if (m %in% c(1, 5, 6)) {
     rval$initialize <- c(base, list(
       kappa = function(y, ...) rep(max(mean(y), 1e-6), length(y)),
       pi = pi_init))

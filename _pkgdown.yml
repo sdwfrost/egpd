@@ -55,10 +55,7 @@ reference:
       - plot.egpd
       - summary.egpd
       - print.egpd
-      - print.summary.egpd
       - nobs.egpd
-      - confint.egpd
-      - vcov.egpd
       - predictive_coverage
 
   - title: "EGPD Distributions"
@@ -93,19 +90,32 @@ reference:
       - qziegpd
       - rziegpd
 
+  - title: "Diagnostics"
+    desc: "Model diagnostic tools."
+    contents:
+      - rqresid
+
   - title: "gamlss Families"
     desc: "Family constructors and d/p/q/r wrappers for fitting EGPD models with gamlss."
     contents:
       - EGPD1
       - EGPD3
       - EGPD4
+      - EGPD5
+      - EGPD6
       - DEGPD1
       - DEGPD3
       - DEGPD4
+      - DEGPD5
+      - DEGPD6
       - ZIEGPD1
       - ZIEGPD3
+      - ZIEGPD5
+      - ZIEGPD6
       - ZIDEGPD1
       - ZIDEGPD3
+      - ZIDEGPD5
+      - ZIDEGPD6
 
   - title: "bamlss Families"
     desc: "Family constructors for fitting EGPD models with bamlss."
@@ -128,7 +138,6 @@ reference:
     contents:
       - dfbind
       - pinv
-      - ginv.egpd
       - seq_between
 
   - title: "Datasets"

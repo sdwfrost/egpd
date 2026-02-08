@@ -363,7 +363,8 @@ predictive_coverage.gamlss <- function(fit, y, newdata = NULL, level = 0.95,
     if (!is.null(ml)) return(ml$linkinv)
     ## gamlss-specific links via gamlss package
     if (requireNamespace("gamlss", quietly = TRUE)) {
-      ml <- tryCatch(gamlss::make.link.gamlss(ln), error = function(e) NULL)
+      mlg_fn <- utils::getFromNamespace("make.link.gamlss", "gamlss")
+      ml <- tryCatch(mlg_fn(ln), error = function(e) NULL)
       if (!is.null(ml)) return(ml$linkinv)
     }
     stop("Cannot find inverse link for '", ln, "'")

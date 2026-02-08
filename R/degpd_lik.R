@@ -80,3 +80,35 @@
 .iG4_degpd <- function(v, delta, kappa) 1 - qbeta(1 - v^(2/kappa), 1/delta, 2)^(1/delta)
 
 .degpd4fns <- list(d0=.degpd4.d0, d120=.degpd4.d12, d340=NULL, m=4, iG=.iG4_degpd)
+
+## model 5 — truncated normal ##
+
+.degpd5.d0 <- function(pars, likdata) {
+  if (likdata$censored)
+    stop("Censored likelihoods not currently available for extended GPDs.")
+  degpd5d0(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+}
+
+.degpd5.d12 <- function(pars, likdata) {
+  degpd5d12(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+}
+
+.iG5_degpd <- function(v, kappa) q.G(v, type = 2, kappa = kappa)
+
+.degpd5fns <- list(d0=.degpd5.d0, d120=.degpd5.d12, d340=NULL, m=5, iG=.iG5_degpd)
+
+## model 6 — truncated beta ##
+
+.degpd6.d0 <- function(pars, likdata) {
+  if (likdata$censored)
+    stop("Censored likelihoods not currently available for extended GPDs.")
+  degpd6d0(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+}
+
+.degpd6.d12 <- function(pars, likdata) {
+  degpd6d12(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+}
+
+.iG6_degpd <- function(v, kappa) q.G(v, type = 3, kappa = kappa)
+
+.degpd6fns <- list(d0=.degpd6.d0, d120=.degpd6.d12, d340=NULL, m=6, iG=.iG6_degpd)

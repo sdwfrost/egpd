@@ -1693,12 +1693,394 @@ else {
 	out(j, 11) = -((((eee12 * eee7 * eee14/eee48 + eee100) * 
                        eee14 - eee53)/eee27 + 2 * (eee68 * eee58/eee54)) * eee25); // # weereet (ldelta, ldelta)
 	out(j, 12) = 0.5 * (eee68 * eee25/eee22); //  # weereet (ldelta, lkappa)
-	out(j, 13) = -(0.5 * (eee25 * 
+	out(j, 13) = -(0.5 * (eee25 *
                                log(eee22))); //# weer.t (lkappa, lkappa)
-	                                                                      
+
   }
 }
-     
+
    return out;
 }
 
+
+// //' Discrete Extended generalized Pareto distribution of type 5 (deGPD5) negative log-likelihood
+// //'
+// //' @param pars a list of vectors of coefficients for each deGPD parameter
+// //' @param X1 a design matrix for the deGPD log scale parameter
+// //' @param X2 a design matrix for the deGPD log shape parameter
+// //' @param X3 a design matrix for the deGPD log kappa
+// //' @param yvec a vector
+// //' @param dupid a scalar or vector, identifying duplicates in Xs; -1 corresponds to no duplicates
+// //' @return degpd5d0 a scalar, the negative log-liklihood
+// //' @return degpd5d12 a matrix, first then second derivatives w.r.t. deGPD5 parameters
+// //' @examples
+// //' ## to follow
+// //' @export
+// [[Rcpp::export]]
+double degpd5d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets)
+{
+
+  arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
+  arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
+  arma::vec lkappavec = X3 * Rcpp::as<arma::vec>(pars[2]);
+  int nobs = yvec.size();
+
+  if (dcate == 1) {
+    lsigmavec = lsigmavec.elem(dupid);
+    lxivec = lxivec.elem(dupid);
+    lkappavec = lkappavec.elem(dupid);
+  }
+
+  {
+  arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
+  if (off0.n_elem > 0) lsigmavec += off0;
+  arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
+  if (off1.n_elem > 0) lxivec += off1;
+  arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
+  if (off2.n_elem > 0) lkappavec += off2;
+  }
+
+  double y, lsigma, lxi, lkappa;
+  double nllh = 0.0;
+
+  for (int j = 0; j < nobs; j++) {
+
+    y = yvec[j];
+    lsigma = lsigmavec[j];
+    lxi = lxivec[j];
+    lkappa = lkappavec[j];
+
+    double sigma = exp(lsigma);
+    double xi = exp(lxi);
+    double kappa = exp(lkappa);
+    double sk = sqrt(kappa);
+
+    // GPD CDF at y and y+1
+    double v_lo = xi * y / sigma;
+    double t_lo = 1.0 + v_lo;
+    double v_hi = xi * (y + 1.0) / sigma;
+    double t_hi = 1.0 + v_hi;
+
+    if (t_lo <= 0.0 || t_hi <= 0.0) {
+      nllh = 1e20;
+      break;
+    }
+
+    double F_lo = 1.0 - R_pow(t_lo, -1.0 / xi);
+    double F_hi = 1.0 - R_pow(t_hi, -1.0 / xi);
+
+    // Truncated normal G-function
+    double Fmin = R::pnorm(-sk, 0.0, 1.0, 1, 0);
+    double denom = 0.5 - Fmin;
+    if (denom < 1e-300) denom = 1e-300;
+    double G_lo = (R::pnorm(sk * (F_lo - 1.0), 0.0, 1.0, 1, 0) - Fmin) / denom;
+    double G_hi = (R::pnorm(sk * (F_hi - 1.0), 0.0, 1.0, 1, 0) - Fmin) / denom;
+
+    double pmf = G_hi - G_lo;
+    if (pmf <= 0.0) pmf = 1e-20;
+
+    nllh += -log(pmf);
+  }
+  return nllh;
+}
+
+
+// //' @rdname degpd5d0
+// [[Rcpp::export]]
+arma::mat degpd5d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets)
+{
+
+  arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
+  arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
+  arma::vec lkappavec = X3 * Rcpp::as<arma::vec>(pars[2]);
+  int nobs = yvec.size();
+  arma::mat out = arma::mat(nobs, 9);
+
+  if (dcate == 1) {
+    lsigmavec = lsigmavec.elem(dupid);
+    lxivec = lxivec.elem(dupid);
+    lkappavec = lkappavec.elem(dupid);
+  }
+
+  {
+  arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
+  if (off0.n_elem > 0) lsigmavec += off0;
+  arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
+  if (off1.n_elem > 0) lxivec += off1;
+  arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
+  if (off2.n_elem > 0) lkappavec += off2;
+  }
+
+  double y, lsigma, lxi, lkappa;
+
+  // Per-observation NLL helper for model 5 (truncated normal)
+  auto nll5 = [](double y, double lsigma, double lxi, double lkappa) -> double {
+    double sigma = exp(lsigma);
+    double xi = exp(lxi);
+    double kappa = exp(lkappa);
+    double sk = sqrt(kappa);
+    double v_lo = xi * y / sigma;
+    double t_lo = 1.0 + v_lo;
+    double v_hi = xi * (y + 1.0) / sigma;
+    double t_hi = 1.0 + v_hi;
+    if (t_lo <= 0.0 || t_hi <= 0.0) return 1e20;
+    double F_lo = 1.0 - R_pow(t_lo, -1.0 / xi);
+    double F_hi = 1.0 - R_pow(t_hi, -1.0 / xi);
+    double Fmin = R::pnorm(-sk, 0.0, 1.0, 1, 0);
+    double denom = 0.5 - Fmin;
+    if (denom < 1e-300) denom = 1e-300;
+    double G_lo = (R::pnorm(sk * (F_lo - 1.0), 0.0, 1.0, 1, 0) - Fmin) / denom;
+    double G_hi = (R::pnorm(sk * (F_hi - 1.0), 0.0, 1.0, 1, 0) - Fmin) / denom;
+    double pmf = G_hi - G_lo;
+    if (pmf <= 0.0) pmf = 1e-20;
+    return -log(pmf);
+  };
+
+  for (int j = 0; j < nobs; j++) {
+
+    y = yvec[j];
+    lsigma = lsigmavec[j];
+    lxi = lxivec[j];
+    lkappa = lkappavec[j];
+
+    double params[3] = {lsigma, lxi, lkappa};
+    double grads[3];
+
+    // Central difference gradients
+    for (int k = 0; k < 3; k++) {
+      double h = std::max(std::abs(params[k]) * 1e-5, 1e-8);
+      double pp[3] = {params[0], params[1], params[2]};
+      double pm[3] = {params[0], params[1], params[2]};
+      pp[k] += h;
+      pm[k] -= h;
+      grads[k] = (nll5(y, pp[0], pp[1], pp[2]) - nll5(y, pm[0], pm[1], pm[2])) / (2.0 * h);
+    }
+
+    out(j, 0) = grads[0];
+    out(j, 1) = grads[1];
+    out(j, 2) = grads[2];
+
+    // Central difference Hessian (upper triangle)
+    int col = 3;
+    for (int i = 0; i < 3; i++) {
+      for (int k = i; k < 3; k++) {
+        double hi = std::max(std::abs(params[i]) * 1e-4, 1e-7);
+        double hk = std::max(std::abs(params[k]) * 1e-4, 1e-7);
+        double pp[3], pm[3], mp[3], mm[3];
+        for (int l = 0; l < 3; l++) {
+          pp[l] = params[l];
+          pm[l] = params[l];
+          mp[l] = params[l];
+          mm[l] = params[l];
+        }
+        pp[i] += hi; pp[k] += hk;
+        pm[i] += hi; pm[k] -= hk;
+        mp[i] -= hi; mp[k] += hk;
+        mm[i] -= hi; mm[k] -= hk;
+        out(j, col) = (nll5(y, pp[0], pp[1], pp[2])
+                      - nll5(y, pm[0], pm[1], pm[2])
+                      - nll5(y, mp[0], mp[1], mp[2])
+                      + nll5(y, mm[0], mm[1], mm[2])) / (4.0 * hi * hk);
+        col++;
+      }
+    }
+  }
+  return out;
+}
+
+
+// //' Discrete Extended generalized Pareto distribution of type 6 (deGPD6) negative log-likelihood
+// //'
+// //' @param pars a list of vectors of coefficients for each deGPD parameter
+// //' @param X1 a design matrix for the deGPD log scale parameter
+// //' @param X2 a design matrix for the deGPD log shape parameter
+// //' @param X3 a design matrix for the deGPD log kappa
+// //' @param yvec a vector
+// //' @param dupid a scalar or vector, identifying duplicates in Xs; -1 corresponds to no duplicates
+// //' @return degpd6d0 a scalar, the negative log-liklihood
+// //' @return degpd6d12 a matrix, first then second derivatives w.r.t. deGPD6 parameters
+// //' @examples
+// //' ## to follow
+// //' @export
+// [[Rcpp::export]]
+double degpd6d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets)
+{
+
+  arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
+  arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
+  arma::vec lkappavec = X3 * Rcpp::as<arma::vec>(pars[2]);
+  int nobs = yvec.size();
+
+  if (dcate == 1) {
+    lsigmavec = lsigmavec.elem(dupid);
+    lxivec = lxivec.elem(dupid);
+    lkappavec = lkappavec.elem(dupid);
+  }
+
+  {
+  arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
+  if (off0.n_elem > 0) lsigmavec += off0;
+  arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
+  if (off1.n_elem > 0) lxivec += off1;
+  arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
+  if (off2.n_elem > 0) lkappavec += off2;
+  }
+
+  double y, lsigma, lxi, lkappa;
+  double nllh = 0.0;
+
+  for (int j = 0; j < nobs; j++) {
+
+    y = yvec[j];
+    lsigma = lsigmavec[j];
+    lxi = lxivec[j];
+    lkappa = lkappavec[j];
+
+    double sigma = exp(lsigma);
+    double xi = exp(lxi);
+    double kappa = exp(lkappa);
+
+    // GPD CDF at y and y+1
+    double v_lo = xi * y / sigma;
+    double t_lo = 1.0 + v_lo;
+    double v_hi = xi * (y + 1.0) / sigma;
+    double t_hi = 1.0 + v_hi;
+
+    if (t_lo <= 0.0 || t_hi <= 0.0) {
+      nllh = 1e20;
+      break;
+    }
+
+    double F_lo = 1.0 - R_pow(t_lo, -1.0 / xi);
+    double F_hi = 1.0 - R_pow(t_hi, -1.0 / xi);
+
+    // Truncated Beta G-function
+    // G(u; kappa) = [pbeta((0.5 - 1/32)*u + 1/32, kappa, kappa) - pbeta(1/32, kappa, kappa)]
+    //             / [pbeta(0.5, kappa, kappa) - pbeta(1/32, kappa, kappa)]
+    double c1 = 0.5 - 1.0 / 32.0;  // = 15/32
+    double c2 = 1.0 / 32.0;         // = 1/32
+    double pb_min = R::pbeta(c2, kappa, kappa, 1, 0);
+    double pb_half = R::pbeta(0.5, kappa, kappa, 1, 0);
+    double denom_b = pb_half - pb_min;
+    if (denom_b < 1e-300) denom_b = 1e-300;
+
+    double u_lo = c1 * F_lo + c2;
+    double u_hi = c1 * F_hi + c2;
+    double G_lo = (R::pbeta(u_lo, kappa, kappa, 1, 0) - pb_min) / denom_b;
+    double G_hi = (R::pbeta(u_hi, kappa, kappa, 1, 0) - pb_min) / denom_b;
+
+    double pmf = G_hi - G_lo;
+    if (pmf <= 0.0) pmf = 1e-20;
+
+    nllh += -log(pmf);
+  }
+  return nllh;
+}
+
+
+// //' @rdname degpd6d0
+// [[Rcpp::export]]
+arma::mat degpd6d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets)
+{
+
+  arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
+  arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
+  arma::vec lkappavec = X3 * Rcpp::as<arma::vec>(pars[2]);
+  int nobs = yvec.size();
+  arma::mat out = arma::mat(nobs, 9);
+
+  if (dcate == 1) {
+    lsigmavec = lsigmavec.elem(dupid);
+    lxivec = lxivec.elem(dupid);
+    lkappavec = lkappavec.elem(dupid);
+  }
+
+  {
+  arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
+  if (off0.n_elem > 0) lsigmavec += off0;
+  arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
+  if (off1.n_elem > 0) lxivec += off1;
+  arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
+  if (off2.n_elem > 0) lkappavec += off2;
+  }
+
+  double y, lsigma, lxi, lkappa;
+
+  // Per-observation NLL helper for model 6 (truncated beta)
+  auto nll6 = [](double y, double lsigma, double lxi, double lkappa) -> double {
+    double sigma = exp(lsigma);
+    double xi = exp(lxi);
+    double kappa = exp(lkappa);
+    double v_lo = xi * y / sigma;
+    double t_lo = 1.0 + v_lo;
+    double v_hi = xi * (y + 1.0) / sigma;
+    double t_hi = 1.0 + v_hi;
+    if (t_lo <= 0.0 || t_hi <= 0.0) return 1e20;
+    double F_lo = 1.0 - R_pow(t_lo, -1.0 / xi);
+    double F_hi = 1.0 - R_pow(t_hi, -1.0 / xi);
+    double c1 = 0.5 - 1.0 / 32.0;
+    double c2 = 1.0 / 32.0;
+    double pb_min = R::pbeta(c2, kappa, kappa, 1, 0);
+    double pb_half = R::pbeta(0.5, kappa, kappa, 1, 0);
+    double denom_b = pb_half - pb_min;
+    if (denom_b < 1e-300) denom_b = 1e-300;
+    double u_lo = c1 * F_lo + c2;
+    double u_hi = c1 * F_hi + c2;
+    double G_lo = (R::pbeta(u_lo, kappa, kappa, 1, 0) - pb_min) / denom_b;
+    double G_hi = (R::pbeta(u_hi, kappa, kappa, 1, 0) - pb_min) / denom_b;
+    double pmf = G_hi - G_lo;
+    if (pmf <= 0.0) pmf = 1e-20;
+    return -log(pmf);
+  };
+
+  for (int j = 0; j < nobs; j++) {
+
+    y = yvec[j];
+    lsigma = lsigmavec[j];
+    lxi = lxivec[j];
+    lkappa = lkappavec[j];
+
+    double params[3] = {lsigma, lxi, lkappa};
+    double grads[3];
+
+    // Central difference gradients
+    for (int k = 0; k < 3; k++) {
+      double h = std::max(std::abs(params[k]) * 1e-5, 1e-8);
+      double pp[3] = {params[0], params[1], params[2]};
+      double pm[3] = {params[0], params[1], params[2]};
+      pp[k] += h;
+      pm[k] -= h;
+      grads[k] = (nll6(y, pp[0], pp[1], pp[2]) - nll6(y, pm[0], pm[1], pm[2])) / (2.0 * h);
+    }
+
+    out(j, 0) = grads[0];
+    out(j, 1) = grads[1];
+    out(j, 2) = grads[2];
+
+    // Central difference Hessian (upper triangle)
+    int col = 3;
+    for (int i = 0; i < 3; i++) {
+      for (int k = i; k < 3; k++) {
+        double hi = std::max(std::abs(params[i]) * 1e-4, 1e-7);
+        double hk = std::max(std::abs(params[k]) * 1e-4, 1e-7);
+        double pp[3], pm[3], mp[3], mm[3];
+        for (int l = 0; l < 3; l++) {
+          pp[l] = params[l];
+          pm[l] = params[l];
+          mp[l] = params[l];
+          mm[l] = params[l];
+        }
+        pp[i] += hi; pp[k] += hk;
+        pm[i] += hi; pm[k] -= hk;
+        mp[i] -= hi; mp[k] += hk;
+        mm[i] -= hi; mm[k] -= hk;
+        out(j, col) = (nll6(y, pp[0], pp[1], pp[2])
+                      - nll6(y, pm[0], pm[1], pm[2])
+                      - nll6(y, mp[0], mp[1], mp[2])
+                      + nll6(y, mm[0], mm[1], mm[2])) / (4.0 * hi * hk);
+        col++;
+      }
+    }
+  }
+  return out;
+}

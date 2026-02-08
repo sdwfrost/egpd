@@ -1,3 +1,7 @@
 ^BUGS\.md$
 ^articles$
 ^render_articles\.R$
+^vignettes/.*_cache$
+^derive_gradients\.py$
+^egpd\.Rcheck$
+^egpd_.*\.tar\.gz$

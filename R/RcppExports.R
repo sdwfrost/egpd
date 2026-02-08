@@ -33,6 +33,22 @@ degpd4d12 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets) {
     .Call(`_egpd_degpd4d12`, pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets)
 }
 
+degpd5d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_degpd5d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
+}
+
+degpd5d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_degpd5d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
+}
+
+degpd6d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_degpd6d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
+}
+
+degpd6d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_degpd6d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
+}
+
 egpd1d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
     .Call(`_egpd_egpd1d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
 }
@@ -79,6 +95,22 @@ egpd4d12 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets) {
 
 egpd4d34 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets) {
     .Call(`_egpd_egpd4d34`, pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets)
+}
+
+egpd5d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_egpd5d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
+}
+
+egpd5d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_egpd5d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
+}
+
+egpd6d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_egpd6d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
+}
+
+egpd6d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_egpd6d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
 }
 
 armapinv <- function(x, tol) {
@@ -143,5 +175,21 @@ zidegpd4d0 <- function(pars, X1, X2, X3, X4, X5, yvec, dupid, dcate, offsets) {
 
 zidegpd4d12 <- function(pars, X1, X2, X3, X4, X5, yvec, dupid, dcate, offsets) {
     .Call(`_egpd_zidegpd4d12`, pars, X1, X2, X3, X4, X5, yvec, dupid, dcate, offsets)
+}
+
+zidegpd5d0 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_zidegpd5d0`, pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets)
+}
+
+zidegpd5d12 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_zidegpd5d12`, pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets)
+}
+
+zidegpd6d0 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_zidegpd6d0`, pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets)
+}
+
+zidegpd6d12 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_zidegpd6d12`, pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets)
 }
 

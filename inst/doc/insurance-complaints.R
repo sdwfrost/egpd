@@ -1,0 +1,144 @@
+## ----setup, include = FALSE---------------------------------------------------
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 6,
+  fig.height = 4
+)
+
+
+## ----data---------------------------------------------------------------------
+library(egpd)
+data(ny_complaints)
+str(ny_complaints)
+
+
+## ----eda----------------------------------------------------------------------
+y <- ny_complaints$upheld
+plot(table(y[y <= 30]), main = "Upheld insurance complaints (NY)",
+     xlab = "Number of upheld complaints", ylab = "Frequency")
+cat("n =", length(y), " range:", range(y), "\n")
+
+
+## ----degpd1-------------------------------------------------------------------
+df <- data.frame(y = y, x = rep(1, length(y)))
+fit1 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
+             data = df, family = "degpd", degpd.args = list(m = 1))
+summary(fit1)
+cat("Log-likelihood:", logLik(fit1), "\n")
+cat("AIC:", AIC(fit1), "\n")
+
+
+## ----degpd2-------------------------------------------------------------------
+fit2 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa1 = ~ 1, ldkappa = ~ 1,
+                  logitp = ~ 1),
+             data = df, family = "degpd", degpd.args = list(m = 2))
+summary(fit2)
+cat("Log-likelihood:", logLik(fit2), "\n")
+cat("AIC:", AIC(fit2), "\n")
+
+
+## ----degpd3-------------------------------------------------------------------
+fit3 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, ldelta = ~ 1),
+             data = df, family = "degpd", degpd.args = list(m = 3))
+summary(fit3)
+cat("Log-likelihood:", logLik(fit3), "\n")
+cat("AIC:", AIC(fit3), "\n")
+
+
+## ----degpd4-------------------------------------------------------------------
+fit4 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, ldelta = ~ 1, lkappa = ~ 1),
+             data = df, family = "degpd", degpd.args = list(m = 4))
+summary(fit4)
+cat("Log-likelihood:", logLik(fit4), "\n")
+cat("AIC:", AIC(fit4), "\n")
+
+
+## ----degpd5-------------------------------------------------------------------
+fit5 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
+             data = df, family = "degpd", degpd.args = list(m = 5))
+summary(fit5)
+cat("Log-likelihood:", logLik(fit5), "\n")
+cat("AIC:", AIC(fit5), "\n")
+
+
+## ----degpd6-------------------------------------------------------------------
+fit6 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
+             data = df, family = "degpd", degpd.args = list(m = 6))
+summary(fit6)
+cat("Log-likelihood:", logLik(fit6), "\n")
+cat("AIC:", AIC(fit6), "\n")
+
+
+## ----compare------------------------------------------------------------------
+aic_table <- data.frame(
+  Model = c("DEGPD-1", "DEGPD-2", "DEGPD-3", "DEGPD-4", "DEGPD-5", "DEGPD-6"),
+  npar = c(3, 5, 3, 4, 3, 3),
+  logLik = c(logLik(fit1), logLik(fit2), logLik(fit3), logLik(fit4),
+             logLik(fit5), logLik(fit6)),
+  AIC = c(AIC(fit1), AIC(fit2), AIC(fit3), AIC(fit4),
+          AIC(fit5), AIC(fit6))
+)
+aic_table
+
+
+## ----gof, fig.width = 7, fig.height = 5---------------------------------------
+# Extract fitted parameters on the response scale
+pars1 <- predict(fit1, type = "response")
+sigma1 <- pars1$scale[1]; xi1 <- pars1$shape[1]; kappa1 <- pars1$kappa[1]
+
+xvals <- 0:30
+emp_pmf <- tabulate(y + 1, nbins = max(xvals) + 1) / length(y)
+emp_pmf <- emp_pmf[seq_along(xvals)]
+
+fit_pmf1 <- ddiscegpd(xvals, sigma = sigma1, xi = xi1, kappa = kappa1, type = 1)
+
+plot(xvals, emp_pmf, type = "h", lwd = 2, col = "grey60",
+     main = "Empirical vs fitted PMF (DEGPD-1)",
+     xlab = "Count", ylab = "Probability")
+lines(xvals + 0.2, fit_pmf1, type = "h", lwd = 2, col = "steelblue")
+legend("topright", legend = c("Empirical", "DEGPD-1"),
+       col = c("grey60", "steelblue"), lwd = 2)
+
+
+## ----qq, fig.width = 7, fig.height = 10---------------------------------------
+set.seed(1)
+par(mfrow = c(3, 2))
+
+r1 <- rqresid(fit1)
+qqnorm(r1, main = "Q-Q Plot (DEGPD-1)", pch = 20, col = "grey60")
+qqline(r1, col = "red")
+
+r2 <- rqresid(fit2)
+qqnorm(r2, main = "Q-Q Plot (DEGPD-2)", pch = 20, col = "grey60")
+qqline(r2, col = "red")
+
+r3 <- rqresid(fit3)
+qqnorm(r3, main = "Q-Q Plot (DEGPD-3)", pch = 20, col = "grey60")
+qqline(r3, col = "red")
+
+r4 <- rqresid(fit4)
+qqnorm(r4, main = "Q-Q Plot (DEGPD-4)", pch = 20, col = "grey60")
+qqline(r4, col = "red")
+
+r5 <- rqresid(fit5)
+qqnorm(r5, main = "Q-Q Plot (DEGPD-5)", pch = 20, col = "grey60")
+qqline(r5, col = "red")
+
+r6 <- rqresid(fit6)
+qqnorm(r6, main = "Q-Q Plot (DEGPD-6)", pch = 20, col = "grey60")
+qqline(r6, col = "red")
+
+par(mfrow = c(1, 1))
+
+
+## ----quantile-----------------------------------------------------------------
+probs <- c(0.5, 0.9, 0.95, 0.99)
+qpred <- predict(fit1, type = "quantile", prob = probs)
+qpred[1, ]
+
+
+## ----emp-quantile-------------------------------------------------------------
+emp_q <- quantile(y, probs)
+cbind(prob = probs, empirical = emp_q, fitted = unlist(qpred[1, ]))
+

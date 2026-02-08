@@ -9,9 +9,10 @@ support for fitting via
 infrastructure is adapted from the
 [evgam](https://CRAN.R-project.org/package=evgam) package by Ben Youngman.
 
-Models 1--4 are supported for each distribution family, following the
-parameterizations of Naveau et al. (2016). Each model extends the
-standard GPD by composing it with a transformation function *G*:
+Models 1--6 are supported for each distribution family. Models 1--4
+follow the parameterizations of Naveau et al. (2016), and Models 5--6
+follow Gamet & Jalbert (2022). Each model extends the standard GPD by
+composing it with a transformation function *G*:
 
 | Model | G-function | Parameters | Description |
 |-------|------------|------------|-------------|
@@ -19,6 +20,8 @@ standard GPD by composing it with a transformation function *G*:
 | 2 | Mixture: *G*(*u*) = *p* *u*^*κ*₁ + (1−*p*) *u*^*κ*₂ | *σ*, *ξ*, *κ*₁, Δ*κ*, *p* | Mixture of two power transformations |
 | 3 | Incomplete beta | *σ*, *ξ*, *δ* | Beta CDF transformation; more flexible bulk |
 | 4 | Power-beta | *σ*, *ξ*, *δ*, *κ* | Combines power and beta; most flexible |
+| 5 | Truncated normal | *σ*, *ξ*, *κ* | Truncated normal CDF transformation |
+| 6 | Truncated beta | *σ*, *ξ*, *κ* | Truncated beta CDF transformation |
 
 Here *σ* is the GPD scale, *ξ* is the GPD shape, and the remaining
 parameters control the *G*-function.
@@ -77,6 +80,10 @@ zeros and outliers in count data. *arXiv preprint* arXiv:2510.27365.
 Ahmad, T., Gaetan, C., & Naveau, P. (2025). An extended generalized Pareto
 regression model for count data. *Statistical Modelling*, 25(5), 416-431.
 <https://doi.org/10.1177/1471082X241266729>
+
+Gamet, P. and Jalbert, J. (2022). Modeling short-term frequency and
+trends of hydroclimatic extremes. *Environmetrics*, 33(4), e2714.
+<https://doi.org/10.1002/env.2714>
 
 Naveau, P., Huser, R., Ribereau, P., and Hannart, A. (2016). Modeling
 jointly low, moderate, and heavy rainfall intensities without a

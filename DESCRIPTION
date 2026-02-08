@@ -4,7 +4,7 @@ Title: Extended Generalized Pareto Distribution GAMs
 Version: 0.1.0
 Authors@R: c(
     person("Touqeer", "Ahmad", role = c("aut", "cre"), email = "touqeer.ahmad8960@gmail.com"),
-    person("Simon", "Frost", role = c("aut", "cre"),
+    person("Simon", "Frost", role = c("aut"),
            email = "sdwfrost@gmail.com"))
 Description: Fits Extended Generalized Pareto Distribution (EGPD), Discrete
     EGPD (DEGPD), Zero-Inflated EGPD (ZIEGPD), and Zero-Inflated Discrete
@@ -12,7 +12,7 @@ Description: Fits Extended Generalized Pareto Distribution (EGPD), Discrete
     with additional support for fitting via 'gamlss' and 'bamlss'. The fitting
     infrastructure is adapted from the 'evgam' package by Ben Youngman.
     P-value testing code is adapted from the 'mgcv' package by Simon Wood.
-    Models 1-4 are supported for each distribution family. References:
+    Models 1-6 are supported for each distribution family. References:
     Abbas, Ahmad, Ahmad (2025) <arxiv:2504.11058>,
     Ahmad, Arshad (2024) <arxiv:2409.18719>,
     Ahmad, Hussain (2025) <arxiv:2510.27365>.

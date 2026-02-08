@@ -5152,3 +5152,537 @@ out(j, 54) = ee914;
 return out;
 
 }
+
+// //' Extended generalized Pareto distribution of type 5 (eGPD5, truncated normal) negative log-likelihood
+// //'
+// //' @param pars a list of vectors of coefficients for each eGPD parameter
+// //' @param X1 a design matrix for the eGPD log scale parameter
+// //' @param X2 a design matrix for the eGPD shape parameter
+// //' @param X3 a design matrix for the eGPD log kappa
+// //' @param yvec a vector
+// //' @param dupid a scalar or vector, identifying duplicates in Xs; -1 corresponds to no duplicates
+// //' @return egpd5d0 a scalar, the negative log-liklihood
+// //' @return egpd5d12 a matrix, first then second derivatives w.r.t. eGPD5 parameters
+// //' @examples
+// //' ## to follow
+// //' @export
+// [[Rcpp::export]]
+double egpd5d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets)
+{
+
+arma::vec lpsivec = X1 * Rcpp::as<arma::vec>(pars[0]);
+arma::vec xivec = X2 * Rcpp::as<arma::vec>(pars[1]);
+arma::vec lkappavec = X3 * Rcpp::as<arma::vec>(pars[2]);
+int nobs = yvec.size();
+
+if (dcate == 1) {
+  lpsivec = lpsivec.elem(dupid);
+  xivec = xivec.elem(dupid);
+  lkappavec = lkappavec.elem(dupid);
+}
+
+{
+arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
+if (off0.n_elem > 0) lpsivec += off0;
+arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
+if (off1.n_elem > 0) xivec += off1;
+arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
+if (off2.n_elem > 0) lkappavec += off2;
+}
+
+double y, lpsi, xi, lkappa;
+double kappa, psi, ee4, ee3, ee5, ee7, v2, denom, sqk;
+double nllh=0.0;
+
+for (int j=0; j < nobs; j++) {
+
+y = yvec[j];
+lpsi = lpsivec[j];
+xi = xivec[j];
+lkappa = lkappavec[j];
+
+psi = exp(lpsi);
+kappa = exp(lkappa);
+ee4 = xi * y / psi;
+
+if (ee4 <= -1.0) {
+    nllh = 1e20;
+    break;
+}
+
+ee3 = 1.0 + ee4;
+ee5 = 1.0 / xi;
+ee7 = R_pow(ee3, ee5);
+v2 = 1.0 / (ee7 * ee7);
+sqk = sqrt(kappa);
+denom = 0.5 - R::pnorm(-sqk, 0.0, 1.0, 1, 0);
+
+nllh += -0.5 * lkappa + 0.5 * log(2.0 * M_PI) + 0.5 * kappa * v2 + log(denom) + lpsi + (1.0 + ee5) * log(ee3);
+
+}
+
+return(nllh);
+
+}
+
+// //' @rdname egpd5d0
+// [[Rcpp::export]]
+arma::mat egpd5d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets)
+{
+
+arma::vec lpsivec = X1 * Rcpp::as<arma::vec>(pars[0]);
+arma::vec xivec = X2 * Rcpp::as<arma::vec>(pars[1]);
+arma::vec lkappavec = X3 * Rcpp::as<arma::vec>(pars[2]);
+int nobs = yvec.size();
+arma::mat out = arma::mat(nobs, 9);
+
+if (dcate == 1) {
+  lpsivec = lpsivec.elem(dupid);
+  xivec = xivec.elem(dupid);
+  lkappavec = lkappavec.elem(dupid);
+}
+
+{
+arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
+if (off0.n_elem > 0) lpsivec += off0;
+arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
+if (off1.n_elem > 0) xivec += off1;
+arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
+if (off2.n_elem > 0) lkappavec += off2;
+}
+
+double y, lpsi, xi, lkappa;
+double psi, kappa, sqk;
+double ee3, ee4, ee5, ee6, ee10;
+double v, v2, A;
+double denom, phisqk, ratio;
+double dlv_dlpsi, dlv_dxi, d2lv_dlpsi2, d2lv_dxidlpsi, d2lv_dxi2;
+double nll_lpsi, nll_xi, nll_lk;
+double d2nll_lpsi2, d2nll_lpsixi, d2nll_lpsilk, d2nll_xi2, d2nll_xilk, d2nll_lk2;
+double dratio_dk;
+
+for (int j=0; j < nobs; j++) {
+
+y = yvec[j];
+lpsi = lpsivec[j];
+xi = xivec[j];
+lkappa = lkappavec[j];
+
+psi = exp(lpsi);
+kappa = exp(lkappa);
+sqk = sqrt(kappa);
+ee4 = xi * y / psi;
+ee3 = 1.0 + ee4;
+ee5 = 1.0 / xi;
+ee6 = 1.0 + ee5;
+ee10 = log(ee3);
+
+// v = (1+xi*y/psi)^(-1/xi), v2 = v^2
+v = 1.0 / R_pow(ee3, ee5);
+v2 = v * v;
+
+// A = ee4/ee3
+A = ee4 / ee3;
+
+// log(v) = -(1/xi)*log(ee3) = -ee10/xi = -ee5*ee10
+// d(log(v))/d(lpsi) = ee5 * ee4/ee3 = ee5*A      [since d(ee4)/d(lpsi) = -ee4, d(log(ee3))/d(lpsi) = -A]
+// Actually: d(log(v))/d(lpsi) = -ee5 * d(log(ee3))/d(lpsi) = -ee5*(-A) = ee5*A
+dlv_dlpsi = ee5 * A;
+
+// d(log(v))/d(xi) = (ee10 - A)/(xi*xi)
+// Since log(v) = -ee10/xi, d/d(xi) = ee10/xi^2 - (1/xi)*(1/ee3)*(y/psi) = ee10/xi^2 - ee4/(xi*ee3*xi)
+//   = (ee10 - A/1)/(xi^2)  -- wait let me redo
+// d(log(v))/d(xi) = d/d(xi)[-ee10/xi]
+// = ee10/xi^2 - (1/xi)*d(ee10)/d(xi)
+// d(ee10)/d(xi) = (1/ee3)*d(ee3)/d(xi) = (1/ee3)*(y/psi) = ee4/(xi*ee3) = A/xi
+// So d(log(v))/d(xi) = ee10/xi^2 - A/xi^2 = (ee10 - A)/xi^2
+dlv_dxi = (ee10 - A) / (xi * xi);
+
+// Second derivatives of log(v):
+// d2(log(v))/d(lpsi)^2 = ee5 * d(A)/d(lpsi)
+// d(A)/d(lpsi) = d(ee4/ee3)/d(lpsi) = (-ee4*ee3 - ee4*(-ee4))/(ee3^2) = -ee4*(ee3-ee4)/(ee3^2) = -ee4/(ee3^2)
+// So d2(log(v))/d(lpsi)^2 = -ee5*ee4/(ee3^2) = -ee5*A/ee3
+d2lv_dlpsi2 = -ee5 * A / ee3;
+
+// d2(log(v))/d(xi)d(lpsi) = d/d(lpsi)[(ee10 - A)/(xi^2)]
+// = (1/xi^2)*(-A - d(A)/d(lpsi)) = (1/xi^2)*(-A + ee4/(ee3^2))
+// = (1/xi^2)*(-A + A/ee3) = (A/xi^2)*(1/ee3 - 1) = -A*ee4/(xi^2*ee3)
+d2lv_dxidlpsi = -A * ee4 / (xi * xi * ee3);
+
+// d2(log(v))/d(xi)^2
+// d/d(xi)[(ee10 - A)/(xi^2)]
+// = [-2*(ee10 - A)/xi^3 + (1/xi^2)*d(ee10-A)/d(xi)]
+// d(ee10)/d(xi) = A/xi
+// d(A)/d(xi) = d(ee4/ee3)/d(xi) = [(y/psi)*ee3 - ee4*(y/psi)]/(ee3^2) = 0  -- wait
+// Actually d(ee4)/d(xi) = y/psi and d(ee3)/d(xi) = y/psi = ee4/xi
+// d(A)/d(xi) = d(ee4/ee3)/d(xi) = [ee4/xi * ee3 - ee4 * ee4/xi]/(ee3^2)
+//  = (ee4/xi)*(ee3 - ee4)/(ee3^2) = (ee4/xi)/(ee3^2) = A/(xi*ee3)
+// So d(ee10-A)/d(xi) = A/xi - A/(xi*ee3) = A*(ee3-1)/(xi*ee3) = A*ee4/(xi*ee3)
+// Therefore: d2(log(v))/d(xi)^2 = -2*(ee10-A)/xi^3 + A*ee4/(xi^3*ee3)
+d2lv_dxi2 = (-2.0 * (ee10 - A) + A * ee4 / ee3) / (xi * xi * xi);
+
+// NLL = -0.5*lkappa + 0.5*log(2*pi) + 0.5*kappa*v2 + log(denom) + lpsi + ee6*ee10
+// The v2 term: 0.5*kappa*v2 = 0.5*kappa*exp(2*log(v))
+// d(0.5*kappa*v2)/d(lpsi) = 0.5*kappa*2*v2*dlv_dlpsi = kappa*v2*dlv_dlpsi
+// d(ee6*ee10)/d(lpsi) = ee6*(-A) = -ee6*A
+
+// denom and related:
+denom = 0.5 - R::pnorm(-sqk, 0.0, 1.0, 1, 0);
+phisqk = R::dnorm(sqk, 0.0, 1.0, 0);
+// ratio = sqk*phisqk/(2*denom)
+ratio = sqk * phisqk / (2.0 * denom);
+
+// First derivatives:
+nll_lpsi = 1.0 + kappa * v2 * dlv_dlpsi - ee6 * A;
+nll_xi = kappa * v2 * dlv_dxi - ee10 / (xi * xi) + ee6 * A / xi;
+// Actually let me recalculate nll_xi more carefully:
+// d(ee6*ee10)/d(xi) = (-1/xi^2)*ee10 + ee6*(A/xi) = -ee10/xi^2 + (1+1/xi)*A/xi
+// = -ee10/xi^2 + A/xi + A/xi^2
+// So nll_xi = kappa*v2*dlv_dxi - ee10/xi^2 + A/xi + A/xi^2
+nll_xi = kappa * v2 * dlv_dxi + (-ee10 + A) / (xi * xi) + A / xi;
+nll_lk = -0.5 + 0.5 * kappa * v2 + ratio;
+
+// Second derivatives:
+// d2(nll)/d(lpsi)^2:
+// d/d(lpsi)[1 + kappa*v2*dlv_dlpsi - ee6*A]
+// = kappa*(2*v2*dlv_dlpsi^2 + v2*d2lv_dlpsi2) - ee6*dA/d(lpsi)
+// dA/d(lpsi) = -ee4/(ee3^2) = -A/ee3
+// = kappa*v2*(2*dlv_dlpsi^2 + d2lv_dlpsi2) + ee6*A/ee3
+d2nll_lpsi2 = kappa * v2 * (2.0 * dlv_dlpsi * dlv_dlpsi + d2lv_dlpsi2) + ee6 * A / ee3;
+
+// d2(nll)/d(lpsi)d(xi):
+// d/d(xi)[1 + kappa*v2*dlv_dlpsi - ee6*A]
+// = kappa*(2*v2*dlv_dxi*dlv_dlpsi + v2*d2lv_dxidlpsi)
+//   - d(ee6*A)/d(xi)
+// d(ee6)/d(xi) = -1/xi^2
+// d(A)/d(xi) = A/(xi*ee3)
+// d(ee6*A)/d(xi) = -A/xi^2 + ee6*A/(xi*ee3)
+d2nll_lpsixi = kappa * v2 * (2.0 * dlv_dxi * dlv_dlpsi + d2lv_dxidlpsi)
+               + A / (xi * xi) - ee6 * A / (xi * ee3);
+
+// d2(nll)/d(lpsi)d(lkappa):
+// d/d(lkappa)[1 + kappa*v2*dlv_dlpsi - ee6*A]
+// = kappa*v2*dlv_dlpsi  (since d(kappa)/d(lkappa)=kappa, and only the kappa*v2*dlv_dlpsi term depends on kappa)
+d2nll_lpsilk = kappa * v2 * dlv_dlpsi;
+
+// d2(nll)/d(xi)^2:
+// d/d(xi)[kappa*v2*dlv_dxi + (-ee10+A)/xi^2 + A/xi]
+// = kappa*(2*v2*dlv_dxi^2 + v2*d2lv_dxi2)
+//   + d/d(xi)[(-ee10+A)/xi^2] + d/d(xi)[A/xi]
+// d/d(xi)[(-ee10+A)/xi^2] = [(-A/xi + A/(xi*ee3))*xi^2 - (-ee10+A)*2*xi]/xi^4
+//   = [-A/xi + A/(xi*ee3) + 2*(ee10-A)/xi]/xi^2   -- wait let me be more careful
+//   Let B = -ee10+A = A-ee10. d(B)/d(xi) = A/(xi*ee3) - A/xi = -A*ee4/(xi*ee3)
+//   d(B/xi^2)/d(xi) = [d(B)/d(xi)*xi^2 - B*2*xi]/xi^4
+//   = [d(B)/d(xi) - 2*B/xi]/xi^2
+//   = [-A*ee4/(xi*ee3) - 2*(A-ee10)/xi]/xi^2
+//   = [-A*ee4/(xi*ee3) - 2*A/xi + 2*ee10/xi]/xi^2
+// d/d(xi)[A/xi] = [A/(xi*ee3) - A/xi]/xi = A*(1/ee3 - 1)/(xi*xi) = -A*ee4/(xi*xi*ee3)
+d2nll_xi2 = kappa * v2 * (2.0 * dlv_dxi * dlv_dxi + d2lv_dxi2)
+            + (-A * ee4 / (xi * ee3) - 2.0 * A / xi + 2.0 * ee10 / xi) / (xi * xi)
+            - A * ee4 / (xi * xi * ee3);
+
+// d2(nll)/d(xi)d(lkappa):
+// d/d(lkappa)[nll_xi] = kappa*v2*dlv_dxi
+d2nll_xilk = kappa * v2 * dlv_dxi;
+
+// d2(nll)/d(lkappa)^2:
+// nll_lk = -0.5 + 0.5*kappa*v2 + ratio
+// d/d(lkappa)[nll_lk] = 0.5*kappa*v2 + d(ratio)/d(lkappa)
+// ratio = sqk*phisqk/(2*denom) = sqrt(kappa)*phi(sqrt(kappa))/(2*denom)
+// d(ratio)/d(lkappa) = kappa * d(ratio)/d(kappa)
+// Let R = sqk*phisqk/(2*denom). Let s = sqk.
+// d(R)/d(kappa) = d(R)/d(s) * d(s)/d(kappa) = d(R)/d(s) * 1/(2*s)
+// d(R)/d(s) = [phisqk + s*(-s*phisqk)]/(2*denom) - s*phisqk*phisqk/(2*denom^2) * 0.5
+//           wait, denom = 0.5 - Phi(-s), d(denom)/d(s) = phi(s)
+// d(R)/d(s) = [(1-s^2)*phisqk*denom - s*phisqk*phisqk]/(2*denom^2) -- wait
+// R = s*phi(s)/(2*D) where D=denom
+// dR/ds = [phi(s) + s*(-s*phi(s))]/(2*D) - s*phi(s)*phi(s)/(2*D^2)
+//       = phi(s)*(1-s^2)/(2*D) - s*phi(s)^2/(2*D^2)
+//       = phi(s)/(2*D) * [(1-s^2) - s*phi(s)/D]
+//       = phi(s)/(2*D) * (1 - s^2 - 2*R)    since R = s*phi(s)/(2*D), so s*phi(s)/D = 2*R
+// dR/d(kappa) = dR/ds * 1/(2*s)
+// dR/d(lkappa) = kappa * dR/d(kappa) = kappa/(2*s) * dR/ds
+//  = kappa/(2*s) * phi(s)/(2*D) * (1 - s^2 - 2*R)
+//  = s/(2) * phi(s)/(2*D) * (1 - s^2 - 2*R)     since kappa = s^2, kappa/(2*s) = s/2
+//  = R/2 * (1 - kappa - 2*ratio)    since s*phi(s)/(2*D) = R = ratio
+//  Wait: s*phi(s)/(2*D) = ratio, so:
+//  d(ratio)/d(lkappa) = ratio/2 * (1 - kappa - 2*ratio)
+//  Hmm, let me double-check: kappa/(2*s) = s^2/(2*s) = s/2. And dR/ds = phi(s)/(2*D)*(1-s^2-2*R).
+//  So dR/d(lkappa) = (s/2)*phi(s)/(2*D)*(1-s^2-2*R) = (ratio/2)*(1-kappa-2*ratio)
+dratio_dk = 0.5 * ratio * (1.0 - kappa - 2.0 * ratio);
+d2nll_lk2 = 0.5 * kappa * v2 + dratio_dk;
+
+out(j, 0) = nll_lpsi;
+out(j, 1) = nll_xi;
+out(j, 2) = nll_lk;
+out(j, 3) = d2nll_lpsi2;
+out(j, 4) = d2nll_lpsixi;
+out(j, 5) = d2nll_lpsilk;
+out(j, 6) = d2nll_xi2;
+out(j, 7) = d2nll_xilk;
+out(j, 8) = d2nll_lk2;
+
+}
+
+return out;
+
+}
+
+// //' Extended generalized Pareto distribution of type 6 (eGPD6, truncated beta) negative log-likelihood
+// //'
+// //' @param pars a list of vectors of coefficients for each eGPD parameter
+// //' @param X1 a design matrix for the eGPD log scale parameter
+// //' @param X2 a design matrix for the eGPD shape parameter
+// //' @param X3 a design matrix for the eGPD log kappa
+// //' @param yvec a vector
+// //' @param dupid a scalar or vector, identifying duplicates in Xs; -1 corresponds to no duplicates
+// //' @return egpd6d0 a scalar, the negative log-liklihood
+// //' @return egpd6d12 a matrix, first then second derivatives w.r.t. eGPD6 parameters
+// //' @examples
+// //' ## to follow
+// //' @export
+// [[Rcpp::export]]
+double egpd6d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets)
+{
+
+arma::vec lpsivec = X1 * Rcpp::as<arma::vec>(pars[0]);
+arma::vec xivec = X2 * Rcpp::as<arma::vec>(pars[1]);
+arma::vec lkappavec = X3 * Rcpp::as<arma::vec>(pars[2]);
+int nobs = yvec.size();
+
+if (dcate == 1) {
+  lpsivec = lpsivec.elem(dupid);
+  xivec = xivec.elem(dupid);
+  lkappavec = lkappavec.elem(dupid);
+}
+
+{
+arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
+if (off0.n_elem > 0) lpsivec += off0;
+arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
+if (off1.n_elem > 0) xivec += off1;
+arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
+if (off2.n_elem > 0) lkappavec += off2;
+}
+
+double y, lpsi, xi, lkappa;
+double kappa, psi, ee4, ee3, ee5, ee7, F, t;
+double lo, hi, nf;
+double nllh=0.0;
+
+lo = 1.0 / 32.0;
+hi = 0.5;
+
+for (int j=0; j < nobs; j++) {
+
+y = yvec[j];
+lpsi = lpsivec[j];
+xi = xivec[j];
+lkappa = lkappavec[j];
+
+psi = exp(lpsi);
+kappa = exp(lkappa);
+ee4 = xi * y / psi;
+
+if (ee4 <= -1.0) {
+    nllh = 1e20;
+    break;
+}
+
+ee3 = 1.0 + ee4;
+ee5 = 1.0 / xi;
+ee7 = R_pow(ee3, ee5);
+F = 1.0 - 1.0 / ee7;
+
+t = (hi - lo) * F + lo;
+nf = R::pbeta(hi, kappa, kappa, 1, 0) - R::pbeta(lo, kappa, kappa, 1, 0);
+
+nllh += -log(hi - lo) - log(R::dbeta(t, kappa, kappa, 0)) + log(nf) + lpsi + (1.0 + ee5) * log(ee3);
+
+}
+
+return(nllh);
+
+}
+
+// //' @rdname egpd6d0
+// [[Rcpp::export]]
+arma::mat egpd6d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets)
+{
+
+arma::vec lpsivec = X1 * Rcpp::as<arma::vec>(pars[0]);
+arma::vec xivec = X2 * Rcpp::as<arma::vec>(pars[1]);
+arma::vec lkappavec = X3 * Rcpp::as<arma::vec>(pars[2]);
+int nobs = yvec.size();
+arma::mat out = arma::mat(nobs, 9);
+
+if (dcate == 1) {
+  lpsivec = lpsivec.elem(dupid);
+  xivec = xivec.elem(dupid);
+  lkappavec = lkappavec.elem(dupid);
+}
+
+{
+arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
+if (off0.n_elem > 0) lpsivec += off0;
+arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
+if (off1.n_elem > 0) xivec += off1;
+arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
+if (off2.n_elem > 0) lkappavec += off2;
+}
+
+double y, lpsi, xi, lkappa;
+double psi, kappa;
+double ee3, ee4, ee5, ee6, ee10;
+double v, A, F, t;
+double lo, hi, hml, nf, db;
+double dlv_dlpsi, dlv_dxi, d2lv_dlpsi2, d2lv_dxidlpsi, d2lv_dxi2;
+double dF_dlpsi, dF_dxi, d2F_dlpsi2, d2F_dxidlpsi, d2F_dxi2;
+double dt_dlpsi, dt_dxi, d2t_dlpsi2, d2t_dxidlpsi, d2t_dxi2;
+double dldb_dt, d2ldb_dt2;
+double nll_lpsi, nll_xi, nll_lk;
+double d2nll_lpsi2, d2nll_lpsixi, d2nll_lpsilk, d2nll_xi2, d2nll_xilk, d2nll_lk2;
+double h, nll_k_p, nll_k_m;
+double kp, km;
+double dldb_dk, d2ldb_dk2;
+
+lo = 1.0 / 32.0;
+hi = 0.5;
+hml = hi - lo;
+
+for (int j=0; j < nobs; j++) {
+
+y = yvec[j];
+lpsi = lpsivec[j];
+xi = xivec[j];
+lkappa = lkappavec[j];
+
+psi = exp(lpsi);
+kappa = exp(lkappa);
+ee4 = xi * y / psi;
+ee3 = 1.0 + ee4;
+ee5 = 1.0 / xi;
+ee6 = 1.0 + ee5;
+ee10 = log(ee3);
+
+v = 1.0 / R_pow(ee3, ee5);
+A = ee4 / ee3;
+F = 1.0 - v;
+t = hml * F + lo;
+
+nf = R::pbeta(hi, kappa, kappa, 1, 0) - R::pbeta(lo, kappa, kappa, 1, 0);
+db = R::dbeta(t, kappa, kappa, 0);
+
+// Derivatives of log(v) w.r.t. lpsi and xi (same as model 5)
+dlv_dlpsi = ee5 * A;
+dlv_dxi = (ee10 - A) / (xi * xi);
+d2lv_dlpsi2 = -ee5 * A / ee3;
+d2lv_dxidlpsi = -A * ee4 / (xi * xi * ee3);
+d2lv_dxi2 = (-2.0 * (ee10 - A) + A * ee4 / ee3) / (xi * xi * xi);
+
+// F = 1 - v, dF = -dv = -v*d(log(v))
+dF_dlpsi = -v * dlv_dlpsi;
+dF_dxi = -v * dlv_dxi;
+
+// d2F/d(lpsi)^2 = -v*(d2lv_dlpsi2 + dlv_dlpsi^2)
+d2F_dlpsi2 = -v * (d2lv_dlpsi2 + dlv_dlpsi * dlv_dlpsi);
+d2F_dxidlpsi = -v * (d2lv_dxidlpsi + dlv_dxi * dlv_dlpsi);
+d2F_dxi2 = -v * (d2lv_dxi2 + dlv_dxi * dlv_dxi);
+
+// t = hml*F + lo, dt = hml*dF
+dt_dlpsi = hml * dF_dlpsi;
+dt_dxi = hml * dF_dxi;
+d2t_dlpsi2 = hml * d2F_dlpsi2;
+d2t_dxidlpsi = hml * d2F_dxidlpsi;
+d2t_dxi2 = hml * d2F_dxi2;
+
+// log(dbeta(t, k, k)) as a function of t:
+// log(dbeta(t,k,k)) = log(Gamma(2k)) - 2*log(Gamma(k)) + (k-1)*log(t) + (k-1)*log(1-t)
+// d/dt log(dbeta(t,k,k)) = (k-1)/t - (k-1)/(1-t) = (k-1)*(1-2t)/(t*(1-t))
+dldb_dt = (kappa - 1.0) * (1.0 - 2.0 * t) / (t * (1.0 - t));
+
+// d2/dt2 log(dbeta(t,k,k)) = (k-1)*[-2*t*(1-t) - (1-2t)*(1-2t)] / (t*(1-t))^2
+//   = (k-1)*(-2*t*(1-t) - (1-2t)^2) / (t*(1-t))^2
+//   note: -2t(1-t) - (1-2t)^2 = -2t+2t^2 - 1+4t-4t^2 = -2t^2+2t-1 = -(2t^2-2t+1)
+d2ldb_dt2 = -(kappa - 1.0) * (2.0 * t * t - 2.0 * t + 1.0) / (t * t * (1.0 - t) * (1.0 - t));
+
+// NLL = -log(hml) - log(db) + log(nf) + lpsi + ee6*ee10
+// The -log(hml) term is constant.
+// Contributions to derivatives from -log(db) via t:
+// d(-log(db))/d(lpsi) = -dldb_dt * dt_dlpsi
+// and from ee6*ee10 + lpsi:
+
+// First derivatives w.r.t. lpsi and xi:
+nll_lpsi = 1.0 - dldb_dt * dt_dlpsi - ee6 * A;
+nll_xi = -dldb_dt * dt_dxi + (-ee10 + A) / (xi * xi) + A / xi;
+
+// Second derivatives w.r.t. lpsi and xi (no kappa dependence in these terms):
+d2nll_lpsi2 = -(d2ldb_dt2 * dt_dlpsi * dt_dlpsi + dldb_dt * d2t_dlpsi2) + ee6 * A / ee3;
+d2nll_lpsixi = -(d2ldb_dt2 * dt_dxi * dt_dlpsi + dldb_dt * d2t_dxidlpsi)
+               + A / (xi * xi) - ee6 * A / (xi * ee3);
+d2nll_xi2 = -(d2ldb_dt2 * dt_dxi * dt_dxi + dldb_dt * d2t_dxi2)
+            + (-A * ee4 / (xi * ee3) - 2.0 * A / xi + 2.0 * ee10 / xi) / (xi * xi)
+            - A * ee4 / (xi * xi * ee3);
+
+// For kappa derivatives, use numerical differentiation.
+// nll(kappa) contribution from kappa: -log(dbeta(t, k, k)) + log(nf(k))
+// where t depends on F (not on kappa), and nf depends on kappa.
+// Use central differences on the kappa-dependent part.
+h = fmax(kappa * 1.0e-5, 1.0e-10);
+kp = kappa + h;
+km = kappa - h;
+if (km <= 0.0) km = 1.0e-15;
+
+// nll_k part: -log(dbeta(t, k, k)) + log(pbeta(hi,k,k) - pbeta(lo,k,k))
+// at kappa:
+nll_k_p = -log(R::dbeta(t, kp, kp, 0)) + log(R::pbeta(hi, kp, kp, 1, 0) - R::pbeta(lo, kp, kp, 1, 0));
+nll_k_m = -log(R::dbeta(t, km, km, 0)) + log(R::pbeta(hi, km, km, 1, 0) - R::pbeta(lo, km, km, 1, 0));
+
+// d(nll_k_part)/d(kappa) by central difference:
+dldb_dk = (nll_k_p - nll_k_m) / (2.0 * h);
+// nll at kappa for reference:
+double nll_k_0 = -log(db) + log(nf);
+d2ldb_dk2 = (nll_k_p - 2.0 * nll_k_0 + nll_k_m) / (h * h);
+
+// d(nll)/d(lkappa) = kappa * d(nll)/d(kappa)
+nll_lk = kappa * dldb_dk;
+
+// d2(nll)/d(lkappa)^2 = kappa * dldb_dk + kappa^2 * d2ldb_dk2
+d2nll_lk2 = kappa * dldb_dk + kappa * kappa * d2ldb_dk2;
+
+// Cross derivatives d2(nll)/d(lpsi)d(lkappa) and d2(nll)/d(xi)d(lkappa):
+// The kappa-dependent part of the NLL that also depends on lpsi/xi is -log(dbeta(t,k,k)).
+// d2(-log(dbeta(t,k,k)))/d(lpsi)d(lkappa) = kappa * d/dk[-dldb_dt * dt_dlpsi]
+// = kappa * [-d(dldb_dt)/dk * dt_dlpsi]  (since dt_dlpsi does not depend on k)
+// Use numerical differentiation for d(dldb_dt)/dk:
+// dldb_dt(k) = (k-1)*(1-2t)/(t*(1-t))
+// d(dldb_dt)/dk = (1-2t)/(t*(1-t))
+// So d2(-log(dbeta(t,k,k)))/d(lpsi)d(lkappa) = -kappa * (1-2t)/(t*(1-t)) * dt_dlpsi
+
+// Actually we can be analytical here:
+// dldb_dt = (k-1)*(1-2t)/(t*(1-t))
+// d(dldb_dt)/dk = (1-2t)/(t*(1-t))
+// So the cross term from -log(db) w.r.t. lpsi and kappa:
+//   d^2(-log(db))/d(lpsi)d(kappa) = -(1-2t)/(t*(1-t)) * dt_dlpsi
+// And also from log(nf): nf does not depend on lpsi, so no cross term.
+// d2(nll)/d(lpsi)d(lkappa) = -kappa * (1.0 - 2.0*t) / (t*(1.0-t)) * dt_dlpsi
+d2nll_lpsilk = -kappa * (1.0 - 2.0 * t) / (t * (1.0 - t)) * dt_dlpsi;
+
+// Similarly for xi:
+d2nll_xilk = -kappa * (1.0 - 2.0 * t) / (t * (1.0 - t)) * dt_dxi;
+
+out(j, 0) = nll_lpsi;
+out(j, 1) = nll_xi;
+out(j, 2) = nll_lk;
+out(j, 3) = d2nll_lpsi2;
+out(j, 4) = d2nll_lpsixi;
+out(j, 5) = d2nll_lpsilk;
+out(j, 6) = d2nll_xi2;
+out(j, 7) = d2nll_xilk;
+out(j, 8) = d2nll_lk2;
+
+}
+
+return out;
+
+}

@@ -149,7 +149,7 @@ if (type %in% c("response", "quantile")) {
       pj <- prob[j]
 
       if (family == "egpd") {
-        if (egpd_m %in% c(1, 3)) {
+        if (egpd_m %in% c(1, 3, 5, 6)) {
           pj <- egpd_iG(pj, pars[, 3])
         } else {
           if (egpd_m == 2) {
@@ -163,7 +163,7 @@ if (type %in% c("response", "quantile")) {
       }
 
       if (family == "degpd") {
-        if (degpd_m %in% c(1, 3)) {
+        if (degpd_m %in% c(1, 3, 5, 6)) {
           pj <- degpd_iG(pj, pars[, 3])
         } else {
           if (degpd_m == 2) {
@@ -177,7 +177,7 @@ if (type %in% c("response", "quantile")) {
       }
 
       if (family == "zidegpd") {
-        if (zidegpd_m %in% c(1, 3)) {
+        if (zidegpd_m %in% c(1, 3, 5, 6)) {
           pj <- ((pj - pars[, 4]) / (1 - pars[, 4])) - (1e-7)
           pj <- ifelse(pj > 0, pj, 0)
           pj <- zidegpd_iG(pj, pars[, 3])
@@ -275,7 +275,7 @@ rqresid.egpd <- function(object, seed = NULL, ...) {
 
   family <- object$family
   m <- object$likfns$m
-  type_map <- c(1L, 6L, 4L, 5L)
+  type_map <- c(1L, 6L, 4L, 5L, 2L, 3L)
   dtype <- type_map[m]
 
   ## response vector
@@ -301,6 +301,8 @@ rqresid.egpd <- function(object, seed = NULL, ...) {
   } else if (m == 4) {
     cdf_args$delta <- pars[[3]]
     cdf_args$kappa <- pars[[4]]
+  } else if (m %in% c(5, 6)) {
+    cdf_args$kappa <- pars[[3]]
   }
 
   if (family == "egpd") {
@@ -319,7 +321,7 @@ rqresid.egpd <- function(object, seed = NULL, ...) {
     r <- qnorm(u)
   } else if (family == "zidegpd") {
     ## zero-inflated discrete
-    if (m %in% c(1, 3)) {
+    if (m %in% c(1, 3, 5, 6)) {
       pi_val <- pars[[4]]
     } else if (m == 2) {
       pi_val <- pars[[6]]
