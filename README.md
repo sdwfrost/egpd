@@ -81,9 +81,8 @@ Ahmad, T., Gaetan, C., & Naveau, P. (2025). An extended generalized Pareto
 regression model for count data. *Statistical Modelling*, 25(5), 416-431.
 <https://doi.org/10.1177/1471082X241266729>
 
-Gamet, P. and Jalbert, J. (2022). Modeling short-term frequency and
-trends of hydroclimatic extremes. *Environmetrics*, 33(4), e2714.
-<https://doi.org/10.1002/env.2714>
+Gamet, P. and Jalbert, J. (2022). A flexible extended generalized Pareto distribution for tail estimation.
+*Environmetrics*, 33(4), e2714.< https://doi.org/10.1002/env.2744>
 
 Naveau, P., Huser, R., Ribereau, P., and Hannart, A. (2016). Modeling
 jointly low, moderate, and heavy rainfall intensities without a
