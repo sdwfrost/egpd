@@ -297,13 +297,59 @@ fitegpd <- function(x, type = 1, family = c("egpd", "degpd", "ziegpd", "zidegpd"
     xi_start <- max(xi_start, -sigma_start / (2 * xmax))
   }
 
+  ## Grid-search for delta and kappa starting values
+  delta_start <- 1
+  kappa_start <- 1
+
+  if ("delta" %in% names(spec) || "kappa" %in% names(spec)) {
+    ## Helper to evaluate NLL at candidate shape parameters
+    .eval_nll <- function(sigma, xi, kappa, delta, type, family, x) {
+      tryCatch({
+        if (family %in% c("degpd", "zidegpd", "cpdegpd")) {
+          pmf <- ddiscegpd(x, prob = NA, kappa = kappa, delta = delta,
+                           sigma = sigma, xi = xi, type = type)
+          pmf <- pmax(pmf, .Machine$double.xmin)
+          -sum(log(pmf))
+        } else {
+          ll <- degpd_density(x, prob = NA, kappa = kappa, delta = delta,
+                              sigma = sigma, xi = xi, type = type, log = TRUE)
+          -sum(ll)
+        }
+      }, error = function(e) Inf)
+    }
+
+    if ("delta" %in% names(spec)) {
+      delta_candidates <- c(0.3, 0.5, 1.0, 1.5, 2.5, 4.0)
+      kappa_for_grid <- if ("kappa" %in% names(spec)) 1 else NA
+      delta_nlls <- vapply(delta_candidates, function(d) {
+        .eval_nll(sigma_start, xi_start, kappa_for_grid, d, type, family, x)
+      }, numeric(1))
+      best_delta <- which.min(delta_nlls)
+      if (length(best_delta) > 0 && is.finite(delta_nlls[best_delta])) {
+        delta_start <- delta_candidates[best_delta]
+      }
+    }
+
+    if ("kappa" %in% names(spec)) {
+      kappa_candidates <- c(0.5, 1.0, 1.5, 2.5)
+      delta_for_grid <- if ("delta" %in% names(spec)) delta_start else NA
+      kappa_nlls <- vapply(kappa_candidates, function(k) {
+        .eval_nll(sigma_start, xi_start, k, delta_for_grid, type, family, x)
+      }, numeric(1))
+      best_kappa <- which.min(kappa_nlls)
+      if (length(best_kappa) > 0 && is.finite(kappa_nlls[best_kappa])) {
+        kappa_start <- kappa_candidates[best_kappa]
+      }
+    }
+  }
+
   start <- list()
   for (nm in names(spec)) {
     start[[nm]] <- switch(nm,
       "sigma" = sigma_start,
       "xi"    = xi_start,
-      "kappa" = 1,
-      "delta" = 1,
+      "kappa" = kappa_start,
+      "delta" = delta_start,
       "prob"  = 0.5,
       "pi"    = max(min(mean(x == 0), 0.99), 0.01),
       "lambda" = -log(max(min(mean(x == 0), 0.99), 0.01)),

@@ -5,7 +5,7 @@
 
 .pgpd_std <- function(q, sigma, xi) {
   ## GPD CDF with location=0, scale=sigma, shape=xi
-  xi <- sign(xi) * pmax(abs(xi), 1e-8)
+  xi <- ifelse(abs(xi) < 1e-8, 1e-8, xi)
   z <- q / sigma
   p <- 1 - pmax(1 + xi * z, 0)^(-1/xi)
   p[q < 0] <- 0
@@ -14,7 +14,7 @@
 
 .dgpd_std <- function(x, sigma, xi, log = FALSE) {
   ## GPD density with location=0, scale=sigma, shape=xi
-  xi <- sign(xi) * pmax(abs(xi), 1e-8)
+  xi <- ifelse(abs(xi) < 1e-8, 1e-8, xi)
   z <- x / sigma
   t <- 1 + xi * z
   t <- pmax(t, 0)
@@ -32,7 +32,7 @@
 
 .qgpd_std <- function(p, sigma, xi) {
   ## GPD quantile with location=0, scale=sigma, shape=xi
-  xi <- sign(xi) * pmax(abs(xi), 1e-8)
+  xi <- ifelse(abs(xi) < 1e-8, 1e-8, xi)
   sigma * ((1 - p)^(-xi) - 1) / xi
 }
 
