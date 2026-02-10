@@ -65,6 +65,9 @@ summary(fit)
 
 ## References
 
+Ailliot, P., Gaetan, C., & Naveau, P. (2026). A parsimonious tail compliant multiscale statistical 
+model for aggregated rainfall. *Advances in Water Resources*, 208, 105216.<https://doi.org/10.1016/j.advwatres.2026.105216>
+
 Abbas, A., Ahmad, T. and Ahmad, I. (2025). Modeling zero-inflated
 precipitation extremes. *Communications in Statistics-Simulation and Computation,* 1-17.
 <https://doi.org/10.1080/03610918.2025.2585398>
