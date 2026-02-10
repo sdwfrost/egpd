@@ -197,6 +197,25 @@ plot.fitegpd <- function(x, ...) {
                                 sigma = sigma, xi = xi, type = obj$type)
   }
 
+  ## Randomized PIT for discrete Q-Q and P-P plots (Dunn & Smyth, 1996)
+  pit <- NULL
+  if (is_discrete) {
+    dat_sort_pit <- sort(dat)
+    ## Save and restore RNG state so plotting doesn't affect user's stream
+    rng_existed <- exists(".Random.seed", envir = .GlobalEnv)
+    if (rng_existed) old_seed <- get(".Random.seed", envir = .GlobalEnv)
+    set.seed(1)
+    a_pit <- ifelse(dat_sort_pit == 0, 0, pfun(dat_sort_pit - 1))
+    b_pit <- pfun(dat_sort_pit)
+    pit <- runif(n, a_pit, b_pit)
+    pit <- pmax(pmin(pit, 1 - 1e-10), 1e-10)
+    if (rng_existed) {
+      assign(".Random.seed", old_seed, envir = .GlobalEnv)
+    } else {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+  }
+
   op <- par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
   on.exit(par(op))
 
@@ -237,16 +256,33 @@ plot.fitegpd <- function(x, ...) {
   }
 
   ## Panel 3: Q-Q plot
-  theo_q <- qfun(emp_cdf)
-  plot(theo_q, dat_sort, pch = 1, cex = 0.5,
-       main = "Q-Q Plot", xlab = "Theoretical Quantiles", ylab = "Sample Quantiles")
-  abline(0, 1, col = "red", lwd = 2)
+  if (is_discrete) {
+    qres <- sort(qnorm(pit))
+    theo_norm <- qnorm(emp_cdf)
+    plot(theo_norm, qres, pch = 1, cex = 0.5,
+         main = "Q-Q Plot (Quantile Residuals)",
+         xlab = "Normal Theoretical Quantiles",
+         ylab = "Randomized Quantile Residuals")
+    abline(0, 1, col = "red", lwd = 2)
+  } else {
+    theo_q <- qfun(emp_cdf)
+    plot(theo_q, dat_sort, pch = 1, cex = 0.5,
+         main = "Q-Q Plot", xlab = "Theoretical Quantiles", ylab = "Sample Quantiles")
+    abline(0, 1, col = "red", lwd = 2)
+  }
 
   ## Panel 4: P-P plot
-  theo_p <- pfun(dat_sort)
-  plot(theo_p, emp_cdf, pch = 1, cex = 0.5,
-       main = "P-P Plot", xlab = "Theoretical CDF", ylab = "Empirical CDF")
-  abline(0, 1, col = "red", lwd = 2)
+  if (is_discrete) {
+    plot(sort(pit), emp_cdf, pch = 1, cex = 0.5,
+         main = "P-P Plot (Randomized PIT)",
+         xlab = "Randomized PIT", ylab = "Empirical CDF")
+    abline(0, 1, col = "red", lwd = 2)
+  } else {
+    theo_p <- pfun(dat_sort)
+    plot(theo_p, emp_cdf, pch = 1, cex = 0.5,
+         main = "P-P Plot", xlab = "Theoretical CDF", ylab = "Empirical CDF")
+    abline(0, 1, col = "red", lwd = 2)
+  }
 
   invisible(obj)
 }
