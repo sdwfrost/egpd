@@ -62,7 +62,7 @@ distributions.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">fitegpd</span><span class="op">(</span></span>
 <span>  <span class="va">x</span>,</span>
 <span>  type <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"egpd"</span>, <span class="st">"degpd"</span>, <span class="st">"ziegpd"</span>, <span class="st">"zidegpd"</span>, <span class="st">"cpegpd"</span><span class="op">)</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"egpd"</span>, <span class="st">"degpd"</span>, <span class="st">"ziegpd"</span>, <span class="st">"zidegpd"</span>, <span class="st">"cpegpd"</span>, <span class="st">"cpdegpd"</span><span class="op">)</span>,</span>
 <span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"mle"</span>, <span class="st">"bernstein"</span><span class="op">)</span>,</span>
 <span>  start <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  fix.arg <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -88,7 +88,7 @@ distributions.</p>
 
 <dt id="arg-family">family<a class="anchor" aria-label="anchor" href="#arg-family"></a></dt>
 <dd><p>character: <code>"egpd"</code>, <code>"degpd"</code>, <code>"ziegpd"</code>,
-<code>"zidegpd"</code>, or <code>"cpegpd"</code></p></dd>
+<code>"zidegpd"</code>, <code>"cpegpd"</code>, or <code>"cpdegpd"</code></p></dd>
 
 
 <dt id="arg-method">method<a class="anchor" aria-label="anchor" href="#arg-method"></a></dt>
@@ -205,6 +205,11 @@ Poisson-EGPD Panjer recursion (<code>family="cpegpd"</code> only)</p></dd>
 <dd><p>Compound Poisson-EGPD for aggregated data with
     point mass at zero, fitted via Panjer recursion</p></dd>
 
+  <dt><code>"cpdegpd"</code></dt>
+<dd><p>Compound Poisson-Discrete EGPD for integer-valued
+    aggregated data, using exact Panjer recursion on the discrete EGPD PMF
+    (no discretization step or <code>h</code> parameter needed)</p></dd>
+
 
 </dl><p>For <code>family="cpegpd"</code>, the model is \(S = X_1 + \cdots + X_N\)
 where \(N \sim \mathrm{Poisson}(\lambda)\) and
@@ -236,6 +241,10 @@ semiparametric model.</p>
 <span class="r-in"><span><span class="co"># Compound Poisson-EGPD</span></span></span>
 <span class="r-in"><span><span class="va">z</span> <span class="op">&lt;-</span> <span class="fu"><a href="rcpegpd.html">rcpegpd</a></span><span class="op">(</span><span class="fl">500</span>, sigma <span class="op">=</span> <span class="fl">2</span>, xi <span class="op">=</span> <span class="fl">0.1</span>, kappa <span class="op">=</span> <span class="fl">1.5</span>, lambda <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">fit_cp</span> <span class="op">&lt;-</span> <span class="fu">fitegpd</span><span class="op">(</span><span class="va">z</span>, type <span class="op">=</span> <span class="fl">1</span>, family <span class="op">=</span> <span class="st">"cpegpd"</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Compound Poisson-Discrete EGPD (exact, no discretization)</span></span></span>
+<span class="r-in"><span><span class="va">w</span> <span class="op">&lt;-</span> <span class="fu"><a href="rcpdegpd.html">rcpdegpd</a></span><span class="op">(</span><span class="fl">500</span>, sigma <span class="op">=</span> <span class="fl">3</span>, xi <span class="op">=</span> <span class="fl">0.1</span>, kappa <span class="op">=</span> <span class="fl">1.5</span>, lambda <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">fit_cpd</span> <span class="op">&lt;-</span> <span class="fu">fitegpd</span><span class="op">(</span><span class="va">w</span>, type <span class="op">=</span> <span class="fl">1</span>, family <span class="op">=</span> <span class="st">"cpdegpd"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 </code></pre></div>
     </div>

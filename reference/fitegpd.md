@@ -10,7 +10,7 @@ Poisson-EGPD distributions.
 fitegpd(
   x,
   type = 1,
-  family = c("egpd", "degpd", "ziegpd", "zidegpd", "cpegpd"),
+  family = c("egpd", "degpd", "ziegpd", "zidegpd", "cpegpd", "cpdegpd"),
   method = c("mle", "bernstein"),
   start = NULL,
   fix.arg = NULL,
@@ -34,7 +34,8 @@ fitegpd(
 
 - family:
 
-  character: `"egpd"`, `"degpd"`, `"ziegpd"`, `"zidegpd"`, or `"cpegpd"`
+  character: `"egpd"`, `"degpd"`, `"ziegpd"`, `"zidegpd"`, `"cpegpd"`,
+  or `"cpdegpd"`
 
 - method:
 
@@ -177,6 +178,12 @@ The following families are supported:
   Compound Poisson-EGPD for aggregated data with point mass at zero,
   fitted via Panjer recursion
 
+- `"cpdegpd"`:
+
+  Compound Poisson-Discrete EGPD for integer-valued aggregated data,
+  using exact Panjer recursion on the discrete EGPD PMF (no
+  discretization step or `h` parameter needed)
+
 For `family="cpegpd"`, the model is \\S = X_1 + \cdots + X_N\\ where \\N
 \sim \mathrm{Poisson}(\lambda)\\ and \\X_i \sim \mathrm{EGPD}(\sigma,
 \xi, \kappa, \ldots)\\. The `cpegpd.h` argument controls the
@@ -207,5 +214,9 @@ fit_d <- fitegpd(y, type = 1, family = "degpd")
 # Compound Poisson-EGPD
 z <- rcpegpd(500, sigma = 2, xi = 0.1, kappa = 1.5, lambda = 2)
 fit_cp <- fitegpd(z, type = 1, family = "cpegpd")
+
+# Compound Poisson-Discrete EGPD (exact, no discretization)
+w <- rcpdegpd(500, sigma = 3, xi = 0.1, kappa = 1.5, lambda = 2)
+fit_cpd <- fitegpd(w, type = 1, family = "cpdegpd")
 } # }
 ```

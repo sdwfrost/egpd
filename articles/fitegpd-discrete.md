@@ -100,7 +100,11 @@ cbind(true = truth, estimate = round(est, 4),
 
 The diagnostic plot for discrete families shows the empirical PMF with
 fitted probabilities (panel 1), a step-function CDF comparison (panel
-2), and Q-Q and P-P plots.
+2), a normal Q-Q plot of randomized quantile residuals (panel 3), and a
+P-P plot using the randomized probability integral transform (panel 4).
+The randomized PIT (Dunn & Smyth, 1996) spreads tied discrete values
+into continuous uniform variates, producing clean diagonal plots instead
+of the banded patterns that arise from integer-valued quantiles.
 
 ``` r
 
@@ -127,7 +131,7 @@ aic_table <- data.frame(
 aic_table
 #>   type      AIC
 #> 1    1 4920.769
-#> 2    4 4921.978
+#> 2    4 4921.979
 #> 3    5 4922.722
 ```
 
@@ -234,10 +238,10 @@ summary(fit_zi)
 #> 
 #> Estimated parameters:
 #>       Estimate Std. Error z value Pr(>|z|)    
-#> sigma  1.75242    0.45527   3.849 0.000119 ***
-#> xi     0.15798    0.07358   2.147 0.031789 *  
-#> kappa  1.98004    0.83642   2.367 0.017919 *  
-#> pi     0.36206    0.05961   6.074 1.25e-09 ***
+#> sigma  1.75201    0.45741   3.830 0.000128 ***
+#> xi     0.15800    0.07385   2.140 0.032389 *  
+#> kappa  1.97969    0.84112   2.354 0.018590 *  
+#> pi     0.36187    0.05998   6.034  1.6e-09 ***
 #> ---
 #> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 #> 
@@ -256,10 +260,10 @@ est <- fit_zi$estimate
 cbind(true = truth, estimate = round(est, 4),
       SE = round(fit_zi$sd, 4))
 #>       true estimate     SE
-#> sigma  2.0   1.7524 0.4553
-#> xi     0.1   0.1580 0.0736
-#> kappa  1.5   1.9800 0.8364
-#> pi     0.3   0.3621 0.0596
+#> sigma  2.0   1.7520 0.4574
+#> xi     0.1   0.1580 0.0738
+#> kappa  1.5   1.9797 0.8411
+#> pi     0.3   0.3619 0.0600
 ```
 
 ### Diagnostics
@@ -277,10 +281,10 @@ plot(fit_zi)
 
 confint(fit_zi)
 #>            2.5 %    97.5 %
-#> sigma 0.86010370 2.6447462
-#> xi    0.01376614 0.3022005
-#> kappa 0.34069321 3.6193960
-#> pi    0.24522643 0.4788926
+#> sigma 0.85549768 2.6485174
+#> xi    0.01326359 0.3027374
+#> kappa 0.33113076 3.6282584
+#> pi    0.24431952 0.4794218
 ```
 
 ## 3. Comparing DEGPD and ZIDEGPD
@@ -343,10 +347,10 @@ summary(fit5)
 #> 
 #> Estimated parameters:
 #>       Estimate Std. Error z value Pr(>|z|)    
-#> sigma   1.6361     0.6106   2.679  0.00738 ** 
-#> xi      0.1559     0.0392   3.976 7.01e-05 ***
-#> delta   0.4117     0.9827   0.419  0.67523    
-#> kappa   1.6597     0.1586  10.464  < 2e-16 ***
+#> sigma  1.63595    0.60546   2.702  0.00689 ** 
+#> xi     0.15591    0.03919   3.978 6.94e-05 ***
+#> delta  0.41132    0.97364   0.422  0.67269    
+#> kappa  1.65941    0.15856  10.466  < 2e-16 ***
 #> ---
 #> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 #> 
@@ -362,7 +366,123 @@ plot(fit5)
 
 ![](fitegpd-discrete_files/figure-html/type5-plot-1.png)
 
-## 5. Practical guidelines
+## 5. Compound Poisson-Discrete EGPD
+
+### The model
+
+The Compound Poisson-Discrete EGPD (`family = "cpdegpd"`) models the
+aggregate sum $`S = X_1 + \cdots + X_N`$ where
+
+- $`N \sim \mathrm{Poisson}(\lambda)`$ is the random number of events,
+  and
+- $`X_i \sim \mathrm{Discrete\text{-}EGPD}(\sigma, \xi, \kappa, \ldots)`$
+  are i.i.d. non-negative integer severities.
+
+Since the individual claims are already integer-valued, the Panjer
+recursion computes an **exact** compound distribution on
+$`\{0, 1, 2, \ldots\}`$ — no discretization step is needed and there is
+no bin-width parameter `h` to tune (unlike `family = "cpegpd"`).
+
+### Simulating and fitting
+
+``` r
+
+set.seed(42)
+
+sigma_true  <- 3
+xi_true     <- 0.1
+kappa_true  <- 1.5
+lambda_true <- 2
+
+z <- rcpdegpd(500, sigma = sigma_true, xi = xi_true,
+               kappa = kappa_true, lambda = lambda_true, type = 1)
+
+cat("Range:", range(z), "\n")
+#> Range: 0 43
+cat("Mean:", round(mean(z), 2), "  Var:", round(var(z), 2), "\n")
+#> Mean: 7.03   Var: 61.4
+cat("Proportion zeros:", mean(z == 0), "\n")
+#> Proportion zeros: 0.214
+```
+
+``` r
+
+barplot(table(z) / length(z), main = "Simulated CPDEGPD data",
+        xlab = "z", ylab = "Proportion", col = "lightblue", border = "grey")
+```
+
+![](fitegpd-discrete_files/figure-html/cpdegpd-hist-1.png)
+
+``` r
+
+fit_cpdegpd <- fitegpd(z, type = 1, family = "cpdegpd")
+summary(fit_cpdegpd)
+#> Fitting of the distribution 'cpdegpd' (type 1)
+#> Method: mle
+#> 
+#> Estimated parameters:
+#>        Estimate Std. Error z value Pr(>|z|)    
+#> sigma    2.7440     1.1024   2.489   0.0128 *  
+#> xi       0.1482     0.1137   1.303   0.1924    
+#> kappa    1.6625     1.0139   1.640   0.1011    
+#> lambda   1.7767     0.2376   7.477  7.6e-14 ***
+#> ---
+#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#> 
+#> Convergence:  successful 
+#> Loglikelihood:  -1488.58   AIC:  2985.17   BIC:  3002.02 
+#> Number of observations:  500
+```
+
+### Parameter recovery
+
+``` r
+
+truth <- c(sigma = sigma_true, xi = xi_true,
+           kappa = kappa_true, lambda = lambda_true)
+est <- fit_cpdegpd$estimate
+cbind(true = truth, estimate = round(est, 4),
+      SE = round(fit_cpdegpd$sd, 4))
+#>        true estimate     SE
+#> sigma   3.0   2.7440 1.1024
+#> xi      0.1   0.1482 0.1137
+#> kappa   1.5   1.6625 1.0139
+#> lambda  2.0   1.7767 0.2376
+```
+
+### Diagnostics
+
+The diagnostic plots use discrete-style panels: a barplot with fitted
+PMF points, a step-function CDF, and randomized PIT-based Q-Q and P-P
+plots.
+
+``` r
+
+plot(fit_cpdegpd)
+```
+
+![](fitegpd-discrete_files/figure-html/cpdegpd-plot-1.png)
+
+### Comparing with plain DEGPD on the same data
+
+Since `cpdegpd` is a compound sum model while `degpd` is a single-event
+model, we can compare their AIC on the same data to see which fits
+better:
+
+``` r
+
+fit_degpd_on_z <- fitegpd(z, type = 1, family = "degpd")
+
+cat("DEGPD AIC:   ", AIC(fit_degpd_on_z), "\n")
+#> DEGPD AIC:    2995.597
+cat("CPDEGPD AIC: ", AIC(fit_cpdegpd), "\n")
+#> CPDEGPD AIC:  2985.166
+```
+
+The compound model should fit noticeably better when the data-generating
+process truly involves random summation.
+
+## 6. Practical guidelines
 
 **Choosing between DEGPD and ZIDEGPD.** Start with `family = "degpd"`.
 If the diagnostic plots show the model underestimates the zero
@@ -386,12 +506,14 @@ available — e.g. `fix.arg = list(xi = 0)` for an exponential tail.
 |----|----|----|----|
 | `"degpd"` | $`\sigma, \xi`$ + type-specific | Natural zeros from DEGPD | Standard count data |
 | `"zidegpd"` | $`\sigma, \xi`$ + type-specific + $`\pi`$ | Extra point mass at zero | Counts with excess zeros |
+| `"cpdegpd"` | $`\sigma, \xi`$ + type-specific + $`\lambda`$ | Poisson zero ($`N=0`$) | Aggregate integer sums |
 
-Both families:
+All families:
 
 - Return S3 objects of class `"fitegpd"` with the same interface
   (`summary`, `plot`, `AIC`, `confint`, `coef`, `vcov`, `logLik`)
 - Support `fix.arg` for fixing parameters at known values
 - Estimate standard errors via the delta method on the Hessian
 - Provide four-panel diagnostic plots tailored for discrete data (bar
-  plots for PMF, step functions for CDF)
+  plots for PMF, step functions for CDF, randomized PIT-based Q-Q and
+  P-P plots)

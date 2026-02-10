@@ -241,6 +241,20 @@ Compound Poisson EGPD distribution functions for aggregated data.
 - [`rcpegpd()`](https://sdwfrost.github.io/egpd/reference/rcpegpd.md) :
   Random generation from Compound Poisson-EGPD
 
+## Compound Poisson-Discrete EGPD Distributions
+
+Exact compound Poisson-Discrete EGPD distribution functions for
+integer-valued aggregated data.
+
+- [`dcpdegpd()`](https://sdwfrost.github.io/egpd/reference/dcpdegpd.md)
+  : Density (PMF) of Compound Poisson-Discrete EGPD
+- [`pcpdegpd()`](https://sdwfrost.github.io/egpd/reference/pcpdegpd.md)
+  : Distribution function of Compound Poisson-Discrete EGPD
+- [`qcpdegpd()`](https://sdwfrost.github.io/egpd/reference/qcpdegpd.md)
+  : Quantile function of Compound Poisson-Discrete EGPD
+- [`rcpdegpd()`](https://sdwfrost.github.io/egpd/reference/rcpdegpd.md)
+  : Random generation from Compound Poisson-Discrete EGPD
+
 ## Diagnostics
 
 Model diagnostic tools.
