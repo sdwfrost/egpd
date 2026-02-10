@@ -818,6 +818,7 @@ EGPD1 <- function(mu.link = "log", sigma.link = "log", nu.link = "log") {
     default_links = c(mu = "log", sigma = "log", nu = "log"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link
   )
+  fam <- .override_derivs3(fam, "egpd1")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
@@ -849,6 +850,7 @@ EGPD3 <- function(mu.link = "log", sigma.link = "log", nu.link = "log") {
     default_links = c(mu = "log", sigma = "log", nu = "log"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link
   )
+  fam <- .override_derivs3(fam, "egpd3")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(0.5 * mean(y), 0.1), length(y)))
@@ -881,6 +883,7 @@ EGPD4 <- function(mu.link = "log", sigma.link = "log", nu.link = "log", tau.link
     default_links = c(mu = "log", sigma = "log", nu = "log", tau = "log"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link, tau.link = tau.link
   )
+  fam <- .override_derivs4(fam, "egpd4")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(0.5 * mean(y), 0.1), length(y)))
@@ -918,6 +921,7 @@ DEGPD1 <- function(mu.link = "log", sigma.link = "log", nu.link = "log") {
     default_links = c(mu = "log", sigma = "log", nu = "log"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link
   )
+  fam <- .override_derivs3(fam, "degpd1")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
@@ -949,6 +953,7 @@ DEGPD3 <- function(mu.link = "log", sigma.link = "log", nu.link = "log") {
     default_links = c(mu = "log", sigma = "log", nu = "log"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link
   )
+  fam <- .override_derivs3(fam, "degpd3")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(0.5 * mean(y), 0.1), length(y)))
@@ -981,6 +986,7 @@ DEGPD4 <- function(mu.link = "log", sigma.link = "log", nu.link = "log", tau.lin
     default_links = c(mu = "log", sigma = "log", nu = "log", tau = "log"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link, tau.link = tau.link
   )
+  fam <- .override_derivs4(fam, "degpd4")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(0.5 * mean(y), 0.1), length(y)))
@@ -1019,6 +1025,7 @@ ZIEGPD1 <- function(mu.link = "log", sigma.link = "log", nu.link = "log", tau.li
     default_links = c(mu = "log", sigma = "log", nu = "log", tau = "logit"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link, tau.link = tau.link
   )
+  fam <- .override_derivs4(fam, "ziegpd1")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y[y > 0]), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
@@ -1053,6 +1060,7 @@ ZIEGPD3 <- function(mu.link = "log", sigma.link = "log", nu.link = "log", tau.li
     default_links = c(mu = "log", sigma = "log", nu = "log", tau = "logit"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link, tau.link = tau.link
   )
+  fam <- .override_derivs4(fam, "ziegpd3")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y[y > 0]), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(0.5 * mean(y), 0.1), length(y)))
@@ -1091,6 +1099,7 @@ ZIDEGPD1 <- function(mu.link = "log", sigma.link = "log", nu.link = "log", tau.l
     default_links = c(mu = "log", sigma = "log", nu = "log", tau = "logit"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link, tau.link = tau.link
   )
+  fam <- .override_derivs4(fam, "zidegpd1")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y[y > 0]), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
@@ -1125,6 +1134,7 @@ ZIDEGPD3 <- function(mu.link = "log", sigma.link = "log", nu.link = "log", tau.l
     default_links = c(mu = "log", sigma = "log", nu = "log", tau = "logit"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link, tau.link = tau.link
   )
+  fam <- .override_derivs4(fam, "zidegpd3")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y[y > 0]), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(0.5 * mean(y), 0.1), length(y)))
@@ -1489,6 +1499,7 @@ EGPD5 <- function(mu.link = "log", sigma.link = "log", nu.link = "log") {
     default_links = c(mu = "log", sigma = "log", nu = "log"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link
   )
+  fam <- .override_derivs3(fam, "egpd5")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
@@ -1507,6 +1518,7 @@ EGPD6 <- function(mu.link = "log", sigma.link = "log", nu.link = "log") {
     default_links = c(mu = "log", sigma = "log", nu = "log"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link
   )
+  fam <- .override_derivs3(fam, "egpd6")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
@@ -1525,6 +1537,7 @@ DEGPD5 <- function(mu.link = "log", sigma.link = "log", nu.link = "log") {
     default_links = c(mu = "log", sigma = "log", nu = "log"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link
   )
+  fam <- .override_derivs3(fam, "degpd5")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
@@ -1543,6 +1556,7 @@ DEGPD6 <- function(mu.link = "log", sigma.link = "log", nu.link = "log") {
     default_links = c(mu = "log", sigma = "log", nu = "log"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link
   )
+  fam <- .override_derivs3(fam, "degpd6")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
@@ -1561,6 +1575,7 @@ ZIEGPD5 <- function(mu.link = "log", sigma.link = "log", nu.link = "log", tau.li
     default_links = c(mu = "log", sigma = "log", nu = "log", tau = "logit"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link, tau.link = tau.link
   )
+  fam <- .override_derivs4(fam, "ziegpd5")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y[y > 0]), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
@@ -1581,6 +1596,7 @@ ZIEGPD6 <- function(mu.link = "log", sigma.link = "log", nu.link = "log", tau.li
     default_links = c(mu = "log", sigma = "log", nu = "log", tau = "logit"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link, tau.link = tau.link
   )
+  fam <- .override_derivs4(fam, "ziegpd6")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y[y > 0]), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
@@ -1601,6 +1617,7 @@ ZIDEGPD5 <- function(mu.link = "log", sigma.link = "log", nu.link = "log", tau.l
     default_links = c(mu = "log", sigma = "log", nu = "log", tau = "logit"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link, tau.link = tau.link
   )
+  fam <- .override_derivs4(fam, "zidegpd5")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y[y > 0]), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))
@@ -1621,6 +1638,7 @@ ZIDEGPD6 <- function(mu.link = "log", sigma.link = "log", nu.link = "log", tau.l
     default_links = c(mu = "log", sigma = "log", nu = "log", tau = "logit"),
     mu.link = mu.link, sigma.link = sigma.link, nu.link = nu.link, tau.link = tau.link
   )
+  fam <- .override_derivs4(fam, "zidegpd6")
   fam$mu.initial    <- expression(mu    <- rep(max(sd(y[y > 0]), 0.1), length(y)))
   fam$sigma.initial <- expression(sigma <- rep(0.3, length(y)))
   fam$nu.initial    <- expression(nu    <- rep(max(mean(y), 0.1), length(y)))

@@ -21,7 +21,7 @@ URL: https://github.com/sdwfrost/egpd, https://sdwfrost.github.io/egpd/
 BugReports: https://github.com/sdwfrost/egpd/issues
 Encoding: UTF-8
 Depends: R (>= 3.5.0)
-Imports: Rcpp (>= 1.0.0), mgcv, gamlss.dist
+Imports: Rcpp (>= 1.0.0), mgcv, gamlss.dist, Deriv
 LinkingTo: Rcpp, RcppArmadillo
 Suggests: bamlss, evgam, gamlss, knitr, pkgdown, rmarkdown, testthat (>= 3.0.0)
 VignetteBuilder: knitr
