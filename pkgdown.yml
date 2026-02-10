@@ -1,0 +1,19 @@
+pandoc: 3.8.2
+pkgdown: 2.2.0
+pkgdown_sha: ~
+articles:
+  bamlss-comparison: bamlss-comparison.html
+  doctor-visits: doctor-visits.html
+  fitegpd-continuous: fitegpd-continuous.html
+  fitegpd-discrete: fitegpd-discrete.html
+  gaming-offenses: gaming-offenses.html
+  gamlss-comparison: gamlss-comparison.html
+  insurance-complaints: insurance-complaints.html
+  parameter-coverage: parameter-coverage.html
+  predictive-coverage: predictive-coverage.html
+  simulation: simulation.html
+  temperature-extremes: temperature-extremes.html
+last_built: 2026-02-10T19:02Z
+urls:
+  reference: https://sdwfrost.github.io/egpd/reference
+  article: https://sdwfrost.github.io/egpd/articles

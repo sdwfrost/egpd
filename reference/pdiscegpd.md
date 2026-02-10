@@ -1,0 +1,49 @@
+# CDF of the Discrete Extended GPD
+
+CDF of the Discrete Extended GPD
+
+## Usage
+
+``` r
+pdiscegpd(q, prob = NA, kappa = NA, delta = NA, sigma = NA, xi = NA, type = 1)
+```
+
+## Arguments
+
+- q:
+
+  non-negative integer quantiles
+
+- prob:
+
+  mixing probability (type 6)
+
+- kappa:
+
+  shape parameter for G transformation
+
+- delta:
+
+  shape parameter for G transformation (types 4-6)
+
+- sigma:
+
+  GPD scale parameter
+
+- xi:
+
+  GPD shape parameter
+
+- type:
+
+  integer 1-6 specifying G type
+
+## Value
+
+CDF values
+
+## References
+
+Ahmad, T. and Arshad, I. A. (2024). New flexible versions of extended
+generalized Pareto model for count data. *arXiv preprint*
+arXiv:2409.18719. <https://arxiv.org/abs/2409.18719>
