@@ -105,7 +105,11 @@ cbind(true = truth, estimate = round(est, 4),
 
 The diagnostic plot for discrete families shows the empirical PMF with
 fitted probabilities (panel 1), a step-function CDF comparison (panel
-2), and Q-Q and P-P plots.
+2), a normal Q-Q plot of randomized quantile residuals (panel 3), and a
+P-P plot using the randomized probability integral transform (panel 4).
+The randomized PIT (Dunn & Smyth, 1996) spreads tied discrete values
+into continuous uniform variates, producing clean diagonal plots instead
+of the banded patterns that arise from integer-valued quantiles.
 
 ``` r
 plot(fit_degpd)
@@ -132,7 +136,7 @@ aic_table
 
       type      AIC
     1    1 4920.769
-    2    4 4921.978
+    2    4 4921.979
     3    5 4922.722
 
 ### Confidence intervals
@@ -244,10 +248,10 @@ summary(fit_zi)
 
     Estimated parameters:
           Estimate Std. Error z value Pr(>|z|)    
-    sigma  1.75242    0.45527   3.849 0.000119 ***
-    xi     0.15798    0.07358   2.147 0.031789 *  
-    kappa  1.98004    0.83642   2.367 0.017919 *  
-    pi     0.36206    0.05961   6.074 1.25e-09 ***
+    sigma  1.75201    0.45741   3.830 0.000128 ***
+    xi     0.15800    0.07385   2.140 0.032389 *  
+    kappa  1.97969    0.84112   2.354 0.018590 *  
+    pi     0.36187    0.05998   6.034  1.6e-09 ***
     ---
     Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
@@ -266,10 +270,10 @@ cbind(true = truth, estimate = round(est, 4),
 ```
 
           true estimate     SE
-    sigma  2.0   1.7524 0.4553
-    xi     0.1   0.1580 0.0736
-    kappa  1.5   1.9800 0.8364
-    pi     0.3   0.3621 0.0596
+    sigma  2.0   1.7520 0.4574
+    xi     0.1   0.1580 0.0738
+    kappa  1.5   1.9797 0.8411
+    pi     0.3   0.3619 0.0600
 
 ### Diagnostics
 
@@ -286,10 +290,10 @@ confint(fit_zi)
 ```
 
                2.5 %    97.5 %
-    sigma 0.86010370 2.6447462
-    xi    0.01376614 0.3022005
-    kappa 0.34069321 3.6193960
-    pi    0.24522643 0.4788926
+    sigma 0.85549768 2.6485174
+    xi    0.01326359 0.3027374
+    kappa 0.33113076 3.6282584
+    pi    0.24431952 0.4794218
 
 ## 3. Comparing DEGPD and ZIDEGPD
 
@@ -364,10 +368,10 @@ summary(fit5)
 
     Estimated parameters:
           Estimate Std. Error z value Pr(>|z|)    
-    sigma   1.6361     0.6106   2.679  0.00738 ** 
-    xi      0.1559     0.0392   3.976 7.01e-05 ***
-    delta   0.4117     0.9827   0.419  0.67523    
-    kappa   1.6597     0.1586  10.464  < 2e-16 ***
+    sigma  1.63595    0.60546   2.702  0.00689 ** 
+    xi     0.15591    0.03919   3.978 6.94e-05 ***
+    delta  0.41132    0.97364   0.422  0.67269    
+    kappa  1.65941    0.15856  10.466  < 2e-16 ***
     ---
     Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
@@ -474,7 +478,8 @@ cbind(true = truth, estimate = round(est, 4),
 ### Diagnostics
 
 The diagnostic plots use discrete-style panels: a barplot with fitted
-PMF points, a step-function CDF, and integer Q-Q and P-P plots.
+PMF points, a step-function CDF, and randomized PIT-based Q-Q and P-P
+plots.
 
 ``` r
 plot(fit_cpdegpd)
@@ -538,4 +543,5 @@ All families:
 - Support `fix.arg` for fixing parameters at known values
 - Estimate standard errors via the delta method on the Hessian
 - Provide four-panel diagnostic plots tailored for discrete data (bar
-  plots for PMF, step functions for CDF)
+  plots for PMF, step functions for CDF, randomized PIT-based Q-Q and
+  P-P plots)

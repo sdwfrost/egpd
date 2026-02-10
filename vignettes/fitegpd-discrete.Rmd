@@ -85,7 +85,11 @@ cbind(true = truth, estimate = round(est, 4),
 
 The diagnostic plot for discrete families shows the empirical PMF with
 fitted probabilities (panel 1), a step-function CDF comparison (panel 2),
-and Q-Q and P-P plots.
+a normal Q-Q plot of randomized quantile residuals (panel 3), and a P-P
+plot using the randomized probability integral transform (panel 4). The
+randomized PIT (Dunn & Smyth, 1996) spreads tied discrete values into
+continuous uniform variates, producing clean diagonal plots instead of
+the banded patterns that arise from integer-valued quantiles.
 
 ```{r degpd-plot, fig.height = 6}
 plot(fit_degpd)
@@ -310,7 +314,7 @@ cbind(true = truth, estimate = round(est, 4),
 ### Diagnostics
 
 The diagnostic plots use discrete-style panels: a barplot with fitted PMF
-points, a step-function CDF, and integer Q-Q and P-P plots.
+points, a step-function CDF, and randomized PIT-based Q-Q and P-P plots.
 
 ```{r cpdegpd-plot, fig.height = 6}
 plot(fit_cpdegpd)
@@ -365,4 +369,5 @@ All families:
 - Support `fix.arg` for fixing parameters at known values
 - Estimate standard errors via the delta method on the Hessian
 - Provide four-panel diagnostic plots tailored for discrete data
-  (bar plots for PMF, step functions for CDF)
+  (bar plots for PMF, step functions for CDF, randomized PIT-based
+  Q-Q and P-P plots)
