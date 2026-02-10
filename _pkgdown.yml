@@ -26,6 +26,8 @@ navbar:
           href: articles/simulation.html
         - text: "Continuous EGPD Models for Temperature Extremes"
           href: articles/temperature-extremes.html
+        - text: "Fitting Continuous Distributions with fitegpd"
+          href: articles/fitegpd-continuous.html
         - text: "Comparing egpd and bamlss Fits"
           href: articles/bamlss-comparison.html
         - text: "Comparing egpd and gamlss Fits"
@@ -44,6 +46,11 @@ reference:
     desc: "Main function for fitting EGPD, DEGPD, and ZIDEGPD GAMs."
     contents:
       - egpd
+
+  - title: "Univariate Fitting"
+    desc: "Maximum likelihood and Bernstein polynomial fitting of univariate EGPD distributions."
+    contents:
+      - fitegpd
 
   - title: "Prediction and Methods"
     desc: "S3 methods for fitted egpd objects."
@@ -89,6 +96,14 @@ reference:
       - pziegpd
       - qziegpd
       - rziegpd
+
+  - title: "Compound Poisson EGPD Distributions"
+    desc: "Compound Poisson EGPD distribution functions for aggregated data."
+    contents:
+      - dcpegpd
+      - pcpegpd
+      - qcpegpd
+      - rcpegpd
 
   - title: "Diagnostics"
     desc: "Model diagnostic tools."

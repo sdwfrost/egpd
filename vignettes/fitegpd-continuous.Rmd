@@ -1,0 +1,307 @@
+---
+title: "Fitting Continuous Distributions with fitegpd"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Fitting Continuous Distributions with fitegpd}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 6,
+  fig.height = 5
+)
+```
+
+The `fitegpd()` function provides a unified interface for fitting univariate
+EGPD models by maximum likelihood. This vignette covers the three continuous
+families:
+
+1. **Standard EGPD** (`family = "egpd"`) --- parametric G-transformation
+2. **Bernstein EGPD** (`method = "bernstein"`) --- semiparametric
+   G-transformation using a Bernstein polynomial density
+3. **Compound Poisson EGPD** (`family = "cpegpd"`) --- aggregated counts
+   modelled via Panjer recursion
+
+All three share the same GPD tail behaviour controlled by the shape parameter
+$\xi$ and scale parameter $\sigma$, but differ in how they model the body
+of the distribution.
+
+## 1. Standard EGPD
+
+The Extended GPD prepends a CDF transformation $G$ to the uniform component
+of the GPD:
+
+$$F(x) = G\!\bigl(H(x;\,\sigma,\xi)\bigr)$$
+
+where $H$ is the standard GPD CDF. The `type` argument selects the
+parametric form of $G$. Type 1 uses $G(u) = u^\kappa$ with a single
+shape parameter $\kappa > 0$.
+
+### Simulating and fitting
+
+```{r egpd-fit}
+library(egpd)
+set.seed(1)
+
+# True parameters
+sigma_true <- 2
+xi_true    <- 0.1
+kappa_true <- 1.5
+
+x <- regpd(1000, sigma = sigma_true, xi = xi_true,
+           kappa = kappa_true, type = 1)
+
+fit_egpd <- fitegpd(x, type = 1, family = "egpd")
+summary(fit_egpd)
+```
+
+### Diagnostics
+
+The four-panel diagnostic plot shows the histogram with the fitted density,
+empirical vs fitted CDF, a Q-Q plot, and a P-P plot.
+
+```{r egpd-plot, fig.height = 6}
+plot(fit_egpd)
+```
+
+### Model comparison across types
+
+Different types impose different shapes on $G$. We can compare them by AIC:
+
+```{r egpd-types}
+aic_table <- data.frame(
+  type = c(1, 4, 5),
+  AIC = c(
+    AIC(fitegpd(x, type = 1)),
+    AIC(fitegpd(x, type = 4)),
+    AIC(fitegpd(x, type = 5))
+  )
+)
+aic_table
+```
+
+Since the data were generated from Type 1, we expect it to have the lowest
+AIC (or very close).
+
+### Fixing parameters
+
+Sometimes we want to fix one parameter at a known value. The `fix.arg`
+argument removes it from optimization:
+
+```{r egpd-fix}
+fit_fix <- fitegpd(x, type = 1, fix.arg = list(xi = 0.1))
+summary(fit_fix)
+```
+
+The fixed parameter is shown separately in the summary output, and the
+confidence intervals cover only the free parameters:
+
+```{r egpd-ci}
+confint(fit_fix)
+```
+
+
+## 2. Bernstein EGPD
+
+The parametric $G$ in the standard EGPD may be too rigid for some datasets.
+The Bernstein EGPD replaces it with a flexible Bernstein polynomial density:
+
+$$f(x) = b\!\bigl(H(x)^\kappa\bigr)\;\kappa\,H(x)^{\kappa-1}\,h(x)$$
+
+where $b$ is a Bernstein polynomial density of degree $m$ with
+softmax-parameterized weights. This gives a semiparametric model that can
+approximate any smooth density on $(0,1)$.
+
+### Fitting
+
+Select `method = "bernstein"` and choose the polynomial degree with
+`bernstein.m`. A two-stage procedure first estimates GPD parameters
+via parametric MLE, then jointly optimizes all parameters.
+
+```{r bern-fit}
+fit_bern <- fitegpd(x, type = 1, method = "bernstein", bernstein.m = 8)
+summary(fit_bern)
+```
+
+The reported parameters are only $\sigma$, $\xi$, and $\kappa$; the
+Bernstein weights are stored internally. The effective number of parameters
+is $3 + (m - 1)$ since the $m$ weights sum to 1.
+
+### Comparing parametric and semiparametric fits
+
+```{r bern-compare}
+cat("Parametric AIC:     ", AIC(fit_egpd), "\n")
+cat("Bernstein (m=8) AIC:", AIC(fit_bern), "\n")
+```
+
+For well-specified parametric data the standard EGPD typically wins on AIC
+due to fewer effective parameters. The Bernstein model is most useful when
+the true $G$ is unknown or does not match any of the six parametric types.
+
+### Diagnostics
+
+```{r bern-plot, fig.height = 6}
+plot(fit_bern)
+```
+
+### Sensitivity to Bernstein degree
+
+```{r bern-degree}
+aic_m <- sapply(c(4, 6, 8, 12), function(m) {
+  AIC(fitegpd(x, type = 1, method = "bernstein", bernstein.m = m))
+})
+data.frame(m = c(4, 6, 8, 12), AIC = round(aic_m, 2))
+```
+
+
+## 3. Compound Poisson EGPD
+
+The Compound Poisson EGPD models aggregated positive data (e.g. total
+rainfall over a period) as the random sum $S = X_1 + \cdots + X_N$ where:
+
+- $N \sim \mathrm{Poisson}(\lambda)$ is the number of events, and
+- $X_i \sim \mathrm{EGPD}(\sigma, \xi, \kappa)$ are i.i.d. event sizes.
+
+The distribution of $S$ has a point mass at zero
+($P(S=0) = e^{-\lambda}$) and a continuous positive part. The PMF is
+evaluated via **Panjer recursion** on a discretized EGPD severity.
+
+This model is described in
+[Naveau et al. (2025)](https://arxiv.org/abs/2601.08350) for aggregated
+rainfall.
+
+### Panjer recursion
+
+The severity CDF is discretized on a grid $\{0, h, 2h, \ldots\}$ using
+the mean-preserving rounding method:
+$$f_0 = F_{\mathrm{EGPD}}(h/2),\qquad
+f_k = F_{\mathrm{EGPD}}\!\bigl((k+\tfrac12)h\bigr) -
+F_{\mathrm{EGPD}}\!\bigl((k-\tfrac12)h\bigr),\quad k \ge 1$$
+The compound distribution is then computed recursively:
+$$g_0 = e^{-\lambda(1-f_0)},\qquad
+g_k = \frac{\lambda}{k}\sum_{j=1}^{k} j\,f_j\,g_{k-j},\quad k \ge 1$$
+
+### Simulating compound Poisson-EGPD data
+
+The `rcpegpd()` function uses direct simulation (no Panjer needed):
+draw $N \sim \mathrm{Poisson}(\lambda)$, then sum $N$ i.i.d. EGPD draws.
+
+```{r cpegpd-sim}
+set.seed(42)
+sigma_true  <- 2
+xi_true     <- 0.1
+kappa_true  <- 1.5
+lambda_true <- 2
+
+y <- rcpegpd(1000, sigma = sigma_true, xi = xi_true,
+             kappa = kappa_true, lambda = lambda_true, type = 1)
+
+cat("Proportion of zeros:", mean(y == 0), "\n")
+cat("Theoretical P(S=0):", exp(-lambda_true), "\n")
+cat("Mean:", round(mean(y), 2), "\n")
+```
+
+```{r cpegpd-hist}
+hist(y, breaks = 40, freq = FALSE, col = "lightblue", border = "grey",
+     main = "Simulated Compound Poisson-EGPD data", xlab = "S")
+```
+
+### Fitting
+
+Select `family = "cpegpd"`. The discretization step size is controlled
+by `cpegpd.h` (default 0.2); smaller values give better accuracy at the
+cost of speed.
+
+```{r cpegpd-fit}
+fit_cp <- fitegpd(y, type = 1, family = "cpegpd", cpegpd.h = 0.1)
+summary(fit_cp)
+```
+
+```{r cpegpd-truth}
+truth <- c(sigma = sigma_true, xi = xi_true,
+           kappa = kappa_true, lambda = lambda_true)
+est <- fit_cp$estimate
+cbind(true = truth, estimate = round(est, 4),
+      SE = round(fit_cp$sd, 4))
+```
+
+### Diagnostics
+
+```{r cpegpd-plot, fig.height = 6}
+plot(fit_cp)
+```
+
+### Checking the Panjer approximation
+
+We can verify that the Panjer-based CDF matches the empirical distribution
+from a large simulation:
+
+```{r cpegpd-cdf-check, fig.height = 4}
+set.seed(1)
+y_large <- rcpegpd(50000, sigma = sigma_true, xi = xi_true,
+                    kappa = kappa_true, lambda = lambda_true, type = 1)
+qvals <- seq(0, 30, by = 0.5)
+emp_cdf <- sapply(qvals, function(q) mean(y_large <= q))
+theo_cdf <- pcpegpd(qvals, lambda = lambda_true, sigma = sigma_true,
+                     xi = xi_true, kappa = kappa_true, type = 1, h = 0.05)
+
+plot(qvals, emp_cdf, type = "l", lwd = 2,
+     xlab = "s", ylab = "CDF", main = "Panjer CDF vs empirical")
+lines(qvals, theo_cdf, col = "red", lwd = 2, lty = 2)
+legend("bottomright", c("Empirical (n=50000)", "Panjer (h=0.05)"),
+       col = c("black", "red"), lty = 1:2, lwd = 2)
+```
+
+### Effect of discretization step size
+
+Smaller `h` gives a more accurate approximation but increases computation
+time:
+
+```{r cpegpd-h}
+h_grid <- c(0.5, 0.2, 0.1, 0.05)
+aic_h <- sapply(h_grid, function(hv) {
+  AIC(fitegpd(y, type = 1, family = "cpegpd", cpegpd.h = hv))
+})
+data.frame(h = h_grid, AIC = round(aic_h, 2))
+```
+
+The AIC stabilises for sufficiently small `h`, indicating that the
+discretization error is negligible. We recommend `h = 0.1` as a good
+default for most applications.
+
+### Confidence intervals
+
+```{r cpegpd-ci}
+confint(fit_cp)
+```
+
+### Fixing parameters
+
+As with other families, individual parameters can be fixed:
+
+```{r cpegpd-fix}
+fit_cp_fix <- fitegpd(y, type = 1, family = "cpegpd",
+                       fix.arg = list(xi = 0.1), cpegpd.h = 0.1)
+summary(fit_cp_fix)
+```
+
+
+## Summary
+
+| Method | Family | Parameters | Use case |
+|--------|--------|-----------|----------|
+| `method="mle"` | `"egpd"` | $\sigma, \xi$ + type-specific | Standard parametric EGPD |
+| `method="bernstein"` | `"egpd"` | $\sigma, \xi, \kappa$ + weights | Flexible body, unknown $G$ |
+| `method="mle"` | `"cpegpd"` | $\sigma, \xi$ + type-specific + $\lambda$ | Aggregated data with zeros |
+
+All three approaches:
+
+- Return S3 objects of class `"fitegpd"` with the same interface
+  (`summary`, `plot`, `AIC`, `confint`, `coef`, `vcov`, `logLik`)
+- Support `fix.arg` for fixing parameters at known values
+- Estimate standard errors via the delta method on the Hessian
+- Provide four-panel diagnostic plots

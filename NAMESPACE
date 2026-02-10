@@ -16,7 +16,10 @@ import(utils)
 # Main fitting function
 export(egpd)
 
-# S3 methods
+# Univariate fitting
+export(fitegpd)
+
+# S3 methods for egpd (GAM fits)
 S3method(fitted, egpd)
 S3method(simulate, egpd)
 S3method(logLik, egpd)
@@ -29,6 +32,17 @@ S3method(nobs, egpd)
 S3method(confint, egpd)
 S3method(vcov, egpd)
 S3method(rqresid, egpd)
+
+# S3 methods for fitegpd (univariate fits)
+S3method(print, fitegpd)
+S3method(summary, fitegpd)
+S3method(print, summary.fitegpd)
+S3method(plot, fitegpd)
+S3method(coef, fitegpd)
+S3method(vcov, fitegpd)
+S3method(logLik, fitegpd)
+S3method(nobs, fitegpd)
+S3method(confint, fitegpd)
 
 # Generic exports
 export(rqresid)
@@ -64,6 +78,10 @@ export(dziegpd)
 export(pziegpd)
 export(qziegpd)
 export(rziegpd)
+export(dcpegpd)
+export(pcpegpd)
+export(qcpegpd)
+export(rcpegpd)
 
 # bamlss family constructors
 export(egpd_bamlss)
