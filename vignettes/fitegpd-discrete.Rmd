@@ -1,0 +1,288 @@
+---
+title: "Fitting Discrete Distributions with fitegpd"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Fitting Discrete Distributions with fitegpd}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 6,
+  fig.height = 5
+)
+```
+
+The `fitegpd()` function supports two discrete distribution families for
+fitting non-negative integer (count) data:
+
+1. **Discrete EGPD** (`family = "degpd"`) --- for counts without excess
+   zeros
+2. **Zero-Inflated Discrete EGPD** (`family = "zidegpd"`) --- for counts
+   with more zeros than the base model can accommodate
+
+Both discretize the continuous EGPD by placing the probability mass of each
+integer $k$ at $P(X = k) = F_{\mathrm{EGPD}}(k+1) - F_{\mathrm{EGPD}}(k)$,
+inheriting the flexible body and Pareto tail of the continuous model. This
+makes them natural alternatives to the Poisson, negative binomial, or
+Conway--Maxwell--Poisson for heavy-tailed or over-dispersed count data.
+
+## 1. Discrete EGPD
+
+### The model
+
+The discrete EGPD (DEGPD) has PMF
+
+$$P(X = k) = G\!\bigl(H(k+1)\bigr) - G\!\bigl(H(k)\bigr), \qquad k = 0, 1, 2, \ldots$$
+
+where $H$ is the standard GPD CDF and $G$ is the EGPD transformation
+function. As with the continuous EGPD, the `type` argument selects the
+parametric form of $G$.
+
+### Simulating and fitting
+
+We generate data from a DEGPD Type 1 model and fit it back.
+
+```{r degpd-sim}
+library(egpd)
+set.seed(1)
+
+sigma_true <- 3
+xi_true    <- 0.1
+kappa_true <- 1.5
+
+x <- rdiscegpd(1000, sigma = sigma_true, xi = xi_true,
+               kappa = kappa_true, type = 1)
+
+cat("Range:", range(x), "\n")
+cat("Mean:", round(mean(x), 2), "  Var:", round(var(x), 2), "\n")
+cat("Proportion zeros:", mean(x == 0), "\n")
+```
+
+```{r degpd-hist}
+barplot(table(x) / length(x), main = "Simulated DEGPD data",
+        xlab = "x", ylab = "Proportion", col = "lightblue", border = "grey")
+```
+
+```{r degpd-fit}
+fit_degpd <- fitegpd(x, type = 1, family = "degpd")
+summary(fit_degpd)
+```
+
+### Parameter recovery
+
+```{r degpd-recovery}
+truth <- c(sigma = sigma_true, xi = xi_true, kappa = kappa_true)
+est <- fit_degpd$estimate
+cbind(true = truth, estimate = round(est, 4),
+      SE = round(fit_degpd$sd, 4))
+```
+
+### Diagnostics
+
+The diagnostic plot for discrete families shows the empirical PMF with
+fitted probabilities (panel 1), a step-function CDF comparison (panel 2),
+and Q-Q and P-P plots.
+
+```{r degpd-plot, fig.height = 6}
+plot(fit_degpd)
+```
+
+### Comparing types by AIC
+
+Different G-transformation types suit different data shapes. We can use
+AIC to select among them:
+
+```{r degpd-types}
+aic_table <- data.frame(
+  type = c(1, 4, 5),
+  AIC = c(
+    AIC(fitegpd(x, type = 1, family = "degpd")),
+    AIC(fitegpd(x, type = 4, family = "degpd")),
+    AIC(fitegpd(x, type = 5, family = "degpd"))
+  )
+)
+aic_table
+```
+
+### Confidence intervals
+
+```{r degpd-ci}
+confint(fit_degpd)
+```
+
+### Fixing parameters
+
+As with continuous fits, individual parameters can be fixed at known values:
+
+```{r degpd-fix}
+fit_fix <- fitegpd(x, type = 1, family = "degpd",
+                    fix.arg = list(xi = 0.1))
+summary(fit_fix)
+```
+
+
+## 2. Zero-Inflated Discrete EGPD
+
+### The model
+
+Many count datasets have more zeros than any standard count model can
+explain --- e.g. the number of insurance claims (many policyholders file
+none), species counts (many sites have zero individuals), or disease
+counts (many days with no cases). The zero-inflated discrete EGPD
+(ZIDEGPD) handles this by mixing a point mass at zero with the DEGPD:
+
+$$P(X = k) = \begin{cases}
+\pi + (1-\pi)\,P_{\mathrm{DEGPD}}(X=0) & k = 0 \\
+(1-\pi)\,P_{\mathrm{DEGPD}}(X=k) & k \ge 1
+\end{cases}$$
+
+where $\pi \in (0,1)$ is the zero-inflation probability. The overall
+zero probability is $\pi + (1-\pi)\,P_{\mathrm{DEGPD}}(0)$, which is
+always larger than $P_{\mathrm{DEGPD}}(0)$ alone.
+
+### Simulating and fitting
+
+```{r zidegpd-sim}
+set.seed(42)
+
+sigma_true <- 2
+xi_true    <- 0.1
+kappa_true <- 1.5
+pi_true    <- 0.3
+
+y <- rzidiscegpd(1000, pi = pi_true, sigma = sigma_true,
+                  xi = xi_true, kappa = kappa_true, type = 1)
+
+cat("Range:", range(y), "\n")
+cat("Mean:", round(mean(y), 2), "  Var:", round(var(y), 2), "\n")
+cat("Proportion zeros:", mean(y == 0), "\n")
+```
+
+The zero proportion should be notably higher than for the non-inflated
+model because of the extra $\pi = 0.3$ point mass.
+
+```{r zidegpd-hist}
+barplot(table(y) / length(y), main = "Simulated ZIDEGPD data",
+        xlab = "y", ylab = "Proportion", col = "lightblue", border = "grey")
+```
+
+```{r zidegpd-fit}
+fit_zi <- fitegpd(y, type = 1, family = "zidegpd")
+summary(fit_zi)
+```
+
+### Parameter recovery
+
+```{r zidegpd-recovery}
+truth <- c(sigma = sigma_true, xi = xi_true,
+           kappa = kappa_true, pi = pi_true)
+est <- fit_zi$estimate
+cbind(true = truth, estimate = round(est, 4),
+      SE = round(fit_zi$sd, 4))
+```
+
+### Diagnostics
+
+```{r zidegpd-plot, fig.height = 6}
+plot(fit_zi)
+```
+
+### Confidence intervals
+
+```{r zidegpd-ci}
+confint(fit_zi)
+```
+
+
+## 3. Comparing DEGPD and ZIDEGPD
+
+When faced with zero-heavy count data, a natural question is whether the
+zero inflation is needed or whether the base DEGPD already accounts for
+the zeros adequately. We can compare the two models by AIC.
+
+### Fitting both models to zero-inflated data
+
+```{r compare-zi}
+fit_no_zi <- fitegpd(y, type = 1, family = "degpd")
+fit_with_zi <- fit_zi  # already fitted above
+
+cat("DEGPD AIC:   ", AIC(fit_no_zi), "\n")
+cat("ZIDEGPD AIC: ", AIC(fit_with_zi), "\n")
+```
+
+Since the data were generated with $\pi = 0.3$, the zero-inflated model
+should have a substantially lower AIC.
+
+### Fitting both models to non-inflated data
+
+Conversely, when the data have no excess zeros, the extra $\pi$ parameter
+should not help:
+
+```{r compare-no-zi}
+fit_degpd_on_x <- fit_degpd  # fitted to non-inflated x above
+fit_zi_on_x <- fitegpd(x, type = 1, family = "zidegpd")
+
+cat("DEGPD AIC:   ", AIC(fit_degpd_on_x), "\n")
+cat("ZIDEGPD AIC: ", AIC(fit_zi_on_x), "\n")
+cat("Estimated pi:", round(fit_zi_on_x$estimate["pi"], 4), "\n")
+```
+
+The estimated $\pi$ should be near zero and the ZIDEGPD AIC slightly
+higher (penalised for the extra parameter).
+
+
+## 4. Higher-order types
+
+Types 5 and 6 provide additional flexibility. Type 5 has both $\delta$ and
+$\kappa$ parameters; Type 6 adds a mixing probability $p$.
+
+```{r type5}
+set.seed(99)
+x5 <- rdiscegpd(1000, sigma = 2, xi = 0.1, delta = 1.2,
+                 kappa = 1.8, type = 5)
+fit5 <- fitegpd(x5, type = 5, family = "degpd")
+summary(fit5)
+```
+
+```{r type5-plot, fig.height = 6}
+plot(fit5)
+```
+
+
+## 5. Practical guidelines
+
+**Choosing between DEGPD and ZIDEGPD.** Start with `family = "degpd"`.
+If the diagnostic plots show the model underestimates the zero
+probability, refit with `family = "zidegpd"` and compare by AIC.
+
+**Choosing the type.** Fit several types and compare AIC. Types 1 and 4
+have three parameters and are good defaults. Type 5 (four parameters)
+and Type 6 (five parameters) offer more flexibility but need larger
+samples.
+
+**Starting values.** The automatic starting values work well in most cases.
+For difficult datasets (e.g. very heavy tails), supply custom start values
+via `start = list(sigma = ..., xi = ...)`.
+
+**Fixed parameters.** Use `fix.arg` when external information is available
+--- e.g. `fix.arg = list(xi = 0)` for an exponential tail.
+
+## Summary
+
+| Family | Parameters | Zero mechanism | Use case |
+|--------|-----------|----------------|----------|
+| `"degpd"` | $\sigma, \xi$ + type-specific | Natural zeros from DEGPD | Standard count data |
+| `"zidegpd"` | $\sigma, \xi$ + type-specific + $\pi$ | Extra point mass at zero | Counts with excess zeros |
+
+Both families:
+
+- Return S3 objects of class `"fitegpd"` with the same interface
+  (`summary`, `plot`, `AIC`, `confint`, `coef`, `vcov`, `logLik`)
+- Support `fix.arg` for fixing parameters at known values
+- Estimate standard errors via the delta method on the Hessian
+- Provide four-panel diagnostic plots tailored for discrete data
+  (bar plots for PMF, step functions for CDF)

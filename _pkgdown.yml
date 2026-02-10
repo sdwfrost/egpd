@@ -28,6 +28,8 @@ navbar:
           href: articles/temperature-extremes.html
         - text: "Fitting Continuous Distributions with fitegpd"
           href: articles/fitegpd-continuous.html
+        - text: "Fitting Discrete Distributions with fitegpd"
+          href: articles/fitegpd-discrete.html
         - text: "Comparing egpd and bamlss Fits"
           href: articles/bamlss-comparison.html
         - text: "Comparing egpd and gamlss Fits"
