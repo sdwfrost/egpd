@@ -7,7 +7,7 @@
 fitegpd(
   x,
   type = 1,
-  family = c("egpd", "degpd", "ziegpd", "zidegpd", "cpegpd"),
+  family = c("egpd", "degpd", "ziegpd", "zidegpd", "cpegpd", "cpdegpd"),
   method = c("mle", "bernstein"),
   start = NULL,
   fix.arg = NULL,
@@ -24,7 +24,7 @@ fitegpd(
 \item{type}{integer 1-6 specifying the G-transformation type}
 
 \item{family}{character: \code{"egpd"}, \code{"degpd"}, \code{"ziegpd"},
-\code{"zidegpd"}, or \code{"cpegpd"}}
+\code{"zidegpd"}, \code{"cpegpd"}, or \code{"cpdegpd"}}
 
 \item{method}{character: \code{"mle"} or \code{"bernstein"} (Bernstein only
 for \code{family="egpd"})}
@@ -83,6 +83,9 @@ The following families are supported:
   \item{\code{"zidegpd"}}{Zero-inflated discrete EGPD}
   \item{\code{"cpegpd"}}{Compound Poisson-EGPD for aggregated data with
     point mass at zero, fitted via Panjer recursion}
+  \item{\code{"cpdegpd"}}{Compound Poisson-Discrete EGPD for integer-valued
+    aggregated data, using exact Panjer recursion on the discrete EGPD PMF
+    (no discretization step or \code{h} parameter needed)}
 }
 
 For \code{family="cpegpd"}, the model is \eqn{S = X_1 + \cdots + X_N}
@@ -114,5 +117,9 @@ fit_d <- fitegpd(y, type = 1, family = "degpd")
 # Compound Poisson-EGPD
 z <- rcpegpd(500, sigma = 2, xi = 0.1, kappa = 1.5, lambda = 2)
 fit_cp <- fitegpd(z, type = 1, family = "cpegpd")
+
+# Compound Poisson-Discrete EGPD (exact, no discretization)
+w <- rcpdegpd(500, sigma = 3, xi = 0.1, kappa = 1.5, lambda = 2)
+fit_cpd <- fitegpd(w, type = 1, family = "cpdegpd")
 }
 }

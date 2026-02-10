@@ -107,6 +107,14 @@ reference:
       - qcpegpd
       - rcpegpd
 
+  - title: "Compound Poisson-Discrete EGPD Distributions"
+    desc: "Exact compound Poisson-Discrete EGPD distribution functions for integer-valued aggregated data."
+    contents:
+      - dcpdegpd
+      - pcpdegpd
+      - qcpdegpd
+      - rcpdegpd
+
   - title: "Diagnostics"
     desc: "Model diagnostic tools."
     contents:

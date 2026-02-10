@@ -381,7 +381,131 @@ plot(fit5)
 
 ![](fitegpd-discrete_files/figure-gfm/type5-plot-1.png)
 
-## 5. Practical guidelines
+## 5. Compound Poisson-Discrete EGPD
+
+### The model
+
+The Compound Poisson-Discrete EGPD (`family = "cpdegpd"`) models the
+aggregate sum $S = X_1 + \cdots + X_N$ where
+
+- $N \sim \mathrm{Poisson}(\lambda)$ is the random number of events, and
+- $X_i \sim \mathrm{Discrete\text{-}EGPD}(\sigma, \xi, \kappa, \ldots)$
+  are i.i.d. non-negative integer severities.
+
+Since the individual claims are already integer-valued, the Panjer
+recursion computes an **exact** compound distribution on
+$\{0, 1, 2, \ldots\}$ — no discretization step is needed and there is no
+bin-width parameter `h` to tune (unlike `family = "cpegpd"`).
+
+### Simulating and fitting
+
+``` r
+set.seed(42)
+
+sigma_true  <- 3
+xi_true     <- 0.1
+kappa_true  <- 1.5
+lambda_true <- 2
+
+z <- rcpdegpd(500, sigma = sigma_true, xi = xi_true,
+               kappa = kappa_true, lambda = lambda_true, type = 1)
+
+cat("Range:", range(z), "\n")
+```
+
+    Range: 0 43 
+
+``` r
+cat("Mean:", round(mean(z), 2), "  Var:", round(var(z), 2), "\n")
+```
+
+    Mean: 7.03   Var: 61.4 
+
+``` r
+cat("Proportion zeros:", mean(z == 0), "\n")
+```
+
+    Proportion zeros: 0.214 
+
+``` r
+barplot(table(z) / length(z), main = "Simulated CPDEGPD data",
+        xlab = "z", ylab = "Proportion", col = "lightblue", border = "grey")
+```
+
+![](fitegpd-discrete_files/figure-gfm/cpdegpd-hist-1.png)
+
+``` r
+fit_cpdegpd <- fitegpd(z, type = 1, family = "cpdegpd")
+summary(fit_cpdegpd)
+```
+
+    Fitting of the distribution 'cpdegpd' (type 1)
+    Method: mle
+
+    Estimated parameters:
+           Estimate Std. Error z value Pr(>|z|)    
+    sigma    2.7440     1.1024   2.489   0.0128 *  
+    xi       0.1482     0.1137   1.303   0.1924    
+    kappa    1.6625     1.0139   1.640   0.1011    
+    lambda   1.7767     0.2376   7.477  7.6e-14 ***
+    ---
+    Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+    Convergence:  successful 
+    Loglikelihood:  -1488.58   AIC:  2985.17   BIC:  3002.02 
+    Number of observations:  500 
+
+### Parameter recovery
+
+``` r
+truth <- c(sigma = sigma_true, xi = xi_true,
+           kappa = kappa_true, lambda = lambda_true)
+est <- fit_cpdegpd$estimate
+cbind(true = truth, estimate = round(est, 4),
+      SE = round(fit_cpdegpd$sd, 4))
+```
+
+           true estimate     SE
+    sigma   3.0   2.7440 1.1024
+    xi      0.1   0.1482 0.1137
+    kappa   1.5   1.6625 1.0139
+    lambda  2.0   1.7767 0.2376
+
+### Diagnostics
+
+The diagnostic plots use discrete-style panels: a barplot with fitted
+PMF points, a step-function CDF, and integer Q-Q and P-P plots.
+
+``` r
+plot(fit_cpdegpd)
+```
+
+![](fitegpd-discrete_files/figure-gfm/cpdegpd-plot-1.png)
+
+### Comparing with plain DEGPD on the same data
+
+Since `cpdegpd` is a compound sum model while `degpd` is a single-event
+model, we can compare their AIC on the same data to see which fits
+better:
+
+``` r
+fit_degpd_on_z <- fitegpd(z, type = 1, family = "degpd")
+
+cat("DEGPD AIC:   ", AIC(fit_degpd_on_z), "\n")
+```
+
+    DEGPD AIC:    2995.597 
+
+``` r
+cat("CPDEGPD AIC: ", AIC(fit_cpdegpd), "\n")
+```
+
+    CPDEGPD AIC:  2985.166 
+
+The compound model should fit noticeably better when the data-generating
+process truly involves random summation.
+
+## 6. Practical guidelines
 
 **Choosing between DEGPD and ZIDEGPD.** Start with `family = "degpd"`.
 If the diagnostic plots show the model underestimates the zero
@@ -405,8 +529,9 @@ available — e.g. `fix.arg = list(xi = 0)` for an exponential tail.
 |----|----|----|----|
 | `"degpd"` | $\sigma, \xi$ + type-specific | Natural zeros from DEGPD | Standard count data |
 | `"zidegpd"` | $\sigma, \xi$ + type-specific + $\pi$ | Extra point mass at zero | Counts with excess zeros |
+| `"cpdegpd"` | $\sigma, \xi$ + type-specific + $\lambda$ | Poisson zero ($N=0$) | Aggregate integer sums |
 
-Both families:
+All families:
 
 - Return S3 objects of class `"fitegpd"` with the same interface
   (`summary`, `plot`, `AIC`, `confint`, `coef`, `vcov`, `logLik`)

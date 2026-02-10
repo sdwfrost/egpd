@@ -123,9 +123,10 @@ plot.fitegpd <- function(x, ...) {
   dat <- obj$data
   n <- obj$n
   est <- as.list(c(obj$estimate, unlist(obj$fix.arg)))
-  is_discrete <- obj$family %in% c("degpd", "zidegpd")
+  is_discrete <- obj$family %in% c("degpd", "zidegpd", "cpdegpd")
   is_zi <- obj$family %in% c("ziegpd", "zidegpd")
   is_cpegpd <- obj$family == "cpegpd"
+  is_cpdegpd <- obj$family == "cpdegpd"
   is_bernstein <- obj$method == "bernstein"
 
   ## Build parameter list for distribution functions
@@ -138,7 +139,17 @@ plot.fitegpd <- function(x, ...) {
   lambda <- if ("lambda" %in% names(est)) est[["lambda"]] else NA
 
   ## Density, CDF, and quantile wrappers
-  if (is_cpegpd) {
+  if (is_cpdegpd) {
+    dfun <- function(xv) dcpdegpd(xv, lambda = lambda, prob = prob, kappa = kappa,
+                                    delta = delta, sigma = sigma, xi = xi,
+                                    type = obj$type)
+    pfun <- function(qv) pcpdegpd(qv, lambda = lambda, prob = prob, kappa = kappa,
+                                    delta = delta, sigma = sigma, xi = xi,
+                                    type = obj$type)
+    qfun <- function(pv) qcpdegpd(pv, lambda = lambda, prob = prob, kappa = kappa,
+                                    delta = delta, sigma = sigma, xi = xi,
+                                    type = obj$type)
+  } else if (is_cpegpd) {
     cp_h <- obj$cpegpd.h
     dfun <- function(xv) dcpegpd(xv, lambda = lambda, prob = prob, kappa = kappa,
                                    delta = delta, sigma = sigma, xi = xi,

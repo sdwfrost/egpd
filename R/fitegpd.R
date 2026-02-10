@@ -48,7 +48,7 @@
 #' }
 #'
 #' @export
-fitegpd <- function(x, type = 1, family = c("egpd", "degpd", "ziegpd", "zidegpd", "cpegpd"),
+fitegpd <- function(x, type = 1, family = c("egpd", "degpd", "ziegpd", "zidegpd", "cpegpd", "cpdegpd"),
                     method = c("mle", "bernstein"), start = NULL, fix.arg = NULL,
                     optim.method = "Nelder-Mead", hessian = TRUE,
                     bernstein.m = 8, cpegpd.h = 0.2, ...) {
@@ -63,7 +63,7 @@ fitegpd <- function(x, type = 1, family = c("egpd", "degpd", "ziegpd", "zidegpd"
     stop("'type' must be an integer from 1 to 6")
   if (method == "bernstein" && family != "egpd")
     stop("Bernstein method is only available for family='egpd'")
-  if (family %in% c("degpd", "zidegpd") && any(x != floor(x) | x < 0))
+  if (family %in% c("degpd", "zidegpd", "cpdegpd") && any(x != floor(x) | x < 0))
     warning("Discrete family expects non-negative integer data")
   if (family %in% c("ziegpd", "zidegpd") && !any(x == 0))
     warning("Zero-inflated family but no zeros observed in data")
@@ -193,7 +193,7 @@ fitegpd <- function(x, type = 1, family = c("egpd", "degpd", "ziegpd", "zidegpd"
   }
 
   ## Compound Poisson rate parameter
-  if (family == "cpegpd") {
+  if (family %in% c("cpegpd", "cpdegpd")) {
     spec <- c(spec, list(lambda = list(transform = "log")))
   }
 
@@ -260,7 +260,7 @@ fitegpd <- function(x, type = 1, family = c("egpd", "degpd", "ziegpd", "zidegpd"
   if (length(xclean) < 2) xclean <- c(0.1, 0.2)
 
   ## Use positive data for GPD moment estimation
-  if (family %in% c("degpd", "zidegpd")) {
+  if (family %in% c("degpd", "zidegpd", "cpdegpd")) {
     xpos <- xclean[xclean > 0] + 0.5
   } else {
     xpos <- xclean[xclean > 0]
@@ -274,7 +274,7 @@ fitegpd <- function(x, type = 1, family = c("egpd", "degpd", "ziegpd", "zidegpd"
   ## For cpegpd, the data is S = X_1 + ... + X_N where N ~ Poisson(lambda).
   ## E[S|S>0] = lambda*E[X]/(1-exp(-lambda)). Adjust moments to target
   ## the individual severity rather than the aggregate.
-  if (family == "cpegpd") {
+  if (family %in% c("cpegpd", "cpdegpd")) {
     p0 <- max(min(mean(xclean == 0), 0.99), 0.01)
     lambda_init <- -log(p0)
     ## Rough per-event mean: E[X] ~ E[S] / lambda = mean(xclean) / lambda
@@ -361,6 +361,12 @@ fitegpd <- function(x, type = 1, family = c("egpd", "degpd", "ziegpd", "zidegpd"
         ll <- dcpegpd(x, lambda = lambda, prob = prob, kappa = kappa,
                       delta = delta, sigma = sigma, xi = xi, type = type,
                       h = h, log = TRUE)
+        -sum(ll)
+      },
+      "cpdegpd" = {
+        ll <- dcpdegpd(x, lambda = lambda, prob = prob, kappa = kappa,
+                       delta = delta, sigma = sigma, xi = xi, type = type,
+                       log = TRUE)
         -sum(ll)
       }
     )

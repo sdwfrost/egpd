@@ -253,7 +253,86 @@ plot(fit5)
 ```
 
 
-## 5. Practical guidelines
+## 5. Compound Poisson-Discrete EGPD
+
+### The model
+
+The Compound Poisson-Discrete EGPD (`family = "cpdegpd"`) models the
+aggregate sum $S = X_1 + \cdots + X_N$ where
+
+- $N \sim \mathrm{Poisson}(\lambda)$ is the random number of events, and
+- $X_i \sim \mathrm{Discrete\text{-}EGPD}(\sigma, \xi, \kappa, \ldots)$
+  are i.i.d. non-negative integer severities.
+
+Since the individual claims are already integer-valued, the Panjer
+recursion computes an **exact** compound distribution on
+$\{0, 1, 2, \ldots\}$ --- no discretization step is needed and there
+is no bin-width parameter `h` to tune (unlike `family = "cpegpd"`).
+
+### Simulating and fitting
+
+```{r cpdegpd-sim}
+set.seed(42)
+
+sigma_true  <- 3
+xi_true     <- 0.1
+kappa_true  <- 1.5
+lambda_true <- 2
+
+z <- rcpdegpd(500, sigma = sigma_true, xi = xi_true,
+               kappa = kappa_true, lambda = lambda_true, type = 1)
+
+cat("Range:", range(z), "\n")
+cat("Mean:", round(mean(z), 2), "  Var:", round(var(z), 2), "\n")
+cat("Proportion zeros:", mean(z == 0), "\n")
+```
+
+```{r cpdegpd-hist}
+barplot(table(z) / length(z), main = "Simulated CPDEGPD data",
+        xlab = "z", ylab = "Proportion", col = "lightblue", border = "grey")
+```
+
+```{r cpdegpd-fit}
+fit_cpdegpd <- fitegpd(z, type = 1, family = "cpdegpd")
+summary(fit_cpdegpd)
+```
+
+### Parameter recovery
+
+```{r cpdegpd-recovery}
+truth <- c(sigma = sigma_true, xi = xi_true,
+           kappa = kappa_true, lambda = lambda_true)
+est <- fit_cpdegpd$estimate
+cbind(true = truth, estimate = round(est, 4),
+      SE = round(fit_cpdegpd$sd, 4))
+```
+
+### Diagnostics
+
+The diagnostic plots use discrete-style panels: a barplot with fitted PMF
+points, a step-function CDF, and integer Q-Q and P-P plots.
+
+```{r cpdegpd-plot, fig.height = 6}
+plot(fit_cpdegpd)
+```
+
+### Comparing with plain DEGPD on the same data
+
+Since `cpdegpd` is a compound sum model while `degpd` is a single-event
+model, we can compare their AIC on the same data to see which fits better:
+
+```{r cpdegpd-compare}
+fit_degpd_on_z <- fitegpd(z, type = 1, family = "degpd")
+
+cat("DEGPD AIC:   ", AIC(fit_degpd_on_z), "\n")
+cat("CPDEGPD AIC: ", AIC(fit_cpdegpd), "\n")
+```
+
+The compound model should fit noticeably better when the data-generating
+process truly involves random summation.
+
+
+## 6. Practical guidelines
 
 **Choosing between DEGPD and ZIDEGPD.** Start with `family = "degpd"`.
 If the diagnostic plots show the model underestimates the zero
@@ -277,8 +356,9 @@ via `start = list(sigma = ..., xi = ...)`.
 |--------|-----------|----------------|----------|
 | `"degpd"` | $\sigma, \xi$ + type-specific | Natural zeros from DEGPD | Standard count data |
 | `"zidegpd"` | $\sigma, \xi$ + type-specific + $\pi$ | Extra point mass at zero | Counts with excess zeros |
+| `"cpdegpd"` | $\sigma, \xi$ + type-specific + $\lambda$ | Poisson zero ($N=0$) | Aggregate integer sums |
 
-Both families:
+All families:
 
 - Return S3 objects of class `"fitegpd"` with the same interface
   (`summary`, `plot`, `AIC`, `confint`, `coef`, `vcov`, `logLik`)

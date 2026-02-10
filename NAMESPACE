@@ -82,6 +82,10 @@ export(dcpegpd)
 export(pcpegpd)
 export(qcpegpd)
 export(rcpegpd)
+export(dcpdegpd)
+export(pcpdegpd)
+export(qcpdegpd)
+export(rcpdegpd)
 
 # bamlss family constructors
 export(egpd_bamlss)
