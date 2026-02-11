@@ -20,7 +20,7 @@ model the body of the distribution.
 The Extended GPD prepends a CDF transformation $G$ to the uniform
 component of the GPD:
 
-$$F(x) = G\!\bigl(H(x;\,\sigma,\xi)\bigr)$$
+$$F(x) = G \bigl(H(x;\,\sigma,\xi)\bigr)$$
 
 where $H$ is the standard GPD CDF. The `type` argument selects the
 parametric form of $G$. Type 1 uses $G(u) = u^\kappa$ with a single
