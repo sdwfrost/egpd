@@ -67,6 +67,8 @@ summary(fit)
 
 ## References
 
+
+
 Ailliot, P., Gaetan, C., & Naveau, P. (2026). A parsimonious tail compliant multiscale statistical 
 model for aggregated rainfall. *Advances in Water Resources*, 208, 105216.<https://doi.org/10.1016/j.advwatres.2026.105216>
 
@@ -84,6 +86,9 @@ zeros and outliers in count data. *arXiv preprint* arXiv:2510.27365.
 Ahmad, T., Gaetan, C., & Naveau, P. (2025). An extended generalized Pareto
 regression model for count data. *Statistical Modelling*, 25(5), 416-431.
 <https://doi.org/10.1177/1471082X241266729>
+
+Carrer, N. L., & Gaetan, C. (2022). Distributional regression models for Extended Generalized 
+Pareto distributions. *arXiv preprint* arXiv:2209.04660.<https://doi.org/10.48550/arXiv.2209.04660>
 
 Gamet, P. and Jalbert, J. (2022). A flexible extended generalized Pareto distribution for tail estimation.
 *Environmetrics*, 33(4), e2714.<https://doi.org/10.1002/env.2744>
