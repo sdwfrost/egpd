@@ -10,7 +10,7 @@ fitting approaches on simulated data.
 
 ## Continuous EGPD Model 1
 
-We simulate from a continuous EGPD with G(u) = u^kappa and fit using
+We simulate from a continuous EGPD with $G(u) = u^\kappa$ and fit using
 both `egpd()` (penalised likelihood via GAM) and `bamlss()` (backfitting
 with the `egpd_bamlss()` family).
 
