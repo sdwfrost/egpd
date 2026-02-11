@@ -239,8 +239,8 @@ al. (2025)](https://arxiv.org/abs/2601.08350) for aggregated rainfall.
 The severity CDF is discretized on a grid $\{0, h, 2h, \ldots\}$ using
 the mean-preserving rounding method:
 $$f_0 = F_{\mathrm{EGPD}}(h/2),\qquad
-f_k = F_{\mathrm{EGPD}}\!\bigl((k+\tfrac12)h\bigr) -
-F_{\mathrm{EGPD}}\!\bigl((k-\tfrac12)h\bigr),\quad k \ge 1$$ The
+f_k = F_{\mathrm{EGPD}} \bigl((k+\tfrac12)h\bigr) -
+F_{\mathrm{EGPD}} \bigl((k-\tfrac12)h\bigr),\quad k \ge 1$$ The
 compound distribution is then computed recursively:
 $$g_0 = e^{-\lambda(1-f_0)},\qquad
 g_k = \frac{\lambda}{k}\sum_{j=1}^{k} j\,f_j\,g_{k-j},\quad k \ge 1$$
