@@ -47,7 +47,7 @@ scale.
 
 ### DEGPD Model 1: Power transformation
 
-Model 1 uses G(u) = u^kappa with three parameters: sigma, xi, kappa.
+Model 1 uses $G(u) = u^\kappa$ with three parameters: sigma, xi, kappa.
 
 ``` r
 df <- data.frame(y = y, x = rep(1, length(y)))
