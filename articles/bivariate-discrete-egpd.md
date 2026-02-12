@@ -95,7 +95,7 @@ plot(jitter(Y[, 1]), jitter(Y[, 2]), pch = 20, cex = 0.3,
      col = adjustcolor("steelblue", 0.4))
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/bivariate-discrete-egpd_files/figure-gfm/scatter-basic-1.png)<!-- -->
+![](bivariate-discrete-egpd_files/figure-gfm/scatter-basic-1.png)<!-- -->
 
 ### Marginal distributions
 
@@ -114,7 +114,7 @@ barplot(table(Y[, 2]) / nrow(Y), main = expression("Marginal " * Y[2]),
         col = "lightblue", border = "grey")
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/bivariate-discrete-egpd_files/figure-gfm/marginals-1.png)<!-- -->
+![](bivariate-discrete-egpd_files/figure-gfm/marginals-1.png)<!-- -->
 
 ``` r
 par(op)
@@ -175,7 +175,7 @@ for (i in seq_along(scenarios)) {
 }
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/bivariate-discrete-egpd_files/figure-gfm/scenarios-1.png)<!-- -->
+![](bivariate-discrete-egpd_files/figure-gfm/scenarios-1.png)<!-- -->
 
 ``` r
 par(op)
@@ -232,7 +232,7 @@ plot(xi_vals, cors_xi, type = "b", pch = 16,
      main = expression("Correlation vs " * xi * " (thL=thU=3)"))
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/bivariate-discrete-egpd_files/figure-gfm/dependence-1.png)<!-- -->
+![](bivariate-discrete-egpd_files/figure-gfm/dependence-1.png)<!-- -->
 
 ``` r
 par(op)
@@ -334,7 +334,7 @@ plus $\pi_0$).
 plot(fit)
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/bivariate-discrete-egpd_files/figure-gfm/plot-bdegpd-1.png)<!-- -->
+![](bivariate-discrete-egpd_files/figure-gfm/plot-bdegpd-1.png)<!-- -->
 
 The diagnostic plot for BDEGPD/BZIDEGPD shows four panels:
 
@@ -428,7 +428,7 @@ plot(jitter(Y_disc[, 1]), jitter(Y_disc[, 2]), pch = 20, cex = 0.3,
      col = adjustcolor("firebrick", 0.4))
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/bivariate-discrete-egpd_files/figure-gfm/compare-begpd-1.png)<!-- -->
+![](bivariate-discrete-egpd_files/figure-gfm/compare-begpd-1.png)<!-- -->
 
 ``` r
 par(op)

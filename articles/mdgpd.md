@@ -111,7 +111,7 @@ plot(jitter(Y[, 1]), jitter(Y[, 2]), pch = 20, cex = 0.3,
      col = adjustcolor("steelblue", 0.4))
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/mdgpd_files/figure-gfm/scatter-basic-1.png)<!-- -->
+![](mdgpd_files/figure-gfm/scatter-basic-1.png)<!-- -->
 
 ### Marginal distributions
 
@@ -143,7 +143,7 @@ barplot(table(Y[, 1]) / nrow(Y),
         col = "lightblue", border = "grey")
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/mdgpd_files/figure-gfm/marginals-1.png)<!-- -->
+![](mdgpd_files/figure-gfm/marginals-1.png)<!-- -->
 
 ``` r
 par(op)
@@ -169,7 +169,7 @@ legend("topright", "Geom(1-e^{-1})", pch = 16, col = "red",
        cex = 0.8, bg = "white")
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/mdgpd_files/figure-gfm/max-geom-1.png)<!-- -->
+![](mdgpd_files/figure-gfm/max-geom-1.png)<!-- -->
 
 ``` r
 
@@ -218,7 +218,7 @@ for (rho_v in rho_vals) {
 }
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/mdgpd_files/figure-gfm/rho-effect-1.png)<!-- -->
+![](mdgpd_files/figure-gfm/rho-effect-1.png)<!-- -->
 
 ``` r
 par(op)
@@ -245,7 +245,7 @@ for (lam_v in lambda_vals) {
 }
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/mdgpd_files/figure-gfm/lambda-effect-1.png)<!-- -->
+![](mdgpd_files/figure-gfm/lambda-effect-1.png)<!-- -->
 
 ``` r
 par(op)
@@ -270,7 +270,7 @@ for (xi_v in xi_vals) {
 }
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/mdgpd_files/figure-gfm/xi-effect-1.png)<!-- -->
+![](mdgpd_files/figure-gfm/xi-effect-1.png)<!-- -->
 
 ``` r
 par(op)
@@ -303,7 +303,7 @@ for (pr in pairs_list) {
 }
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/mdgpd_files/figure-gfm/trivariate-1.png)<!-- -->
+![](mdgpd_files/figure-gfm/trivariate-1.png)<!-- -->
 
 ``` r
 par(op)
@@ -336,7 +336,7 @@ for (pr in pairs_list) {
 }
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/mdgpd_files/figure-gfm/trivariate-high-rho-1.png)<!-- -->
+![](mdgpd_files/figure-gfm/trivariate-high-rho-1.png)<!-- -->
 
 ``` r
 par(op)
@@ -422,7 +422,7 @@ summary(fit)
 plot(fit)
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/mdgpd_files/figure-gfm/fit-mdgpd-diagnostics-1.png)<!-- -->
+![](mdgpd_files/figure-gfm/fit-mdgpd-diagnostics-1.png)<!-- -->
 
 ### Fitting ZIMDGPD
 
@@ -541,7 +541,7 @@ plot(jitter(Y_mdgpd[, 1]), jitter(Y_mdgpd[, 2]), pch = 20, cex = 0.3,
      col = adjustcolor("firebrick", 0.4))
 ```
 
-![](/Users/sdwfrost/Projects/devgam/egpd/articles/mdgpd_files/figure-gfm/compare-1.png)<!-- -->
+![](mdgpd_files/figure-gfm/compare-1.png)<!-- -->
 
 ``` r
 par(op)
