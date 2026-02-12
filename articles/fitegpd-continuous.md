@@ -140,7 +140,7 @@ The parametric $G$ in the standard EGPD may be too rigid for some
 datasets. The Bernstein EGPD replaces it with a flexible Bernstein
 polynomial density:
 
-$$f(x) = b\!\bigl(H(x)^\kappa\bigr)\;\kappa\,H(x)^{\kappa-1}\,h(x)$$
+$$f(x) = b\bigl(H(x)^\kappa\bigr)\;\kappa\,H(x)^{\kappa-1}\,h(x)$$
 
 where $b$ is a Bernstein polynomial density of degree $m$ with
 softmax-parameterized weights. This gives a semiparametric model that
