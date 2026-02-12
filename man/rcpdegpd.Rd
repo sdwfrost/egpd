@@ -27,10 +27,10 @@ rcpdegpd(n, lambda, prob = NA, kappa = NA, delta = NA, sigma, xi, type = 1)
 integer vector of length \code{n}
 }
 \description{
-Direct simulation from the Compound Poisson-Discrete EGPD distribution:
-draw \eqn{N \sim \mathrm{Poisson}(\lambda)}, then sum \eqn{N} i.i.d.
-Discrete-EGPD draws.
+Direct simulation: draw \eqn{N \sim \mathrm{Poisson}(\lambda)}, then
+sum \eqn{N} i.i.d. Discrete-EGPD draws.
 }
 \seealso{
-\code{\link{dcpdegpd}}, \code{\link{pcpdegpd}}, \code{\link{qcpdegpd}}
+\code{\link{dcpdegpd}}, \code{\link{pcpdegpd}},
+  \code{\link{qcpdegpd}}
 }

@@ -3,18 +3,30 @@
 
 #' Fit EGPD distribution to data
 #'
-#' Maximum likelihood or Bernstein polynomial fitting of EGPD, discrete EGPD,
-#' zero-inflated EGPD, or zero-inflated discrete EGPD distributions.
+#' Maximum likelihood, Bernstein polynomial, or neural Bayes fitting of EGPD,
+#' discrete EGPD, zero-inflated EGPD, zero-inflated discrete EGPD, or
+#' bivariate multivariate EGPD distributions.
 #'
-#' @param x numeric vector of observations
-#' @param type integer 1-6 specifying the G-transformation type
-#' @param family character: "egpd", "degpd", "ziegpd", or "zidegpd"
-#' @param method character: "mle" or "bernstein" (Bernstein only for family="egpd")
+#' @param x numeric vector of observations (univariate families), or an
+#'   n-by-2 numeric matrix/data.frame (family="begpd").
+#' @param type integer 1-6 specifying the G-transformation type (univariate only).
+#' @param family character: "egpd", "degpd", "ziegpd", "zidegpd", "cpegpd",
+#'   "cpdegpd", or "begpd" (bivariate multivariate EGPD).
+#' @param method character: "mle", "bernstein", or "neuralbayes".
+#'   \code{"neuralbayes"} requires \code{family="begpd"} and Julia dependencies.
 #' @param start named list of starting values, or NULL for automatic
-#' @param fix.arg named list of fixed parameters (not optimized)
+#'   (not used for method="neuralbayes").
+#' @param fix.arg named list of fixed parameters (not used for method="neuralbayes").
 #' @param optim.method optimization method passed to \code{\link{optim}}
 #' @param hessian logical: compute standard errors via Hessian?
 #' @param bernstein.m integer: Bernstein polynomial degree (method="bernstein" only)
+#' @param cpegpd.h numeric: discretization step for cpegpd family.
+#' @param model.path character: path to a pre-trained .bson model file
+#'   (method="neuralbayes" only). If NULL, uses bundled model.
+#' @param estimator character: \code{"npe"} for Neural Posterior Estimation or
+#'   \code{"nbe"} for Neural Bayesian Estimation (method="neuralbayes" only).
+#' @param nsamples integer: number of posterior samples for NPE
+#'   (method="neuralbayes" with estimator="npe" only).
 #' @param ... additional arguments passed to \code{\link{optim}}
 #'
 #' @return An object of class \code{"fitegpd"} with components:
@@ -39,24 +51,59 @@
 #'   \item{bernstein.weights}{Bernstein weights (NULL for method="mle")}
 #' }
 #'
+#' For \code{family="begpd"}, additional fields:
+#' \describe{
+#'   \item{estimator_type}{"npe" or "nbe"}
+#'   \item{model.path}{path to the .bson model used}
+#'   \item{posterior_samples}{6 x nsamples matrix of posterior draws (NPE) or NULL (NBE)}
+#'   \item{nsamples}{number of posterior samples (NPE) or NULL (NBE)}
+#' }
+#'
 #' @examples
 #' \dontrun{
+#' # Univariate fitting
 #' x <- regpd(500, sigma = 2, xi = 0.1, kappa = 1.5, type = 1)
 #' fit <- fitegpd(x, type = 1)
 #' summary(fit)
 #' plot(fit)
+#'
+#' # Bivariate BEGPD (requires Julia)
+#' Y <- rbegpd(1000, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0.2)
+#' fit_biv <- fitegpd(Y, family = "begpd", method = "neuralbayes")
+#' summary(fit_biv)
+#' plot(fit_biv)
 #' }
 #'
 #' @export
-fitegpd <- function(x, type = 1, family = c("egpd", "degpd", "ziegpd", "zidegpd", "cpegpd", "cpdegpd"),
-                    method = c("mle", "bernstein"), start = NULL, fix.arg = NULL,
+fitegpd <- function(x, type = 1,
+                    family = c("egpd", "degpd", "ziegpd", "zidegpd",
+                               "cpegpd", "cpdegpd", "begpd"),
+                    method = c("mle", "bernstein", "neuralbayes"),
+                    start = NULL, fix.arg = NULL,
                     optim.method = "Nelder-Mead", hessian = TRUE,
-                    bernstein.m = 8, cpegpd.h = 0.2, ...) {
+                    bernstein.m = 8, cpegpd.h = 0.2,
+                    model.path = NULL, estimator = c("npe", "nbe"),
+                    nsamples = 1000L, ...) {
   cl <- match.call()
   family <- match.arg(family)
   method <- match.arg(method)
 
-  ## Validate inputs
+  ## Cross-validation: begpd <-> neuralbayes
+  if (family == "begpd" && method != "neuralbayes")
+    stop("family='begpd' requires method='neuralbayes'", call. = FALSE)
+  if (method == "neuralbayes" && family != "begpd")
+    stop("method='neuralbayes' requires family='begpd'", call. = FALSE)
+
+  ## Dispatch to neural Bayes fitting for BEGPD
+  if (method == "neuralbayes") {
+    estimator <- match.arg(estimator)
+    return(.fitegpd_neuralbayes(x, model.path = model.path,
+                                 estimator = estimator,
+                                 nsamples = as.integer(nsamples),
+                                 call = cl))
+  }
+
+  ## Validate inputs (univariate families only)
   if (!is.numeric(x) || length(x) < 2)
     stop("'x' must be a numeric vector with at least 2 observations")
   if (!type %in% 1:6)

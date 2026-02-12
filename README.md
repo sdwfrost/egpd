@@ -51,6 +51,50 @@ fit <- egpd(
 summary(fit)
 ```
 
+## Bivariate EGPD (BEGPD)
+
+The package also supports bivariate Bivariate EGPD (BEGPD) fitting
+via neural Bayes estimation, using pre-trained neural networks. This
+requires [Julia](https://julialang.org/) (>= 1.11) and additional
+dependencies.
+
+### Additional dependencies
+
+```r
+# R packages
+install.packages("JuliaConnectoR")
+remotes::install_github("msainsburydale/NeuralEstimators")
+```
+
+Then install the required Julia packages:
+
+```julia
+using Pkg
+Pkg.add(["NeuralEstimators", "Flux"])
+```
+
+### Quick start (bivariate BEGPD)
+
+```r
+library(egpd)
+
+# Simulate bivariate BEGPD data (no Julia needed)
+Y <- rbegpd(1000, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0.2)
+
+# Fit using neural posterior estimation (requires Julia)
+fit <- fitegpd(Y, family = "begpd", method = "neuralbayes", estimator = "npe")
+summary(fit)
+plot(fit)
+
+# Train your own model (optional)
+paths <- train_begpd(savepath = "my_models", quick = TRUE)
+fit2 <- fitegpd(Y, family = "begpd", method = "neuralbayes",
+                model.path = paths$npe, estimator = "npe")
+```
+
+For details, see Alotaibi, Sainsbury-Dale, Naveau, Gaetan & Huser (2025),
+[arXiv:2509.05982](https://arxiv.org/abs/2509.05982).
+
 ## Vignettes
 
 - [Discrete EGPD Models for Insurance Complaint Counts](articles/insurance-complaints.md)
@@ -59,6 +103,7 @@ summary(fit)
 - [Continuous EGPD Models for Temperature Extremes](articles/temperature-extremes.md)
 - [Fitting Continuous Distributions with fitegpd](articles/fitegpd-continuous.md)
 - [Fitting Discrete Distributions with fitegpd](articles/fitegpd-discrete.md)
+- [Bivariate BEGPD via Neural Bayes Estimation](articles/multivariate-egpd.md)
 - [Simulation Examples](articles/simulation.md)
 - [Comparing egpd and bamlss Fits](articles/bamlss-comparison.md)
 - [Comparing egpd and gamlss Fits](articles/gamlss-comparison.md)
@@ -67,7 +112,10 @@ summary(fit)
 
 ## References
 
-
+Alotaibi, N., Sainsbury-Dale, M., Naveau, P., Gaetan, C., and Huser, R. (2025).
+Joint modeling of low and high extremes using a multivariate extended generalized
+Pareto distribution. *arXiv preprint* arXiv:2509.05982.
+<https://arxiv.org/abs/2509.05982>
 
 Ailliot, P., Gaetan, C., & Naveau, P. (2026). A parsimonious tail compliant multiscale statistical 
 model for aggregated rainfall. *Advances in Water Resources*, 208, 105216.<https://doi.org/10.1016/j.advwatres.2026.105216>

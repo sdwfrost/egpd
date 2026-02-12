@@ -39,11 +39,6 @@ dziegpd(
 Density values
 }
 \description{
-Density of the Zero-Inflated Extended GPD
-}
-\references{
-Abbas, A., Ahmad, T. and Ahmad, I. (2025).
-Modeling zero-inflated precipitation extremes.
-\emph{arXiv preprint} arXiv:2504.11058.
-\url{https://arxiv.org/abs/2504.11058}
+Continuous zero-inflated EGPD density:
+\eqn{h(x) = \pi I(x=0) + (1-\pi) f_{EGPD}(x)} for \eqn{x \ge 0}.
 }

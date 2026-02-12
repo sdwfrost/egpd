@@ -38,6 +38,8 @@ navbar:
           href: articles/predictive-coverage.html
         - text: "Parameter Estimate Coverage Assessment"
           href: articles/parameter-coverage.html
+        - text: "Bivariate BEGPD via Neural Bayes Estimation"
+          href: articles/multivariate-egpd.html
 
 reference:
   - title: "Package Overview"
@@ -62,7 +64,10 @@ reference:
       - simulate.egpd
       - logLik.egpd
       - plot.egpd
+      - plot.fitegpd
       - summary.egpd
+      - vcov.egpd
+      - confint.egpd
       - print.egpd
       - nobs.egpd
       - predictive_coverage
@@ -114,6 +119,12 @@ reference:
       - pcpdegpd
       - qcpdegpd
       - rcpdegpd
+
+  - title: "Bivariate BEGPD"
+    desc: "Bivariate Extended Generalized Pareto Distribution via neural Bayes estimation."
+    contents:
+      - rbegpd
+      - train_begpd
 
   - title: "Diagnostics"
     desc: "Model diagnostic tools."

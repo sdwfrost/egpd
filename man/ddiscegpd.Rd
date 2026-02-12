@@ -27,9 +27,3 @@ PMF values
 \description{
 Density of the Discrete Extended GPD
 }
-\references{
-Ahmad, T. and Arshad, I. A. (2024).
-New flexible versions of extended generalized Pareto model for count data.
-\emph{arXiv preprint} arXiv:2409.18719.
-\url{https://arxiv.org/abs/2409.18719}
-}

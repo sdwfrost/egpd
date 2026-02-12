@@ -7,41 +7,53 @@
 fitegpd(
   x,
   type = 1,
-  family = c("egpd", "degpd", "ziegpd", "zidegpd", "cpegpd", "cpdegpd"),
-  method = c("mle", "bernstein"),
+  family = c("egpd", "degpd", "ziegpd", "zidegpd", "cpegpd", "cpdegpd", "begpd"),
+  method = c("mle", "bernstein", "neuralbayes"),
   start = NULL,
   fix.arg = NULL,
   optim.method = "Nelder-Mead",
   hessian = TRUE,
   bernstein.m = 8,
   cpegpd.h = 0.2,
+  model.path = NULL,
+  estimator = c("npe", "nbe"),
+  nsamples = 1000L,
   ...
 )
 }
 \arguments{
-\item{x}{numeric vector of observations}
+\item{x}{numeric vector of observations (univariate families), or an
+n-by-2 numeric matrix/data.frame (family="begpd").}
 
-\item{type}{integer 1-6 specifying the G-transformation type}
+\item{type}{integer 1-6 specifying the G-transformation type (univariate only).}
 
-\item{family}{character: \code{"egpd"}, \code{"degpd"}, \code{"ziegpd"},
-\code{"zidegpd"}, \code{"cpegpd"}, or \code{"cpdegpd"}}
+\item{family}{character: "egpd", "degpd", "ziegpd", "zidegpd", "cpegpd",
+"cpdegpd", or "begpd" (bivariate multivariate EGPD).}
 
-\item{method}{character: \code{"mle"} or \code{"bernstein"} (Bernstein only
-for \code{family="egpd"})}
+\item{method}{character: "mle", "bernstein", or "neuralbayes".
+\code{"neuralbayes"} requires \code{family="begpd"} and Julia dependencies.}
 
-\item{start}{named list of starting values, or \code{NULL} for automatic}
+\item{start}{named list of starting values, or NULL for automatic
+(not used for method="neuralbayes").}
 
-\item{fix.arg}{named list of fixed parameters (not optimized)}
+\item{fix.arg}{named list of fixed parameters (not used for method="neuralbayes").}
 
 \item{optim.method}{optimization method passed to \code{\link{optim}}}
 
 \item{hessian}{logical: compute standard errors via Hessian?}
 
-\item{bernstein.m}{integer: Bernstein polynomial degree
-(\code{method="bernstein"} only)}
+\item{bernstein.m}{integer: Bernstein polynomial degree (method="bernstein" only)}
 
-\item{cpegpd.h}{numeric: discretization step size for the Compound
-Poisson-EGPD Panjer recursion (\code{family="cpegpd"} only)}
+\item{cpegpd.h}{numeric: discretization step for cpegpd family.}
+
+\item{model.path}{character: path to a pre-trained .bson model file
+(method="neuralbayes" only). If NULL, uses bundled model.}
+
+\item{estimator}{character: \code{"npe"} for Neural Posterior Estimation or
+\code{"nbe"} for Neural Bayesian Estimation (method="neuralbayes" only).}
+
+\item{nsamples}{integer: number of posterior samples for NPE
+(method="neuralbayes" with estimator="npe" only).}
 
 \item{...}{additional arguments passed to \code{\link{optim}}}
 }
@@ -66,60 +78,34 @@ An object of class \code{"fitegpd"} with components:
   \item{call}{the matched call}
   \item{bernstein.m}{Bernstein degree (NULL for method="mle")}
   \item{bernstein.weights}{Bernstein weights (NULL for method="mle")}
-  \item{cpegpd.h}{discretization step size (NULL for non-cpegpd families)}
+}
+
+For \code{family="begpd"}, additional fields:
+\describe{
+  \item{estimator_type}{"npe" or "nbe"}
+  \item{model.path}{path to the .bson model used}
+  \item{posterior_samples}{6 x nsamples matrix of posterior draws (NPE) or NULL (NBE)}
+  \item{nsamples}{number of posterior samples (NPE) or NULL (NBE)}
 }
 }
 \description{
-Maximum likelihood or Bernstein polynomial fitting of EGPD, discrete EGPD,
-zero-inflated EGPD, zero-inflated discrete EGPD, or Compound Poisson-EGPD
-distributions.
-}
-\details{
-The following families are supported:
-\describe{
-  \item{\code{"egpd"}}{Continuous Extended Generalized Pareto Distribution}
-  \item{\code{"degpd"}}{Discrete EGPD for non-negative integer data}
-  \item{\code{"ziegpd"}}{Zero-inflated continuous EGPD}
-  \item{\code{"zidegpd"}}{Zero-inflated discrete EGPD}
-  \item{\code{"cpegpd"}}{Compound Poisson-EGPD for aggregated data with
-    point mass at zero, fitted via Panjer recursion}
-  \item{\code{"cpdegpd"}}{Compound Poisson-Discrete EGPD for integer-valued
-    aggregated data, using exact Panjer recursion on the discrete EGPD PMF
-    (no discretization step or \code{h} parameter needed)}
-}
-
-For \code{family="cpegpd"}, the model is \eqn{S = X_1 + \cdots + X_N}
-where \eqn{N \sim \mathrm{Poisson}(\lambda)} and
-\eqn{X_i \sim \mathrm{EGPD}(\sigma, \xi, \kappa, \ldots)}.
-The \code{cpegpd.h} argument controls the discretization grid width for the
-Panjer recursion; smaller values give better accuracy at higher
-computational cost.
-
-The Bernstein method (\code{method="bernstein"}) replaces the parametric
-G-transformation with a flexible Bernstein polynomial density, giving a
-semiparametric model.
+Maximum likelihood, Bernstein polynomial, or neural Bayes fitting of EGPD,
+discrete EGPD, zero-inflated EGPD, zero-inflated discrete EGPD, or
+bivariate multivariate EGPD distributions.
 }
 \examples{
 \dontrun{
-# Continuous EGPD
+# Univariate fitting
 x <- regpd(500, sigma = 2, xi = 0.1, kappa = 1.5, type = 1)
 fit <- fitegpd(x, type = 1)
 summary(fit)
 plot(fit)
 
-# Bernstein EGPD
-fit_b <- fitegpd(x, type = 1, method = "bernstein")
-
-# Discrete EGPD
-y <- rdiscegpd(500, sigma = 3, xi = 0.1, kappa = 1.5, type = 1)
-fit_d <- fitegpd(y, type = 1, family = "degpd")
-
-# Compound Poisson-EGPD
-z <- rcpegpd(500, sigma = 2, xi = 0.1, kappa = 1.5, lambda = 2)
-fit_cp <- fitegpd(z, type = 1, family = "cpegpd")
-
-# Compound Poisson-Discrete EGPD (exact, no discretization)
-w <- rcpdegpd(500, sigma = 3, xi = 0.1, kappa = 1.5, lambda = 2)
-fit_cpd <- fitegpd(w, type = 1, family = "cpdegpd")
+# Bivariate BEGPD (requires Julia)
+Y <- rbegpd(1000, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0.2)
+fit_biv <- fitegpd(Y, family = "begpd", method = "neuralbayes")
+summary(fit_biv)
+plot(fit_biv)
 }
+
 }

@@ -24,13 +24,8 @@ rcpegpd(n, lambda, prob = NA, kappa = NA, delta = NA, sigma, xi, type = 1)
 \item{type}{integer 1-6 specifying G-transformation type}
 }
 \value{
-numeric vector of length \code{n}
+numeric vector of length n
 }
 \description{
-Direct simulation from the Compound Poisson-EGPD distribution:
-draw \eqn{N \sim \mathrm{Poisson}(\lambda)}, then sum \eqn{N} i.i.d.
-EGPD draws.
-}
-\seealso{
-\code{\link{dcpegpd}}, \code{\link{pcpegpd}}, \code{\link{qcpegpd}}
+Direct simulation: draw N ~ Poisson(lambda), then sum N iid EGPD draws.
 }

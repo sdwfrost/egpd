@@ -33,13 +33,21 @@ Flexible model for varying levels of zeros and outliers in count data.
 \emph{arXiv preprint} arXiv:2510.27365.
 \url{https://arxiv.org/abs/2510.27365}
 }
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/sdwfrost/egpd}
+  \item \url{https://sdwfrost.github.io/egpd/}
+  \item Report bugs at \url{https://github.com/sdwfrost/egpd/issues}
+}
+
+}
 \author{
-\strong{Maintainer}: Simon Frost \email{sdwfrost@gmail.com}
+\strong{Maintainer}: Touqeer Ahmad \email{touqeer.ahmad8960@gmail.com}
 
 Authors:
 \itemize{
-  \item Touqeer Ahmad
-  \item Simon Frost
+  \item Simon Frost \email{sdwfrost@gmail.com}
 }
 
 }

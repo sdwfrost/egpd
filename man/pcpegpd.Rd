@@ -36,15 +36,11 @@ pcpegpd(
 
 \item{h}{bin width for discretization (default 0.2)}
 
-\item{K}{number of bins (default: automatically determined from data range)}
+\item{K}{number of bins (default: ceiling(max(x)/h) + 50)}
 }
 \value{
 numeric vector of cumulative probabilities
 }
 \description{
-Computes the cumulative distribution function of the Compound Poisson-EGPD
-distribution using Panjer recursion on a discretized EGPD severity.
-}
-\seealso{
-\code{\link{dcpegpd}}, \code{\link{qcpegpd}}, \code{\link{rcpegpd}}
+Distribution function of Compound Poisson-EGPD
 }

@@ -4,8 +4,17 @@
 \alias{qcpdegpd}
 \title{Quantile function of Compound Poisson-Discrete EGPD}
 \usage{
-qcpdegpd(p, lambda, prob = NA, kappa = NA, delta = NA, sigma, xi, type = 1,
-  K = NULL)
+qcpdegpd(
+  p,
+  lambda,
+  prob = NA,
+  kappa = NA,
+  delta = NA,
+  sigma,
+  xi,
+  type = 1,
+  K = NULL
+)
 }
 \arguments{
 \item{p}{numeric vector of probabilities}
@@ -24,7 +33,7 @@ qcpdegpd(p, lambda, prob = NA, kappa = NA, delta = NA, sigma, xi, type = 1,
 
 \item{type}{integer 1-6 specifying G-transformation type}
 
-\item{K}{grid size for Panjer recursion (default: 5000)}
+\item{K}{grid size for Panjer recursion (default: max(max(x), 100) + 50)}
 }
 \value{
 numeric vector of quantiles (non-negative integers)
@@ -33,5 +42,6 @@ numeric vector of quantiles (non-negative integers)
 Quantile function of Compound Poisson-Discrete EGPD
 }
 \seealso{
-\code{\link{dcpdegpd}}, \code{\link{pcpdegpd}}, \code{\link{rcpdegpd}}
+\code{\link{dcpdegpd}}, \code{\link{pcpdegpd}},
+  \code{\link{rcpdegpd}}
 }

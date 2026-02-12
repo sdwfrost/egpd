@@ -2,6 +2,18 @@
 
 #' @export
 print.fitegpd <- function(x, ...) {
+  if (x$family == "begpd") {
+    est_label <- if (x$estimator_type == "npe") "npe" else "nbe"
+    cat("Fitting of bivariate BEGPD by neuralbayes (", est_label, ")\n", sep = "")
+    if (x$estimator_type == "npe") {
+      cat("Posterior median estimates:\n")
+    } else {
+      cat("Point estimates:\n")
+    }
+    print(round(x$estimate, 4))
+    return(invisible(x))
+  }
+
   cat("Fitting of the distribution '", x$family, "' (type ", x$type,
       ") by ", x$method, "\n", sep = "")
   cat("Parameters:\n")
@@ -11,6 +23,40 @@ print.fitegpd <- function(x, ...) {
 
 #' @export
 summary.fitegpd <- function(object, ...) {
+  if (object$family == "begpd") {
+    est <- object$estimate
+
+    if (object$estimator_type == "npe" && !is.null(object$posterior_samples)) {
+      post <- object$posterior_samples  # 6 x nsamples
+      se <- apply(post, 1, sd)
+      q025 <- apply(post, 1, quantile, probs = 0.025)
+      q975 <- apply(post, 1, quantile, probs = 0.975)
+      tab <- cbind(Median = est, Post.SD = se, `2.5%` = q025, `97.5%` = q975)
+    } else {
+      se <- object$sd
+      tab <- cbind(Estimate = est, SE = se)
+    }
+    rownames(tab) <- names(est)
+
+    return(structure(list(
+      table       = tab,
+      fix.tab     = NULL,
+      loglik      = object$loglik,
+      aic         = object$aic,
+      bic         = object$bic,
+      n           = object$n,
+      npar        = object$npar,
+      family      = object$family,
+      type        = object$type,
+      method      = object$method,
+      convergence = object$convergence,
+      bernstein.m = NULL,
+      cpegpd.h    = NULL,
+      estimator_type = object$estimator_type,
+      nsamples    = object$nsamples
+    ), class = "summary.fitegpd"))
+  }
+
   est <- object$estimate
   se  <- object$sd
   z   <- est / se
@@ -44,6 +90,26 @@ summary.fitegpd <- function(object, ...) {
 
 #' @export
 print.summary.fitegpd <- function(x, digits = 4, ...) {
+  if (x$family == "begpd") {
+    est_label <- if (x$estimator_type == "npe") "npe" else "nbe"
+    cat("Fitting of bivariate BEGPD\n")
+    cat("Method: neuralbayes (", est_label, ")", sep = "")
+    if (!is.null(x$nsamples))
+      cat("  [", x$nsamples, " posterior samples]", sep = "")
+    cat("\n\n")
+
+    if (x$estimator_type == "npe") {
+      cat("Posterior summary:\n")
+    } else {
+      cat("Estimated parameters:\n")
+    }
+    print(round(x$table, digits))
+
+    cat("\nNote: log-likelihood, AIC, and BIC are not available for neural estimation\n")
+    cat("Number of observations: ", x$n, "\n")
+    return(invisible(x))
+  }
+
   cat("Fitting of the distribution '", x$family, "' (type ", x$type, ")\n", sep = "")
   cat("Method: ", x$method, sep = "")
   if (!is.null(x$bernstein.m)) cat(" (Bernstein degree = ", x$bernstein.m, ")", sep = "")
@@ -74,6 +140,15 @@ coef.fitegpd <- function(object, ...) {
 
 #' @export
 vcov.fitegpd <- function(object, ...) {
+  if (object$family == "begpd") {
+    if (object$estimator_type == "npe" && !is.null(object$posterior_samples)) {
+      V <- cov(t(object$posterior_samples))
+      rownames(V) <- colnames(V) <- names(object$estimate)
+      return(V)
+    }
+    stop("Variance-covariance matrix not available for NBE estimator (no posterior samples)",
+         call. = FALSE)
+  }
   if (is.null(object$vcov))
     stop("Variance-covariance matrix not available (hessian was not computed)")
   object$vcov
@@ -81,6 +156,15 @@ vcov.fitegpd <- function(object, ...) {
 
 #' @export
 logLik.fitegpd <- function(object, ...) {
+  if (object$family == "begpd") {
+    warning("Log-likelihood is not available for neural Bayes estimation",
+            call. = FALSE)
+    ll <- NA_real_
+    attr(ll, "df") <- object$npar
+    attr(ll, "nobs") <- object$n
+    class(ll) <- "logLik"
+    return(ll)
+  }
   ll <- object$loglik
   attr(ll, "df") <- object$npar
   attr(ll, "nobs") <- object$n
@@ -95,6 +179,26 @@ nobs.fitegpd <- function(object, ...) {
 
 #' @export
 confint.fitegpd <- function(object, parm, level = 0.95, ...) {
+  if (object$family == "begpd") {
+    if (object$estimator_type == "npe" && !is.null(object$posterior_samples)) {
+      ## Credible intervals from posterior quantiles
+      a <- (1 - level) / 2
+      post <- object$posterior_samples  # 6 x nsamples
+      cf <- object$estimate
+      if (missing(parm)) parm <- names(cf)
+      parm <- parm[parm %in% names(cf)]
+      idx <- match(parm, rownames(post))
+      ci <- t(apply(post[idx, , drop = FALSE], 1, quantile,
+                     probs = c(a, 1 - a)))
+      pct <- paste(format(100 * c(a, 1 - a), trim = TRUE, digits = 3), "%")
+      colnames(ci) <- pct
+      rownames(ci) <- parm
+      return(ci)
+    }
+    stop("Credible intervals not available for NBE estimator (no posterior samples)",
+         call. = FALSE)
+  }
+
   cf <- object$estimate
   se <- object$sd
   if (missing(parm)) parm <- names(cf)
@@ -111,14 +215,21 @@ confint.fitegpd <- function(object, parm, level = 0.95, ...) {
 
 #' Plot diagnostics for a fitegpd object
 #'
-#' Produces a 4-panel diagnostic plot: histogram with fitted density,
-#' empirical vs fitted CDF, Q-Q plot, and P-P plot.
+#' Produces a 4-panel diagnostic plot. For univariate fits: histogram with
+#' fitted density, empirical vs fitted CDF, Q-Q plot, and P-P plot. For
+#' bivariate BEGPD fits: observed scatter, simulated scatter, radial Q-Q
+#' plot, and posterior marginals or parameter bar chart.
 #'
 #' @param x a \code{fitegpd} object
 #' @param ... additional graphical parameters
 #'
 #' @export
 plot.fitegpd <- function(x, ...) {
+  ## Dispatch to begpd-specific plot
+  if (x$family == "begpd") {
+    return(.plot_begpd(x, ...))
+  }
+
   obj <- x
   dat <- obj$data
   n <- obj$n

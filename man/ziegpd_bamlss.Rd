@@ -2,28 +2,21 @@
 % Please edit documentation in R/bamlss_families.R
 \name{ziegpd_bamlss}
 \alias{ziegpd_bamlss}
-\title{bamlss Family for Zero-Inflated Continuous EGPD}
+\title{bamlss family for zero-inflated continuous EGPD}
 \usage{
 ziegpd_bamlss(m = 1, ...)
 }
 \arguments{
-\item{m}{integer 1-4 specifying the G-transformation model}
+\item{m}{integer 1--4 selecting the G transformation (see
+\code{\link{egpd_bamlss}} for details)}
 
-\item{...}{additional arguments}
+\item{...}{arguments passed to link specification}
 }
 \value{
 An object of class \code{family.bamlss}
 }
 \description{
-bamlss Family for Zero-Inflated Continuous EGPD
-}
-\references{
-Abbas, A., Ahmad, T. and Ahmad, I. (2025).
-Modeling zero-inflated precipitation extremes.
-\emph{arXiv preprint} arXiv:2504.11058.
-\url{https://arxiv.org/abs/2504.11058}
-}
-\seealso{
-\code{\link{ZIEGPD1}}, \code{\link{egpd_bamlss}},
-\code{\link{zidegpd_bamlss}}
+Creates a \code{family.bamlss} object for fitting continuous
+zero-inflated Extended Generalized Pareto Distribution models
+with \code{bamlss()}.
 }

@@ -38,9 +38,3 @@ Random non-negative samples
 \description{
 Random generation from the Zero-Inflated Extended GPD
 }
-\references{
-Abbas, A., Ahmad, T. and Ahmad, I. (2025).
-Modeling zero-inflated precipitation extremes.
-\emph{arXiv preprint} arXiv:2504.11058.
-\url{https://arxiv.org/abs/2504.11058}
-}

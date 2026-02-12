@@ -19,6 +19,10 @@ export(egpd)
 # Univariate fitting
 export(fitegpd)
 
+# Bivariate EGPD
+export(rbegpd)
+export(train_begpd)
+
 # S3 methods for egpd (GAM fits)
 S3method(fitted, egpd)
 S3method(simulate, egpd)

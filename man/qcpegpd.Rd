@@ -36,15 +36,11 @@ qcpegpd(
 
 \item{h}{bin width for discretization (default 0.2)}
 
-\item{K}{number of bins (default: 5000)}
+\item{K}{number of bins (default: ceiling(max(x)/h) + 50)}
 }
 \value{
 numeric vector of quantiles
 }
 \description{
-Computes the quantile function of the Compound Poisson-EGPD distribution
-by inverting the Panjer-based CDF.
-}
-\seealso{
-\code{\link{dcpegpd}}, \code{\link{pcpegpd}}, \code{\link{rcpegpd}}
+Quantile function of Compound Poisson-EGPD
 }

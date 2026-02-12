@@ -45,31 +45,31 @@ predictive_coverage(fit, ...)
 }
 \arguments{
 \item{fit}{a fitted model object (class \code{"egpd"},
-  \code{"gamlss"}, or \code{"bamlss"})}
+\code{"gamlss"}, or \code{"bamlss"})}
+
+\item{...}{additional arguments (currently unused)}
 
 \item{y}{numeric vector of observed responses to evaluate coverage
-  against}
+against}
 
 \item{newdata}{optional data frame of covariate values at which to
-  compute predictions.  If \code{NULL} (the default), in-sample
-  predictions are used.}
+compute predictions.  If \code{NULL} (the default), in-sample
+predictions are used.}
 
 \item{level}{nominal coverage level (default 0.95)}
 
 \item{nsim}{number of parameter/response simulation draws (default
-  2000)}
+2000)}
 
 \item{method}{\code{"parametric"} (default) for parameter
-  uncertainty, or \code{"plug-in"} for fixed-parameter prediction}
+uncertainty, or \code{"plug-in"} for fixed-parameter prediction}
 
 \item{use_shortest}{logical: use shortest (HDR) interval for
-  discrete families instead of equal-tailed?  Default \code{FALSE}.}
+discrete families instead of equal-tailed?  Default \code{FALSE}.}
 
 \item{data_fit}{(gamlss method only) optional data frame passed as
-  \code{data} to \code{predictAll()}; needed when the original
-  fitting data cannot be recovered from the fit object.}
-
-\item{...}{additional arguments (currently unused)}
+\code{data} to \code{predictAll()}; needed when the original
+fitting data cannot be recovered from the fit object.}
 }
 \value{
 A list with components:
@@ -77,10 +77,8 @@ A list with components:
   \item{\code{family}}{character string identifying the distribution family}
   \item{\code{method}}{the method used (\code{"parametric"} or \code{"plug-in"})}
   \item{\code{level}}{the nominal coverage level}
-  \item{\code{coverage}}{the empirical coverage (proportion of \code{y}
-    falling within the prediction interval)}
-  \item{\code{covered}}{logical vector indicating which observations are
-    covered}
+  \item{\code{coverage}}{the empirical coverage (proportion of \code{y} falling within the prediction interval)}
+  \item{\code{covered}}{logical vector indicating which observations are covered}
   \item{\code{L}}{lower prediction interval bounds}
   \item{\code{U}}{upper prediction interval bounds}
 }
@@ -124,18 +122,6 @@ df <- data.frame(y = y)
 fit_e <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
               data = df, family = "degpd", degpd.args = list(m = 1))
 predictive_coverage(fit_e, y)
-
-# gamlss fit
-fit_g <- gamlss::gamlss(y ~ 1, sigma.formula = ~ 1,
-                        nu.formula = ~ 1, data = df,
-                        family = DEGPD1(),
-                        control = gamlss::gamlss.control(
-                          n.cyc = 200, trace = FALSE))
-predictive_coverage(fit_g, y)
-
-# bamlss fit
-fit_b <- bamlss::bamlss(list(y ~ 1, ~ 1, ~ 1), data = df,
-                        family = degpd_bamlss(m = 1), verbose = FALSE)
-predictive_coverage(fit_b, y)
 }
+
 }

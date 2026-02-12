@@ -23,7 +23,10 @@ Encoding: UTF-8
 Depends: R (>= 3.5.0)
 Imports: Rcpp (>= 1.0.0), mgcv, gamlss.dist, Deriv
 LinkingTo: Rcpp, RcppArmadillo
-Suggests: bamlss, evgam, gamlss, knitr, pkgdown, rmarkdown, testthat (>= 3.0.0)
+Suggests: bamlss, evgam, gamlss, JuliaConnectoR, knitr, NeuralEstimators,
+    pkgdown, rmarkdown, testthat (>= 3.0.0)
+SystemRequirements: Julia (>= 1.11) for bivariate EGPD fitting
+    (method='neuralbayes')
 VignetteBuilder: knitr
 LazyData: true
 RoxygenNote: 7.3.2

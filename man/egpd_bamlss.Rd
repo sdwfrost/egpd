@@ -2,28 +2,25 @@
 % Please edit documentation in R/bamlss_families.R
 \name{egpd_bamlss}
 \alias{egpd_bamlss}
-\title{bamlss Family for Continuous EGPD}
+\title{bamlss family for continuous EGPD}
 \usage{
 egpd_bamlss(m = 1, ...)
 }
 \arguments{
-\item{m}{integer 1-4 specifying the G-transformation model}
+\item{m}{integer 1--4 selecting the G transformation:
+\describe{
+  \item{1}{Power: \eqn{G(u) = u^\kappa}}
+  \item{2}{Mixture: \eqn{G(u) = p u^{\kappa} + (1-p) u^{\delta}}}
+  \item{3}{Incomplete beta}
+  \item{4}{Power-beta}
+}}
 
-\item{...}{additional arguments}
+\item{...}{arguments passed to link specification}
 }
 \value{
 An object of class \code{family.bamlss}
 }
 \description{
-bamlss Family for Continuous EGPD
-}
-\references{
-Abbas, A., Ahmad, T. and Ahmad, I. (2025).
-Modeling zero-inflated precipitation extremes.
-\emph{arXiv preprint} arXiv:2504.11058.
-\url{https://arxiv.org/abs/2504.11058}
-}
-\seealso{
-\code{\link{EGPD1}}, \code{\link{degpd_bamlss}},
-\code{\link{ziegpd_bamlss}}
+Creates a \code{family.bamlss} object for fitting continuous
+Extended Generalized Pareto Distribution models with \code{bamlss()}.
 }

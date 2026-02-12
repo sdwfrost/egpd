@@ -34,7 +34,7 @@ dcpdegpd(
 
 \item{type}{integer 1-6 specifying G-transformation type}
 
-\item{K}{grid size for Panjer recursion (default: automatically determined from data range)}
+\item{K}{grid size for Panjer recursion (default: max(max(x), 100) + 50)}
 
 \item{log}{logical; if TRUE, return log-probabilities}
 }
@@ -45,7 +45,8 @@ numeric vector of (log-)probabilities
 Computes the probability mass function of the Compound Poisson-Discrete
 EGPD distribution using Panjer recursion on the exact discrete EGPD
 severity PMF (no discretization step).
-
+}
+\details{
 The model is \eqn{S = X_1 + \cdots + X_N} where
 \eqn{N \sim \mathrm{Poisson}(\lambda)} and
 \eqn{X_i \sim \mathrm{Discrete\mbox{-}EGPD}(\sigma, \xi, \kappa, \ldots)}.
@@ -53,6 +54,6 @@ Since the severity is already integer-valued, the Panjer recursion
 produces an exact compound distribution with no discretization error.
 }
 \seealso{
-\code{\link{pcpdegpd}}, \code{\link{qcpdegpd}}, \code{\link{rcpdegpd}},
-\code{\link{fitegpd}}, \code{\link{dcpegpd}}
+\code{\link{pcpdegpd}}, \code{\link{qcpdegpd}},
+  \code{\link{rcpdegpd}}, \code{\link{fitegpd}}
 }
