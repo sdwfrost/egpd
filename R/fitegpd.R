@@ -8,12 +8,18 @@
 #' bivariate multivariate EGPD distributions.
 #'
 #' @param x numeric vector of observations (univariate families), or an
-#'   n-by-2 numeric matrix/data.frame (family="begpd").
+#'   n-by-d numeric matrix/data.frame (multivariate families; d=2 for BEGPD,
+#'   d >= 2 for MDGPD).
 #' @param type integer 1-6 specifying the G-transformation type (univariate only).
 #' @param family character: "egpd", "degpd", "ziegpd", "zidegpd", "cpegpd",
-#'   "cpdegpd", or "begpd" (bivariate multivariate EGPD).
+#'   "cpdegpd", "begpd" (bivariate EGPD), "bdegpd" (\[Experimental\] bivariate
+#'   discrete EGPD), "bzidegpd" (\[Experimental\] zero-inflated bivariate
+#'   discrete EGPD), "mdgpd" (\[Experimental\] multivariate MDGPD via
+#'   Aka-Kratz-Naveau construction, d >= 2), or "zimdgpd" (\[Experimental\]
+#'   zero-inflated multivariate MDGPD, d >= 2).
 #' @param method character: "mle", "bernstein", or "neuralbayes".
-#'   \code{"neuralbayes"} requires \code{family="begpd"} and Julia dependencies.
+#'   \code{"neuralbayes"} is required for bivariate families and requires
+#'   Julia dependencies.
 #' @param start named list of starting values, or NULL for automatic
 #'   (not used for method="neuralbayes").
 #' @param fix.arg named list of fixed parameters (not used for method="neuralbayes").
@@ -77,7 +83,9 @@
 #' @export
 fitegpd <- function(x, type = 1,
                     family = c("egpd", "degpd", "ziegpd", "zidegpd",
-                               "cpegpd", "cpdegpd", "begpd"),
+                               "cpegpd", "cpdegpd", "begpd",
+                               "bdegpd", "bzidegpd",
+                               "mdgpd", "zimdgpd"),
                     method = c("mle", "bernstein", "neuralbayes"),
                     start = NULL, fix.arg = NULL,
                     optim.method = "Nelder-Mead", hessian = TRUE,
@@ -88,16 +96,20 @@ fitegpd <- function(x, type = 1,
   family <- match.arg(family)
   method <- match.arg(method)
 
-  ## Cross-validation: begpd <-> neuralbayes
-  if (family == "begpd" && method != "neuralbayes")
-    stop("family='begpd' requires method='neuralbayes'", call. = FALSE)
-  if (method == "neuralbayes" && family != "begpd")
-    stop("method='neuralbayes' requires family='begpd'", call. = FALSE)
+  ## Cross-validation: bivariate families <-> neuralbayes
+  nb_families <- c("begpd", "bdegpd", "bzidegpd", "mdgpd", "zimdgpd")
+  if (family %in% nb_families && method != "neuralbayes")
+    stop("family='", family, "' requires method='neuralbayes'", call. = FALSE)
+  if (method == "neuralbayes" && !(family %in% nb_families))
+    stop("method='neuralbayes' requires a multivariate family (",
+         paste(nb_families, collapse = ", "), ")",
+         call. = FALSE)
 
-  ## Dispatch to neural Bayes fitting for BEGPD
+  ## Dispatch to neural Bayes fitting for bivariate families
   if (method == "neuralbayes") {
     estimator <- match.arg(estimator)
-    return(.fitegpd_neuralbayes(x, model.path = model.path,
+    return(.fitegpd_neuralbayes(x, family = family,
+                                 model.path = model.path,
                                  estimator = estimator,
                                  nsamples = as.integer(nsamples),
                                  call = cl))

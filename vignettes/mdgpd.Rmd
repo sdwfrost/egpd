@@ -1,0 +1,496 @@
+---
+title: "Multivariate Discrete GPD (MDGPD) via Neural Bayes Estimation"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Multivariate Discrete GPD (MDGPD) via Neural Bayes Estimation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+The `egpd` package provides **experimental** support for the Multivariate
+Discrete Generalized Pareto Distribution (MDGPD) of Aka, Kratz & Naveau
+(2025). Unlike the BDEGPD (which discretizes continuous BEGPD samples
+via `floor()`), the MDGPD is constructed directly in the discrete domain
+using a bivariate Poisson generator and geometric maximum, yielding
+theoretically rigorous discrete GPD marginals with threshold stability.
+
+This vignette covers:
+
+1. **The MDGPD construction** -- from Poisson generator to discrete GPD
+2. **Simulating multivariate data** -- `rmdgpd()` and `rzimdgpd()` for
+   $d \geq 2$ dimensions
+3. **Exploring parameters and dependence** -- the role of $\rho$, $\lambda$,
+   $\sigma$, and $\xi$
+4. **Higher dimensions** -- trivariate and beyond
+5. **Neural Bayes estimation** -- fitting via `fitegpd()`
+6. **Training custom models** -- `train_mdgpd()`
+
+## 1. The MDGPD construction
+
+### Standard MDGPD (geometric marginals)
+
+The Aka-Kratz-Naveau construction builds a $d$-dimensional discrete GPD
+from three components:
+
+**Step 1: Equicorrelated Poisson generator.** Generate $d$ correlated
+Poisson random variables via a common random effect:
+
+$$T_j = X_j + Z, \quad j = 1, \ldots, d$$
+
+where $Z \sim \mathrm{Poisson}(\rho\lambda)$ is shared across all
+components and $X_j \sim \mathrm{Poisson}((1-\rho)\lambda)$ are
+independent. The correlation between any pair $(T_i, T_j)$ is $\rho$.
+
+**Step 2: Spectral differences.** For each component $i$, compute:
+
+$$\Delta_i = T_i - \max_{j \neq i} T_j$$
+
+This captures how much component $i$ exceeds the maximum of all others.
+Note that $\Delta_i \leq 0$ when component $i$ is not the overall maximum.
+
+**Step 3: Geometric maximum.** Generate $G \sim \mathrm{Geometric}(1 - e^{-1})$,
+independently of the Poisson generator.
+
+**Step 4: Standard MDGPD.** Combine:
+
+$$N_i = G + \min(\Delta_i, 0), \quad i = 1, \ldots, d$$
+
+The resulting vector $(N_1, \ldots, N_d)$ has geometric marginals
+$\mathrm{Geom}(1 - e^{-1})$ and the property that
+$\max(N_1, \ldots, N_d) = G$.
+
+### Non-standard MDGPD (discrete GPD marginals)
+
+To obtain discrete GPD marginals with parameters $\sigma > 0$ and
+$\xi \geq 0$, apply the quantile transform:
+
+$$M_i = \left\lfloor \frac{\sigma}{\xi}\left(e^{\xi \max(N_i, 0)} - 1\right) \right\rfloor$$
+
+When $\xi = 0$, this reduces to $M_i = \lfloor \sigma N_i \rfloor$
+(scaled geometric marginals).
+
+### Parameter summary
+
+| Parameter | Symbol | Range | Role |
+|-----------|--------|-------|------|
+| `sigma` | $\sigma$ | $(0, \infty)$ | GPD scale (marginal spread) |
+| `xi` | $\xi$ | $[0, \infty)$ | GPD shape (tail heaviness) |
+| `lambda` | $\lambda$ | $(0, \infty)$ | Poisson rate (spectral spread) |
+| `rho` | $\rho$ | $[0, 1)$ | Equicorrelation (dependence strength) |
+| `pi0` | $\pi_0$ | $(0, 1)$ | Joint zero-inflation (ZIMDGPD only) |
+
+
+## 2. Simulating data
+
+### Bivariate MDGPD (default)
+
+The `rmdgpd()` function generates samples from the $d$-dimensional
+MDGPD. It is pure R and does not require Julia.
+
+```{r rmdgpd-basic}
+library(egpd)
+set.seed(42)
+
+Y <- rmdgpd(2000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5)
+head(Y)
+cat("Dimensions:", nrow(Y), "x", ncol(Y), "\n")
+cat("Storage mode:", storage.mode(Y), "\n")
+cat("Range Y1:", range(Y[, 1]), "  Range Y2:", range(Y[, 2]), "\n")
+```
+
+```{r scatter-basic, fig.height = 5}
+plot(jitter(Y[, 1]), jitter(Y[, 2]), pch = 20, cex = 0.3,
+     xlab = expression(Y[1]), ylab = expression(Y[2]),
+     main = "Simulated bivariate MDGPD (jittered)",
+     col = adjustcolor("steelblue", 0.4))
+```
+
+### Marginal distributions
+
+The marginals of the non-standard MDGPD are discrete GPD. When
+$\sigma = 1$ and $\xi = 0$, they reduce to $\mathrm{Geom}(1 - e^{-1})$:
+
+```{r marginals, fig.width = 8, fig.height = 4}
+set.seed(42)
+Y_geom <- rmdgpd(5000, sigma = 1, xi = 0, lambda = 1, rho = 0.5)
+
+op <- par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+barplot(table(Y_geom[, 1]) / nrow(Y_geom),
+        main = expression("Marginal " * Y[1] * " (sigma=1, xi=0)"),
+        xlab = expression(Y[1]), ylab = "Proportion",
+        col = "lightblue", border = "grey")
+
+## Overlay theoretical Geom(1-e^{-1})
+p_geom <- 1 - exp(-1)
+k_vals <- 0:max(Y_geom[, 1])
+points(seq_along(k_vals), dgeom(k_vals, prob = p_geom),
+       pch = 16, col = "red", cex = 0.8)
+legend("topright", "Geom(1-e^{-1})", pch = 16, col = "red",
+       cex = 0.8, bg = "white")
+
+## With sigma=2, xi=0.2: heavier tails
+barplot(table(Y[, 1]) / nrow(Y),
+        main = expression("Marginal " * Y[1] * " (sigma=2, xi=0.2)"),
+        xlab = expression(Y[1]), ylab = "Proportion",
+        col = "lightblue", border = "grey")
+par(op)
+```
+
+### Maximum component is geometric
+
+A key theoretical property: the component-wise maximum
+$\max(N_1, \ldots, N_d) = G \sim \mathrm{Geom}(1-e^{-1})$.
+We verify this for the standard MDGPD ($\sigma=1$, $\xi=0$):
+
+```{r max-geom, fig.height = 4}
+maxY <- pmax(Y_geom[, 1], Y_geom[, 2])
+
+barplot(table(maxY) / length(maxY),
+        main = expression("max(" * Y[1] * ", " * Y[2] * ") vs Geom(1-" * e^{-1} * ")"),
+        xlab = "max(Y1, Y2)", ylab = "Proportion",
+        col = "lightblue", border = "grey")
+k_max <- 0:max(maxY)
+points(seq_along(k_max), dgeom(k_max, prob = p_geom),
+       pch = 16, col = "red", cex = 0.8)
+legend("topright", "Geom(1-e^{-1})", pch = 16, col = "red",
+       cex = 0.8, bg = "white")
+
+cat("Empirical mean of max:", round(mean(maxY), 3), "\n")
+cat("Theoretical mean:", round(exp(-1) / (1 - exp(-1)), 3), "\n")
+```
+
+### Zero-inflated MDGPD
+
+```{r rzimdgpd-basic}
+set.seed(42)
+Y_zi <- rzimdgpd(2000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5,
+                  pi0 = 0.3)
+
+joint_zeros <- mean(rowSums(Y_zi) == 0)
+cat("Proportion of all-zero rows:", round(joint_zeros, 3), "\n")
+cat("(Expected >= pi0 = 0.3 due to natural zeros)\n")
+```
+
+
+## 3. The role of parameters
+
+### Dependence strength ($\rho$)
+
+The parameter $\rho$ directly controls the equicorrelation of the Poisson
+generator. Higher $\rho$ means the common component $Z$ dominates,
+making all $T_j$ nearly identical and thus producing near-identical
+$(Y_1, \ldots, Y_d)$:
+
+```{r rho-effect, fig.width = 8, fig.height = 8}
+set.seed(42)
+n_demo <- 3000
+
+rho_vals <- c(0, 0.3, 0.7, 0.95)
+op <- par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+for (rho_v in rho_vals) {
+  Y_rho <- rmdgpd(n_demo, sigma = 2, xi = 0.2, lambda = 1, rho = rho_v)
+  cor_val <- cor(Y_rho[, 1], Y_rho[, 2])
+  plot(jitter(Y_rho[, 1]), jitter(Y_rho[, 2]), pch = 20, cex = 0.3,
+       main = bquote(rho == .(rho_v) ~ " (cor = " * .(round(cor_val, 2)) * ")"),
+       xlab = expression(Y[1]), ylab = expression(Y[2]),
+       col = adjustcolor("steelblue", 0.4))
+}
+par(op)
+```
+
+### Spectral spread ($\lambda$)
+
+The parameter $\lambda$ controls the Poisson rate. Larger $\lambda$
+produces larger spectral differences $\Delta_i$, which in turn makes
+the $N_i$ more variable relative to $G$:
+
+```{r lambda-effect, fig.width = 8, fig.height = 4}
+set.seed(42)
+
+lambda_vals <- c(0.1, 1, 5)
+op <- par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))
+for (lam_v in lambda_vals) {
+  Y_lam <- rmdgpd(n_demo, sigma = 2, xi = 0.2, lambda = lam_v, rho = 0.5)
+  cor_val <- cor(Y_lam[, 1], Y_lam[, 2])
+  plot(jitter(Y_lam[, 1]), jitter(Y_lam[, 2]), pch = 20, cex = 0.3,
+       main = bquote(lambda == .(lam_v) ~ " (cor = " * .(round(cor_val, 2)) * ")"),
+       xlab = expression(Y[1]), ylab = expression(Y[2]),
+       col = adjustcolor("steelblue", 0.4))
+}
+par(op)
+```
+
+### Tail heaviness ($\xi$)
+
+The shape parameter $\xi$ controls the tail behaviour. Larger $\xi$
+produces heavier tails (occasional very large values):
+
+```{r xi-effect, fig.width = 8, fig.height = 4}
+set.seed(42)
+
+xi_vals <- c(0, 0.1, 0.5)
+op <- par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))
+for (xi_v in xi_vals) {
+  Y_xi <- rmdgpd(n_demo, sigma = 2, xi = xi_v, lambda = 1, rho = 0.5)
+  plot(jitter(Y_xi[, 1]), jitter(Y_xi[, 2]), pch = 20, cex = 0.3,
+       main = bquote(xi == .(xi_v)),
+       xlab = expression(Y[1]), ylab = expression(Y[2]),
+       col = adjustcolor("steelblue", 0.4))
+}
+par(op)
+```
+
+
+## 4. Higher dimensions
+
+The MDGPD generalises naturally to $d \geq 2$ dimensions. Simply pass the
+`d` parameter to `rmdgpd()`:
+
+### Trivariate MDGPD ($d = 3$)
+
+```{r trivariate, fig.width = 8, fig.height = 4}
+set.seed(42)
+
+Y3 <- rmdgpd(2000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5, d = 3)
+cat("Dimensions:", nrow(Y3), "x", ncol(Y3), "\n")
+cat("Column names:", colnames(Y3), "\n")
+
+## Pairwise scatter plots
+op <- par(mfrow = c(1, 3), mar = c(4, 4, 2, 1))
+pairs_list <- list(c(1, 2), c(1, 3), c(2, 3))
+for (pr in pairs_list) {
+  plot(jitter(Y3[, pr[1]]), jitter(Y3[, pr[2]]), pch = 20, cex = 0.3,
+       main = paste0("Y", pr[1], " vs Y", pr[2]),
+       xlab = paste0("Y", pr[1]), ylab = paste0("Y", pr[2]),
+       col = adjustcolor("steelblue", 0.4))
+}
+par(op)
+```
+
+### Pairwise correlation in $d = 3$
+
+```{r trivariate-cor}
+cat("Pairwise correlations:\n")
+print(round(cor(Y3), 3))
+```
+
+### Dependence at high $\rho$ in $d = 3$
+
+```{r trivariate-high-rho, fig.width = 8, fig.height = 4}
+set.seed(42)
+Y3_high <- rmdgpd(2000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.95, d = 3)
+
+op <- par(mfrow = c(1, 3), mar = c(4, 4, 2, 1))
+for (pr in pairs_list) {
+  plot(jitter(Y3_high[, pr[1]]), jitter(Y3_high[, pr[2]]), pch = 20, cex = 0.3,
+       main = paste0("Y", pr[1], " vs Y", pr[2], " (rho=0.95)"),
+       xlab = paste0("Y", pr[1]), ylab = paste0("Y", pr[2]),
+       col = adjustcolor("steelblue", 0.4))
+}
+par(op)
+
+cat("Pairwise correlations (rho=0.95):\n")
+print(round(cor(Y3_high), 3))
+```
+
+### Even higher dimensions
+
+The construction works for any $d \geq 2$:
+
+```{r high-d}
+set.seed(42)
+
+Y5 <- rmdgpd(1000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5, d = 5)
+cat("5-dimensional MDGPD:", nrow(Y5), "x", ncol(Y5), "\n")
+cat("Columns:", colnames(Y5), "\n")
+cat("\nPairwise correlations:\n")
+print(round(cor(Y5), 3))
+```
+
+
+## 5. Zero-inflated MDGPD in higher dimensions
+
+The `rzimdgpd()` function also supports arbitrary $d$:
+
+```{r zimdgpd-3d}
+set.seed(42)
+Y3_zi <- rzimdgpd(2000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5,
+                    pi0 = 0.3, d = 3)
+
+joint_zeros_3d <- mean(rowSums(Y3_zi) == 0)
+cat("Proportion of all-zero rows (d=3):", round(joint_zeros_3d, 3), "\n")
+```
+
+
+## 6. Neural Bayes estimation
+
+### Fitting bivariate MDGPD
+
+The MDGPD has no closed-form likelihood (the construction involves a
+discrete maximum and floor operations). Neural Bayes estimation is used
+instead, via pre-trained neural networks.
+
+```{r fit-mdgpd-npe}
+set.seed(42)
+
+Y <- rmdgpd(1000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5)
+fit <- fitegpd(Y, family = "mdgpd", method = "neuralbayes",
+               estimator = "npe", nsamples = 2000)
+summary(fit)
+```
+
+```{r fit-mdgpd-diagnostics, fig.width = 8, fig.height = 8}
+plot(fit)
+```
+
+### Fitting ZIMDGPD
+
+```{r fit-zimdgpd-npe}
+set.seed(42)
+
+Y_zi <- rzimdgpd(1000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5,
+                  pi0 = 0.3)
+fit_zi <- fitegpd(Y_zi, family = "zimdgpd", method = "neuralbayes",
+                   estimator = "npe")
+summary(fit_zi)
+```
+
+### S3 methods
+
+```{r s3-mdgpd}
+coef(fit)                # Posterior median estimates
+confint(fit)             # 95% credible intervals
+vcov(fit)                # Posterior covariance matrix
+nobs(fit)                # Number of observations
+```
+
+### Higher-dimensional estimation
+
+For $d \geq 3$, a separate neural network must be trained for each
+data dimension, since the network architecture depends on the input
+dimension. Use `train_mdgpd()` with the `data_dim` parameter:
+
+```{r fit-3d}
+# Fit 3D data using a pre-trained model
+Y3_fit <- rmdgpd(1000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5, d = 3)
+
+model_3d_path <- system.file("models", "MDGPD_3D_NPE.bson", package = "egpd")
+fit_3d <- fitegpd(Y3_fit, family = "mdgpd", method = "neuralbayes",
+                   model.path = model_3d_path, estimator = "npe")
+summary(fit_3d)
+```
+
+
+## 7. Comparison: MDGPD vs BDEGPD
+
+The package provides two approaches to bivariate discrete extreme value
+modelling. They are suited to different settings:
+
+| Aspect | BDEGPD | MDGPD |
+|--------|--------|-------|
+| Construction | `floor(continuous BEGPD)` | Poisson generator + geometric max |
+| Theoretical basis | Ad hoc discretization | Threshold-stable discrete GPD |
+| Parameters | 6 ($\kappa, \sigma, \xi, \theta_L, \theta_U, \theta_\omega$) | 4 ($\sigma, \xi, \lambda, \rho$) |
+| Dependence | Asymmetric (separate lower/upper tail) | Exchangeable (equicorrelated) |
+| Dimensions | 2 only | $d \geq 2$ |
+| Marginals | Discrete EGPD | Discrete GPD |
+| Threshold stability | Not guaranteed | Yes (by construction) |
+
+**When to use BDEGPD:** When the data exhibit asymmetric dependence
+between lower and upper tails, or when you want to directly compare
+continuous and discrete BEGPD fits with the same parameter set.
+
+**When to use MDGPD:** When you want a parsimonious model with
+theoretical threshold stability, exchangeable dependence, and the
+ability to extend to $d > 2$ dimensions.
+
+```{r compare, fig.width = 8, fig.height = 4}
+set.seed(42)
+n_cmp <- 3000
+
+Y_bdegpd <- rbdegpd(n_cmp, kappa = 2, sigma = 1.5, xi = 0.1,
+                     thL = 3, thU = 3, thw = 0.2)
+Y_mdgpd  <- rmdgpd(n_cmp, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5)
+
+op <- par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+plot(jitter(Y_bdegpd[, 1]), jitter(Y_bdegpd[, 2]), pch = 20, cex = 0.3,
+     main = "BDEGPD (6 params)",
+     xlab = expression(Y[1]), ylab = expression(Y[2]),
+     col = adjustcolor("steelblue", 0.4))
+plot(jitter(Y_mdgpd[, 1]), jitter(Y_mdgpd[, 2]), pch = 20, cex = 0.3,
+     main = "MDGPD (4 params)",
+     xlab = expression(Y[1]), ylab = expression(Y[2]),
+     col = adjustcolor("firebrick", 0.4))
+par(op)
+```
+
+
+## 8. Training custom models
+
+### MDGPD training
+
+```{r train-mdgpd, eval = FALSE}
+# Quick training for 2D MDGPD
+paths <- train_mdgpd(
+  savepath = tempdir(),
+  family = "mdgpd",
+  data_dim = 2L,
+  estimator = "both",
+  quick = TRUE,
+  verbose = TRUE
+)
+
+# Quick training for 3D MDGPD
+paths_3d <- train_mdgpd(
+  savepath = tempdir(),
+  family = "mdgpd",
+  data_dim = 3L,
+  estimator = "npe",
+  quick = TRUE
+)
+
+# ZIMDGPD training
+paths_zi <- train_mdgpd(
+  savepath = tempdir(),
+  family = "zimdgpd",
+  data_dim = 2L,
+  estimator = "npe",
+  quick = TRUE
+)
+```
+
+### Prior distributions
+
+The training procedure samples parameters from the following priors:
+
+| Parameter | Prior | Transform |
+|-----------|-------|-----------|
+| $\sigma$ | $U(0.1, 10)$ | $\log$ |
+| $\xi$ | $U(0.01, 0.5)$ | $\log$ |
+| $\lambda$ | $U(0.01, 5)$ | $\log$ |
+| $\rho$ | $U(0.01, 0.99)$ | $\mathrm{logit}$ |
+| $\pi_0$ (ZIMDGPD) | $U(0.01, 0.9)$ | $\mathrm{logit}$ |
+
+Model files are named with a dimension-specific prefix:
+`MDGPD_NPE.bson` (2D), `MDGPD3D_NPE.bson` (3D), etc.
+
+
+## References
+
+Aka, S., Kratz, M., and Naveau, P. (2025). Multivariate discrete
+generalized Pareto distributions: theory, simulation, and applications
+to dry spells. *arXiv preprint* arXiv:2506.19361.
+<https://arxiv.org/abs/2506.19361>
+
+Sainsbury-Dale, M., Zammit-Mangion, A., and Huser, R. (2024).
+Likelihood-free parameter estimation with neural Bayes estimators. *The
+American Statistician*, 78(1), 1--14.

@@ -50,10 +50,10 @@ test_that("fitegpd rejects begpd with method='mle'", {
                "family='begpd' requires method='neuralbayes'")
 })
 
-test_that("fitegpd rejects neuralbayes with non-begpd family", {
+test_that("fitegpd rejects neuralbayes with non-multivariate family", {
   x <- rnorm(100)
   expect_error(fitegpd(x, family = "egpd", method = "neuralbayes"),
-               "method='neuralbayes' requires family='begpd'")
+               "method='neuralbayes' requires a multivariate family")
 })
 
 

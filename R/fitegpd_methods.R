@@ -1,10 +1,29 @@
 ## S3 methods for fitegpd objects
 
+## Helper: check if family is bivariate (neural Bayes)
+.is_bivariate <- function(family) family %in% c("begpd", "bdegpd", "bzidegpd",
+                                                  "mdgpd", "zimdgpd")
+
+## Family labels for display
+.family_label <- function(family, data_dim = NULL) {
+  dim_str <- if (!is.null(data_dim) && data_dim > 2L) paste0(data_dim, "-variate ") else "bivariate "
+  switch(family,
+    "begpd"    = "bivariate BEGPD",
+    "bdegpd"   = "bivariate discrete EGPD (BDEGPD) [Experimental]",
+    "bzidegpd" = "zero-inflated bivariate discrete EGPD (BZIDEGPD) [Experimental]",
+    "mdgpd"    = paste0(dim_str, "MDGPD (Aka-Kratz-Naveau) [Experimental]"),
+    "zimdgpd"  = paste0("zero-inflated ", dim_str, "MDGPD (ZIMDGPD) [Experimental]"),
+    family
+  )
+}
+
 #' @export
 print.fitegpd <- function(x, ...) {
-  if (x$family == "begpd") {
+  if (.is_bivariate(x$family)) {
     est_label <- if (x$estimator_type == "npe") "npe" else "nbe"
-    cat("Fitting of bivariate BEGPD by neuralbayes (", est_label, ")\n", sep = "")
+    dd <- if (is.matrix(x$data)) ncol(x$data) else 2L
+    cat("Fitting of ", .family_label(x$family, dd), " by neuralbayes (",
+        est_label, ")\n", sep = "")
     if (x$estimator_type == "npe") {
       cat("Posterior median estimates:\n")
     } else {
@@ -23,11 +42,11 @@ print.fitegpd <- function(x, ...) {
 
 #' @export
 summary.fitegpd <- function(object, ...) {
-  if (object$family == "begpd") {
+  if (.is_bivariate(object$family)) {
     est <- object$estimate
 
     if (object$estimator_type == "npe" && !is.null(object$posterior_samples)) {
-      post <- object$posterior_samples  # 6 x nsamples
+      post <- object$posterior_samples  # d x nsamples
       se <- apply(post, 1, sd)
       q025 <- apply(post, 1, quantile, probs = 0.025)
       q975 <- apply(post, 1, quantile, probs = 0.975)
@@ -38,6 +57,7 @@ summary.fitegpd <- function(object, ...) {
     }
     rownames(tab) <- names(est)
 
+    dd <- if (is.matrix(object$data)) ncol(object$data) else 2L
     return(structure(list(
       table       = tab,
       fix.tab     = NULL,
@@ -53,7 +73,8 @@ summary.fitegpd <- function(object, ...) {
       bernstein.m = NULL,
       cpegpd.h    = NULL,
       estimator_type = object$estimator_type,
-      nsamples    = object$nsamples
+      nsamples    = object$nsamples,
+      data_dim    = dd
     ), class = "summary.fitegpd"))
   }
 
@@ -90,9 +111,9 @@ summary.fitegpd <- function(object, ...) {
 
 #' @export
 print.summary.fitegpd <- function(x, digits = 4, ...) {
-  if (x$family == "begpd") {
+  if (.is_bivariate(x$family)) {
     est_label <- if (x$estimator_type == "npe") "npe" else "nbe"
-    cat("Fitting of bivariate BEGPD\n")
+    cat("Fitting of ", .family_label(x$family, x$data_dim), "\n", sep = "")
     cat("Method: neuralbayes (", est_label, ")", sep = "")
     if (!is.null(x$nsamples))
       cat("  [", x$nsamples, " posterior samples]", sep = "")
@@ -140,7 +161,7 @@ coef.fitegpd <- function(object, ...) {
 
 #' @export
 vcov.fitegpd <- function(object, ...) {
-  if (object$family == "begpd") {
+  if (.is_bivariate(object$family)) {
     if (object$estimator_type == "npe" && !is.null(object$posterior_samples)) {
       V <- cov(t(object$posterior_samples))
       rownames(V) <- colnames(V) <- names(object$estimate)
@@ -156,7 +177,7 @@ vcov.fitegpd <- function(object, ...) {
 
 #' @export
 logLik.fitegpd <- function(object, ...) {
-  if (object$family == "begpd") {
+  if (.is_bivariate(object$family)) {
     warning("Log-likelihood is not available for neural Bayes estimation",
             call. = FALSE)
     ll <- NA_real_
@@ -179,7 +200,7 @@ nobs.fitegpd <- function(object, ...) {
 
 #' @export
 confint.fitegpd <- function(object, parm, level = 0.95, ...) {
-  if (object$family == "begpd") {
+  if (.is_bivariate(object$family)) {
     if (object$estimator_type == "npe" && !is.null(object$posterior_samples)) {
       ## Credible intervals from posterior quantiles
       a <- (1 - level) / 2
@@ -225,9 +246,15 @@ confint.fitegpd <- function(object, parm, level = 0.95, ...) {
 #'
 #' @export
 plot.fitegpd <- function(x, ...) {
-  ## Dispatch to begpd-specific plot
+  ## Dispatch to bivariate-specific plots
   if (x$family == "begpd") {
     return(.plot_begpd(x, ...))
+  }
+  if (x$family %in% c("bdegpd", "bzidegpd")) {
+    return(.plot_bdegpd(x, ...))
+  }
+  if (x$family %in% c("mdgpd", "zimdgpd")) {
+    return(.plot_mdgpd(x, ...))
   }
 
   obj <- x

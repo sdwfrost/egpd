@@ -40,6 +40,10 @@ navbar:
           href: articles/parameter-coverage.html
         - text: "Bivariate BEGPD via Neural Bayes Estimation"
           href: articles/multivariate-egpd.html
+        - text: "Bivariate Discrete EGPD via Neural Bayes Estimation"
+          href: articles/bivariate-discrete-egpd.html
+        - text: "Multivariate Discrete GPD (MDGPD) via Neural Bayes Estimation"
+          href: articles/mdgpd.html
 
 reference:
   - title: "Package Overview"
@@ -125,6 +129,16 @@ reference:
     contents:
       - rbegpd
       - train_begpd
+      - rbdegpd
+      - rbzidegpd
+      - train_bdegpd
+
+  - title: "Bivariate MDGPD"
+    desc: "[Experimental] Multivariate Discrete GPD (Aka-Kratz-Naveau) via neural Bayes estimation."
+    contents:
+      - rmdgpd
+      - rzimdgpd
+      - train_mdgpd
 
   - title: "Diagnostics"
     desc: "Model diagnostic tools."

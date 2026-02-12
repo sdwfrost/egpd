@@ -23,6 +23,16 @@ export(fitegpd)
 export(rbegpd)
 export(train_begpd)
 
+# Bivariate Discrete EGPD [Experimental]
+export(rbdegpd)
+export(rbzidegpd)
+export(train_bdegpd)
+
+# Bivariate MDGPD (Aka-Kratz-Naveau) [Experimental]
+export(rmdgpd)
+export(rzimdgpd)
+export(train_mdgpd)
+
 # S3 methods for egpd (GAM fits)
 S3method(fitted, egpd)
 S3method(simulate, egpd)
