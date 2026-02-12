@@ -7,7 +7,8 @@
 fitegpd(
   x,
   type = 1,
-  family = c("egpd", "degpd", "ziegpd", "zidegpd", "cpegpd", "cpdegpd", "begpd"),
+  family = c("egpd", "degpd", "ziegpd", "zidegpd", "cpegpd", "cpdegpd", "begpd",
+    "bdegpd", "bzidegpd", "mdgpd", "zimdgpd"),
   method = c("mle", "bernstein", "neuralbayes"),
   start = NULL,
   fix.arg = NULL,
@@ -23,15 +24,21 @@ fitegpd(
 }
 \arguments{
 \item{x}{numeric vector of observations (univariate families), or an
-n-by-2 numeric matrix/data.frame (family="begpd").}
+n-by-d numeric matrix/data.frame (multivariate families; d=2 for BEGPD,
+d >= 2 for MDGPD).}
 
 \item{type}{integer 1-6 specifying the G-transformation type (univariate only).}
 
 \item{family}{character: "egpd", "degpd", "ziegpd", "zidegpd", "cpegpd",
-"cpdegpd", or "begpd" (bivariate multivariate EGPD).}
+"cpdegpd", "begpd" (bivariate EGPD), "bdegpd" (\[Experimental\] bivariate
+discrete EGPD), "bzidegpd" (\[Experimental\] zero-inflated bivariate
+discrete EGPD), "mdgpd" (\[Experimental\] multivariate MDGPD via
+Aka-Kratz-Naveau construction, d >= 2), or "zimdgpd" (\[Experimental\]
+zero-inflated multivariate MDGPD, d >= 2).}
 
 \item{method}{character: "mle", "bernstein", or "neuralbayes".
-\code{"neuralbayes"} requires \code{family="begpd"} and Julia dependencies.}
+\code{"neuralbayes"} is required for bivariate families and requires
+Julia dependencies.}
 
 \item{start}{named list of starting values, or NULL for automatic
 (not used for method="neuralbayes").}
