@@ -1,6 +1,7 @@
 # Density of the Zero-Inflated Extended GPD
 
-Density of the Zero-Inflated Extended GPD
+Continuous zero-inflated EGPD density: \\h(x) = \pi I(x=0) + (1-\pi)
+f\_{EGPD}(x)\\ for \\x \ge 0\\.
 
 ## Usage
 
@@ -59,9 +60,3 @@ dziegpd(
 ## Value
 
 Density values
-
-## References
-
-Abbas, A., Ahmad, T. and Ahmad, I. (2025). Modeling zero-inflated
-precipitation extremes. *arXiv preprint* arXiv:2504.11058.
-<https://arxiv.org/abs/2504.11058>

@@ -59,13 +59,3 @@ rzidiscegpd(
 ## Value
 
 Random non-negative integer samples
-
-## References
-
-Ahmad, T. and Arshad, I. A. (2024). New flexible versions of extended
-generalized Pareto model for count data. *arXiv preprint*
-arXiv:2409.18719. <https://arxiv.org/abs/2409.18719>
-
-Ahmad, T. and Hussain, A. (2025). Flexible model for varying levels of
-zeros and outliers in count data. *arXiv preprint* arXiv:2510.27365.
-<https://arxiv.org/abs/2510.27365>

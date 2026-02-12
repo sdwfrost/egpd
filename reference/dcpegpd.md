@@ -3,10 +3,6 @@
 Computes the probability mass function of the Compound Poisson-EGPD
 distribution using Panjer recursion on a discretized EGPD severity.
 
-The model is \\S = X_1 + \cdots + X_N\\ where \\N \sim
-\mathrm{Poisson}(\lambda)\\ and \\X_i \sim \mathrm{EGPD}(\sigma, \xi,
-\kappa, \ldots)\\.
-
 ## Usage
 
 ``` r
@@ -65,7 +61,7 @@ dcpegpd(
 
 - K:
 
-  number of bins (default: automatically determined from data range)
+  number of bins (default: ceiling(max(x)/h) + 50)
 
 - log:
 
@@ -74,16 +70,3 @@ dcpegpd(
 ## Value
 
 numeric vector of (log-)probabilities
-
-## References
-
-Ailliot, P., Gaetan, C. and Naveau, P. (2025). A parsimonious tail
-compliant multiscale statistical model for aggregated rainfall. *arXiv
-preprint* arXiv:2601.08350. <https://arxiv.org/abs/2601.08350>
-
-## See also
-
-[`pcpegpd`](https://sdwfrost.github.io/egpd/reference/pcpegpd.md),
-[`qcpegpd`](https://sdwfrost.github.io/egpd/reference/qcpegpd.md),
-[`rcpegpd`](https://sdwfrost.github.io/egpd/reference/rcpegpd.md),
-[`fitegpd`](https://sdwfrost.github.io/egpd/reference/fitegpd.md)

@@ -1,7 +1,6 @@
 # Random generation from Compound Poisson-EGPD
 
-Direct simulation from the Compound Poisson-EGPD distribution: draw \\N
-\sim \mathrm{Poisson}(\lambda)\\, then sum \\N\\ i.i.d. EGPD draws.
+Direct simulation: draw N ~ Poisson(lambda), then sum N iid EGPD draws.
 
 ## Usage
 
@@ -45,10 +44,4 @@ rcpegpd(n, lambda, prob = NA, kappa = NA, delta = NA, sigma, xi, type = 1)
 
 ## Value
 
-numeric vector of length `n`
-
-## See also
-
-[`dcpegpd`](https://sdwfrost.github.io/egpd/reference/dcpegpd.md),
-[`pcpegpd`](https://sdwfrost.github.io/egpd/reference/pcpegpd.md),
-[`qcpegpd`](https://sdwfrost.github.io/egpd/reference/qcpegpd.md)
+numeric vector of length n

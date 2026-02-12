@@ -47,6 +47,9 @@
     <li><a class="dropdown-item" href="articles/gamlss-comparison.html">Comparing egpd and gamlss Fits</a></li>
     <li><a class="dropdown-item" href="articles/predictive-coverage.html">Predictive Coverage Assessment</a></li>
     <li><a class="dropdown-item" href="articles/parameter-coverage.html">Parameter Estimate Coverage Assessment</a></li>
+    <li><a class="dropdown-item" href="articles/multivariate-egpd.html">Bivariate BEGPD via Neural Bayes Estimation</a></li>
+    <li><a class="dropdown-item" href="articles/bivariate-discrete-egpd.html">Bivariate Discrete EGPD via Neural Bayes Estimation</a></li>
+    <li><a class="dropdown-item" href="articles/mdgpd.html">Multivariate Discrete GPD (MDGPD) via Neural Bayes Estimation</a></li>
   </ul>
 </li>
       </ul>
@@ -158,6 +161,66 @@
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
+<h2 id="bivariate-egpd-begpd">Bivariate EGPD (BEGPD)<a class="anchor" aria-label="anchor" href="#bivariate-egpd-begpd"></a>
+</h2>
+<p>The package also supports bivariate Bivariate EGPD (BEGPD) fitting via neural Bayes estimation, using pre-trained neural networks. This requires <a href="https://julialang.org/" class="external-link">Julia</a> (&gt;= 1.11) and additional dependencies.</p>
+<div class="section level3">
+<h3 id="additional-dependencies">Additional dependencies<a class="anchor" aria-label="anchor" href="#additional-dependencies"></a>
+</h3>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># R packages</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"JuliaConnectoR"</span><span class="op">)</span></span>
+<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">"msainsburydale/NeuralEstimators"</span><span class="op">)</span></span></code></pre></div>
+<p>Then install the required Julia packages:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="im">using</span> <span class="bu">Pkg</span></span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="bu">Pkg</span>.<span class="fu">add</span>([<span class="st">"NeuralEstimators"</span>, <span class="st">"Flux"</span>])</span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="quick-start-bivariate-begpd">Quick start (bivariate BEGPD)<a class="anchor" aria-label="anchor" href="#quick-start-bivariate-begpd"></a>
+</h3>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sdwfrost/egpd" class="external-link">egpd</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Simulate bivariate BEGPD data (no Julia needed)</span></span>
+<span><span class="va">Y</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rbegpd.html">rbegpd</a></span><span class="op">(</span><span class="fl">1000</span>, kappa <span class="op">=</span> <span class="fl">2</span>, sigma <span class="op">=</span> <span class="fl">1</span>, xi <span class="op">=</span> <span class="fl">0.1</span>, thL <span class="op">=</span> <span class="fl">5</span>, thU <span class="op">=</span> <span class="fl">5</span>, thw <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Fit using neural posterior estimation (requires Julia)</span></span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/fitegpd.html">fitegpd</a></span><span class="op">(</span><span class="va">Y</span>, family <span class="op">=</span> <span class="st">"begpd"</span>, method <span class="op">=</span> <span class="st">"neuralbayes"</span>, estimator <span class="op">=</span> <span class="st">"npe"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Train your own model (optional)</span></span>
+<span><span class="va">paths</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/train_begpd.html">train_begpd</a></span><span class="op">(</span>savepath <span class="op">=</span> <span class="st">"my_models"</span>, quick <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="va">fit2</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/fitegpd.html">fitegpd</a></span><span class="op">(</span><span class="va">Y</span>, family <span class="op">=</span> <span class="st">"begpd"</span>, method <span class="op">=</span> <span class="st">"neuralbayes"</span>,</span>
+<span>                model.path <span class="op">=</span> <span class="va">paths</span><span class="op">$</span><span class="va">npe</span>, estimator <span class="op">=</span> <span class="st">"npe"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="discrete-extensions-experimental">Discrete extensions (Experimental)<a class="anchor" aria-label="anchor" href="#discrete-extensions-experimental"></a>
+</h3>
+<p>The package also provides <strong>experimental</strong> bivariate discrete EGPD (<code>family="bdegpd"</code>) and zero-inflated bivariate discrete EGPD (<code>family="bzidegpd"</code>) distributions, constructed by applying <code><a href="https://rdrr.io/r/base/Round.html" class="external-link">floor()</a></code> to continuous BEGPD samples. These use the same neural Bayes estimation framework:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Simulate and fit bivariate discrete EGPD</span></span>
+<span><span class="va">Y</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rbdegpd.html">rbdegpd</a></span><span class="op">(</span><span class="fl">1000</span>, kappa <span class="op">=</span> <span class="fl">2</span>, sigma <span class="op">=</span> <span class="fl">1</span>, xi <span class="op">=</span> <span class="fl">0.1</span>, thL <span class="op">=</span> <span class="fl">5</span>, thU <span class="op">=</span> <span class="fl">5</span>, thw <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span></span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/fitegpd.html">fitegpd</a></span><span class="op">(</span><span class="va">Y</span>, family <span class="op">=</span> <span class="st">"bdegpd"</span>, method <span class="op">=</span> <span class="st">"neuralbayes"</span>, estimator <span class="op">=</span> <span class="st">"npe"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Zero-inflated version</span></span>
+<span><span class="va">Y_zi</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rbzidegpd.html">rbzidegpd</a></span><span class="op">(</span><span class="fl">1000</span>, kappa <span class="op">=</span> <span class="fl">2</span>, sigma <span class="op">=</span> <span class="fl">1</span>, xi <span class="op">=</span> <span class="fl">0.1</span>,</span>
+<span>                   thL <span class="op">=</span> <span class="fl">5</span>, thU <span class="op">=</span> <span class="fl">5</span>, thw <span class="op">=</span> <span class="fl">0.2</span>, pi0 <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span></span>
+<span><span class="va">fit_zi</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/fitegpd.html">fitegpd</a></span><span class="op">(</span><span class="va">Y_zi</span>, family <span class="op">=</span> <span class="st">"bzidegpd"</span>, method <span class="op">=</span> <span class="st">"neuralbayes"</span>, estimator <span class="op">=</span> <span class="st">"npe"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="mdgpd-multivariate-discrete-gpd-experimental">MDGPD: Multivariate Discrete GPD (Experimental)<a class="anchor" aria-label="anchor" href="#mdgpd-multivariate-discrete-gpd-experimental"></a>
+</h3>
+<p>The package also includes the Aka-Kratz-Naveau (2025) Multivariate Discrete Generalized Pareto Distribution (<code>family="mdgpd"</code>), which provides a theoretically rigorous discrete bivariate GPD with threshold stability. The construction uses a bivariate Poisson generator and geometric maximum:</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Simulate bivariate MDGPD</span></span>
+<span><span class="va">Y</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rmdgpd.html">rmdgpd</a></span><span class="op">(</span><span class="fl">1000</span>, sigma <span class="op">=</span> <span class="fl">2</span>, xi <span class="op">=</span> <span class="fl">0.2</span>, lambda <span class="op">=</span> <span class="fl">1</span>, rho <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/fitegpd.html">fitegpd</a></span><span class="op">(</span><span class="va">Y</span>, family <span class="op">=</span> <span class="st">"mdgpd"</span>, method <span class="op">=</span> <span class="st">"neuralbayes"</span>, estimator <span class="op">=</span> <span class="st">"npe"</span><span class="op">)</span></span></code></pre></div>
+<p>For details, see Aka, Kratz &amp; Naveau (2025), <a href="https://arxiv.org/abs/2506.19361" class="external-link">arXiv:2506.19361</a>.</p>
+<p>For details on the BEGPD, see Alotaibi, Sainsbury-Dale, Naveau, Gaetan &amp; Huser (2025), <a href="https://arxiv.org/abs/2509.05982" class="external-link">arXiv:2509.05982</a>.</p>
+</div>
+</div>
+<div class="section level2">
 <h2 id="vignettes">Vignettes<a class="anchor" aria-label="anchor" href="#vignettes"></a>
 </h2>
 <ul>
@@ -167,6 +230,9 @@
 <li><a href="articles/temperature-extremes.html">Continuous EGPD Models for Temperature Extremes</a></li>
 <li><a href="articles/fitegpd-continuous.html">Fitting Continuous Distributions with fitegpd</a></li>
 <li><a href="articles/fitegpd-discrete.html">Fitting Discrete Distributions with fitegpd</a></li>
+<li><a href="articles/multivariate-egpd.html">Bivariate BEGPD via Neural Bayes Estimation</a></li>
+<li><a href="articles/bivariate-discrete-egpd.html">Bivariate Discrete EGPD via Neural Bayes Estimation</a></li>
+<li><a href="articles/mdgpd.html">Multivariate Discrete GPD (MDGPD) via Neural Bayes Estimation</a></li>
 <li><a href="articles/simulation.html">Simulation Examples</a></li>
 <li><a href="articles/bamlss-comparison.html">Comparing egpd and bamlss Fits</a></li>
 <li><a href="articles/gamlss-comparison.html">Comparing egpd and gamlss Fits</a></li>
@@ -177,11 +243,13 @@
 <div class="section level2">
 <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
 </h2>
+<p>Alotaibi, N., Sainsbury-Dale, M., Naveau, P., Gaetan, C., and Huser, R. (2025). Joint modeling of low and high extremes using a multivariate extended generalized Pareto distribution. <em>arXiv preprint</em> arXiv:2509.05982. <a href="https://arxiv.org/abs/2509.05982" class="external-link uri">https://arxiv.org/abs/2509.05982</a></p>
 <p>Ailliot, P., Gaetan, C., &amp; Naveau, P. (2026). A parsimonious tail compliant multiscale statistical model for aggregated rainfall. <em>Advances in Water Resources</em>, 208, 105216.<a href="https://doi.org/10.1016/j.advwatres.2026.105216" class="external-link uri">https://doi.org/10.1016/j.advwatres.2026.105216</a></p>
 <p>Abbas, A., Ahmad, T. and Ahmad, I. (2025). Modeling zero-inflated precipitation extremes. <em>Communications in Statistics-Simulation and Computation,</em> 1-17. <a href="https://doi.org/10.1080/03610918.2025.2585398" class="external-link uri">https://doi.org/10.1080/03610918.2025.2585398</a></p>
 <p>Ahmad, T. and Arshad, I. A. (2026). New flexible versions of the extended generalized Pareto model for count data. <em>Journal of Applied Statistics</em>. <a href="https://arxiv.org/abs/2409.18719" class="external-link uri">https://arxiv.org/abs/2409.18719</a></p>
 <p>Ahmad, T. and Hussain, A. (2025). Flexible model for varying levels of zeros and outliers in count data. <em>arXiv preprint</em> arXiv:2510.27365. <a href="https://arxiv.org/abs/2510.27365" class="external-link uri">https://arxiv.org/abs/2510.27365</a></p>
 <p>Ahmad, T., Gaetan, C., &amp; Naveau, P. (2025). An extended generalized Pareto regression model for count data. <em>Statistical Modelling</em>, 25(5), 416-431. <a href="https://doi.org/10.1177/1471082X241266729" class="external-link uri">https://doi.org/10.1177/1471082X241266729</a></p>
+<p>Carrer, N. L., &amp; Gaetan, C. (2022). Distributional regression models for Extended Generalized Pareto distributions. <em>arXiv preprint</em> arXiv:2209.04660.<a href="https://doi.org/10.48550/arXiv.2209.04660" class="external-link uri">https://doi.org/10.48550/arXiv.2209.04660</a></p>
 <p>Gamet, P. and Jalbert, J. (2022). A flexible extended generalized Pareto distribution for tail estimation. <em>Environmetrics</em>, 33(4), e2714.<a href="https://doi.org/10.1002/env.2744" class="external-link uri">https://doi.org/10.1002/env.2744</a></p>
 <p>Naveau, P., Huser, R., Ribereau, P., and Hannart, A. (2016). Modeling jointly low, moderate, and heavy rainfall intensities without a threshold selection. <em>Water Resources Research</em>, 52(4), 2897–2911.</p>
 </div>

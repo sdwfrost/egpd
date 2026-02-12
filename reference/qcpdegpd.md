@@ -5,8 +5,17 @@ Quantile function of Compound Poisson-Discrete EGPD
 ## Usage
 
 ``` r
-qcpdegpd(p, lambda, prob = NA, kappa = NA, delta = NA, sigma, xi, type = 1,
-  K = NULL)
+qcpdegpd(
+  p,
+  lambda,
+  prob = NA,
+  kappa = NA,
+  delta = NA,
+  sigma,
+  xi,
+  type = 1,
+  K = NULL
+)
 ```
 
 ## Arguments
@@ -45,7 +54,7 @@ qcpdegpd(p, lambda, prob = NA, kappa = NA, delta = NA, sigma, xi, type = 1,
 
 - K:
 
-  grid size for Panjer recursion (default: 5000)
+  grid size for Panjer recursion (default: max(max(x), 100) + 50)
 
 ## Value
 

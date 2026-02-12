@@ -54,6 +54,90 @@ fit <- egpd(
 summary(fit)
 ```
 
+## Bivariate EGPD (BEGPD)
+
+The package also supports bivariate Bivariate EGPD (BEGPD) fitting via
+neural Bayes estimation, using pre-trained neural networks. This
+requires [Julia](https://julialang.org/) (\>= 1.11) and additional
+dependencies.
+
+### Additional dependencies
+
+``` r
+
+# R packages
+install.packages("JuliaConnectoR")
+remotes::install_github("msainsburydale/NeuralEstimators")
+```
+
+Then install the required Julia packages:
+
+``` julia
+using Pkg
+Pkg.add(["NeuralEstimators", "Flux"])
+```
+
+### Quick start (bivariate BEGPD)
+
+``` r
+
+library(egpd)
+
+# Simulate bivariate BEGPD data (no Julia needed)
+Y <- rbegpd(1000, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0.2)
+
+# Fit using neural posterior estimation (requires Julia)
+fit <- fitegpd(Y, family = "begpd", method = "neuralbayes", estimator = "npe")
+summary(fit)
+plot(fit)
+
+# Train your own model (optional)
+paths <- train_begpd(savepath = "my_models", quick = TRUE)
+fit2 <- fitegpd(Y, family = "begpd", method = "neuralbayes",
+                model.path = paths$npe, estimator = "npe")
+```
+
+### Discrete extensions (Experimental)
+
+The package also provides **experimental** bivariate discrete EGPD
+(`family="bdegpd"`) and zero-inflated bivariate discrete EGPD
+(`family="bzidegpd"`) distributions, constructed by applying
+[`floor()`](https://rdrr.io/r/base/Round.html) to continuous BEGPD
+samples. These use the same neural Bayes estimation framework:
+
+``` r
+
+# Simulate and fit bivariate discrete EGPD
+Y <- rbdegpd(1000, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0.2)
+fit <- fitegpd(Y, family = "bdegpd", method = "neuralbayes", estimator = "npe")
+
+# Zero-inflated version
+Y_zi <- rbzidegpd(1000, kappa = 2, sigma = 1, xi = 0.1,
+                   thL = 5, thU = 5, thw = 0.2, pi0 = 0.3)
+fit_zi <- fitegpd(Y_zi, family = "bzidegpd", method = "neuralbayes", estimator = "npe")
+```
+
+### MDGPD: Multivariate Discrete GPD (Experimental)
+
+The package also includes the Aka-Kratz-Naveau (2025) Multivariate
+Discrete Generalized Pareto Distribution (`family="mdgpd"`), which
+provides a theoretically rigorous discrete bivariate GPD with threshold
+stability. The construction uses a bivariate Poisson generator and
+geometric maximum:
+
+``` r
+
+# Simulate bivariate MDGPD
+Y <- rmdgpd(1000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5)
+fit <- fitegpd(Y, family = "mdgpd", method = "neuralbayes", estimator = "npe")
+```
+
+For details, see Aka, Kratz & Naveau (2025),
+[arXiv:2506.19361](https://arxiv.org/abs/2506.19361).
+
+For details on the BEGPD, see Alotaibi, Sainsbury-Dale, Naveau, Gaetan &
+Huser (2025), [arXiv:2509.05982](https://arxiv.org/abs/2509.05982).
+
 ## Vignettes
 
 - [Discrete EGPD Models for Insurance Complaint
@@ -68,6 +152,12 @@ summary(fit)
   fitegpd](https://sdwfrost.github.io/egpd/articles/fitegpd-continuous.md)
 - [Fitting Discrete Distributions with
   fitegpd](https://sdwfrost.github.io/egpd/articles/fitegpd-discrete.md)
+- [Bivariate BEGPD via Neural Bayes
+  Estimation](https://sdwfrost.github.io/egpd/articles/multivariate-egpd.md)
+- [Bivariate Discrete EGPD via Neural Bayes
+  Estimation](https://sdwfrost.github.io/egpd/articles/bivariate-discrete-egpd.md)
+- [Multivariate Discrete GPD (MDGPD) via Neural Bayes
+  Estimation](https://sdwfrost.github.io/egpd/articles/mdgpd.md)
 - [Simulation
   Examples](https://sdwfrost.github.io/egpd/articles/simulation.md)
 - [Comparing egpd and bamlss
@@ -80,6 +170,11 @@ summary(fit)
   Assessment](https://sdwfrost.github.io/egpd/articles/parameter-coverage.md)
 
 ## References
+
+Alotaibi, N., Sainsbury-Dale, M., Naveau, P., Gaetan, C., and Huser, R.
+(2025). Joint modeling of low and high extremes using a multivariate
+extended generalized Pareto distribution. *arXiv preprint*
+arXiv:2509.05982. <https://arxiv.org/abs/2509.05982>
 
 Ailliot, P., Gaetan, C., & Naveau, P. (2026). A parsimonious tail
 compliant multiscale statistical model for aggregated rainfall.
@@ -101,6 +196,10 @@ zeros and outliers in count data. *arXiv preprint* arXiv:2510.27365.
 Ahmad, T., Gaetan, C., & Naveau, P. (2025). An extended generalized
 Pareto regression model for count data. *Statistical Modelling*, 25(5),
 416-431. <https://doi.org/10.1177/1471082X241266729>
+
+Carrer, N. L., & Gaetan, C. (2022). Distributional regression models for
+Extended Generalized Pareto distributions. *arXiv preprint*
+arXiv:2209.04660.<https://doi.org/10.48550/arXiv.2209.04660>
 
 Gamet, P. and Jalbert, J. (2022). A flexible extended generalized Pareto
 distribution for tail estimation. *Environmetrics*, 33(4),

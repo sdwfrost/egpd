@@ -1,6 +1,7 @@
-# bamlss Family for Continuous EGPD
+# bamlss family for continuous EGPD
 
-bamlss Family for Continuous EGPD
+Creates a `family.bamlss` object for fitting continuous Extended
+Generalized Pareto Distribution models with `bamlss()`.
 
 ## Usage
 
@@ -12,24 +13,28 @@ egpd_bamlss(m = 1, ...)
 
 - m:
 
-  integer 1-4 specifying the G-transformation model
+  integer 1–4 selecting the G transformation:
+
+  1
+
+  :   Power: \\G(u) = u^\kappa\\
+
+  2
+
+  :   Mixture: \\G(u) = p u^{\kappa} + (1-p) u^{\delta}\\
+
+  3
+
+  :   Incomplete beta
+
+  4
+
+  :   Power-beta
 
 - ...:
 
-  additional arguments
+  arguments passed to link specification
 
 ## Value
 
 An object of class `family.bamlss`
-
-## References
-
-Abbas, A., Ahmad, T. and Ahmad, I. (2025). Modeling zero-inflated
-precipitation extremes. *arXiv preprint* arXiv:2504.11058.
-<https://arxiv.org/abs/2504.11058>
-
-## See also
-
-[`EGPD1`](https://sdwfrost.github.io/egpd/reference/EGPD1.md),
-[`degpd_bamlss`](https://sdwfrost.github.io/egpd/reference/degpd_bamlss.md),
-[`ziegpd_bamlss`](https://sdwfrost.github.io/egpd/reference/ziegpd_bamlss.md)

@@ -54,9 +54,3 @@ regpd(
 ## Value
 
 Random samples
-
-## References
-
-Abbas, A., Ahmad, T. and Ahmad, I. (2025). Modeling zero-inflated
-precipitation extremes. *arXiv preprint* arXiv:2504.11058.
-<https://arxiv.org/abs/2504.11058>

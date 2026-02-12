@@ -47,11 +47,20 @@ S3 methods for fitted egpd objects.
 
   Plot a fitted `egpd` object
 
+- [`plot(`*`<fitegpd>`*`)`](https://sdwfrost.github.io/egpd/reference/plot.fitegpd.md)
+  : Plot diagnostics for a fitegpd object
+
 - [`summary(`*`<egpd>`*`)`](https://sdwfrost.github.io/egpd/reference/summary.egpd.md)
   [`print(`*`<summary.egpd>`*`)`](https://sdwfrost.github.io/egpd/reference/summary.egpd.md)
   :
 
   Summary method for a fitted `egpd` object
+
+- [`vcov(`*`<egpd>`*`)`](https://sdwfrost.github.io/egpd/reference/vcov.egpd.md)
+  : Variance-covariance matrix for egpd fits
+
+- [`confint(`*`<egpd>`*`)`](https://sdwfrost.github.io/egpd/reference/confint.egpd.md)
+  : Confidence intervals for egpd model parameters
 
 - [`print(`*`<egpd>`*`)`](https://sdwfrost.github.io/egpd/reference/print.egpd.md)
   :
@@ -142,6 +151,36 @@ integer-valued aggregated data.
   : Quantile function of Compound Poisson-Discrete EGPD
 - [`rcpdegpd()`](https://sdwfrost.github.io/egpd/reference/rcpdegpd.md)
   : Random generation from Compound Poisson-Discrete EGPD
+
+## Bivariate BEGPD
+
+Bivariate Extended Generalized Pareto Distribution via neural Bayes
+estimation.
+
+- [`rbegpd()`](https://sdwfrost.github.io/egpd/reference/rbegpd.md) :
+  Random generation from the bivariate BEGPD
+- [`train_begpd()`](https://sdwfrost.github.io/egpd/reference/train_begpd.md)
+  : Train a neural estimator for bivariate BEGPD
+- [`rbdegpd()`](https://sdwfrost.github.io/egpd/reference/rbdegpd.md) :
+  \\Experimental\\ Random generation from the bivariate discrete EGPD
+- [`rbzidegpd()`](https://sdwfrost.github.io/egpd/reference/rbzidegpd.md)
+  : \\Experimental\\ Random generation from the zero-inflated bivariate
+  discrete EGPD
+- [`train_bdegpd()`](https://sdwfrost.github.io/egpd/reference/train_bdegpd.md)
+  : \\Experimental\\ Train a neural estimator for bivariate discrete
+  EGPD
+
+## Bivariate MDGPD
+
+\[Experimental\] Multivariate Discrete GPD (Aka-Kratz-Naveau) via neural
+Bayes estimation.
+
+- [`rmdgpd()`](https://sdwfrost.github.io/egpd/reference/rmdgpd.md) :
+  \\Experimental\\ Random generation from the multivariate MDGPD
+- [`rzimdgpd()`](https://sdwfrost.github.io/egpd/reference/rzimdgpd.md)
+  : \\Experimental\\ Random generation from the zero-inflated MDGPD
+- [`train_mdgpd()`](https://sdwfrost.github.io/egpd/reference/train_mdgpd.md)
+  : \\Experimental\\ Train a neural estimator for MDGPD
 
 ## Diagnostics
 
@@ -269,13 +308,13 @@ gamlss.
 Family constructors for fitting EGPD models with bamlss.
 
 - [`egpd_bamlss()`](https://sdwfrost.github.io/egpd/reference/egpd_bamlss.md)
-  : bamlss Family for Continuous EGPD
+  : bamlss family for continuous EGPD
 - [`ziegpd_bamlss()`](https://sdwfrost.github.io/egpd/reference/ziegpd_bamlss.md)
-  : bamlss Family for Zero-Inflated Continuous EGPD
+  : bamlss family for zero-inflated continuous EGPD
 - [`degpd_bamlss()`](https://sdwfrost.github.io/egpd/reference/degpd_bamlss.md)
-  : bamlss Family for Discrete EGPD (DEGPD)
+  : bamlss family for discrete EGPD (DEGPD)
 - [`zidegpd_bamlss()`](https://sdwfrost.github.io/egpd/reference/zidegpd_bamlss.md)
-  : bamlss Family for Zero-Inflated Discrete EGPD (ZIDEGPD)
+  : bamlss family for zero-inflated discrete EGPD (ZIDEGPD)
 
 ## G-function Utilities
 

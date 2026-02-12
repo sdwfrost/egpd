@@ -53,6 +53,10 @@ predictive_coverage(
 
   a fitted model object (class `"egpd"`, `"gamlss"`, or `"bamlss"`)
 
+- ...:
+
+  additional arguments (currently unused)
+
 - y:
 
   numeric vector of observed responses to evaluate coverage against
@@ -86,10 +90,6 @@ predictive_coverage(
   [`predictAll()`](https://rdrr.io/pkg/gamlss/man/predict.gamlss.html);
   needed when the original fitting data cannot be recovered from the fit
   object.
-
-- ...:
-
-  additional arguments (currently unused)
 
 ## Value
 
@@ -162,18 +162,5 @@ df <- data.frame(y = y)
 fit_e <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
               data = df, family = "degpd", degpd.args = list(m = 1))
 predictive_coverage(fit_e, y)
-
-# gamlss fit
-fit_g <- gamlss::gamlss(y ~ 1, sigma.formula = ~ 1,
-                        nu.formula = ~ 1, data = df,
-                        family = DEGPD1(),
-                        control = gamlss::gamlss.control(
-                          n.cyc = 200, trace = FALSE))
-predictive_coverage(fit_g, y)
-
-# bamlss fit
-fit_b <- bamlss::bamlss(list(y ~ 1, ~ 1, ~ 1), data = df,
-                        family = degpd_bamlss(m = 1), verbose = FALSE)
-predictive_coverage(fit_b, y)
 } # }
 ```

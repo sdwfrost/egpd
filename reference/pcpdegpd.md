@@ -5,8 +5,17 @@ Distribution function of Compound Poisson-Discrete EGPD
 ## Usage
 
 ``` r
-pcpdegpd(q, lambda, prob = NA, kappa = NA, delta = NA, sigma, xi, type = 1,
-  K = NULL)
+pcpdegpd(
+  q,
+  lambda,
+  prob = NA,
+  kappa = NA,
+  delta = NA,
+  sigma,
+  xi,
+  type = 1,
+  K = NULL
+)
 ```
 
 ## Arguments
@@ -45,8 +54,7 @@ pcpdegpd(q, lambda, prob = NA, kappa = NA, delta = NA, sigma, xi, type = 1,
 
 - K:
 
-  grid size for Panjer recursion (default: automatically determined from
-  data range)
+  grid size for Panjer recursion (default: max(max(x), 100) + 50)
 
 ## Value
 

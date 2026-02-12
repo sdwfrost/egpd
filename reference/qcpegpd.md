@@ -1,7 +1,6 @@
 # Quantile function of Compound Poisson-EGPD
 
-Computes the quantile function of the Compound Poisson-EGPD distribution
-by inverting the Panjer-based CDF.
+Quantile function of Compound Poisson-EGPD
 
 ## Usage
 
@@ -60,14 +59,8 @@ qcpegpd(
 
 - K:
 
-  number of bins (default: 5000)
+  number of bins (default: ceiling(max(x)/h) + 50)
 
 ## Value
 
 numeric vector of quantiles
-
-## See also
-
-[`dcpegpd`](https://sdwfrost.github.io/egpd/reference/dcpegpd.md),
-[`pcpegpd`](https://sdwfrost.github.io/egpd/reference/pcpegpd.md),
-[`rcpegpd`](https://sdwfrost.github.io/egpd/reference/rcpegpd.md)

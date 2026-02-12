@@ -1,8 +1,7 @@
 # Random generation from Compound Poisson-Discrete EGPD
 
-Direct simulation from the Compound Poisson-Discrete EGPD distribution:
-draw \\N \sim \mathrm{Poisson}(\lambda)\\, then sum \\N\\ i.i.d.
-Discrete-EGPD draws.
+Direct simulation: draw \\N \sim \mathrm{Poisson}(\lambda)\\, then sum
+\\N\\ i.i.d. Discrete-EGPD draws.
 
 ## Usage
 

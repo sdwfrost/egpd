@@ -26,12 +26,20 @@ Ahmad, T. and Hussain, A. (2025). Flexible model for varying levels of
 zeros and outliers in count data. *arXiv preprint* arXiv:2510.27365.
 <https://arxiv.org/abs/2510.27365>
 
+## See also
+
+Useful links:
+
+- <https://github.com/sdwfrost/egpd>
+
+- <https://sdwfrost.github.io/egpd/>
+
+- Report bugs at <https://github.com/sdwfrost/egpd/issues>
+
 ## Author
 
-**Maintainer**: Simon Frost <sdwfrost@gmail.com>
+**Maintainer**: Touqeer Ahmad <touqeer.ahmad8960@gmail.com>
 
 Authors:
 
-- Touqeer Ahmad
-
-- Simon Frost
+- Simon Frost <sdwfrost@gmail.com>

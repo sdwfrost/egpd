@@ -36,6 +36,9 @@ objects of class "egpd", "gamlss", and
     <li><a class="dropdown-item" href="../articles/gamlss-comparison.html">Comparing egpd and gamlss Fits</a></li>
     <li><a class="dropdown-item" href="../articles/predictive-coverage.html">Predictive Coverage Assessment</a></li>
     <li><a class="dropdown-item" href="../articles/parameter-coverage.html">Parameter Estimate Coverage Assessment</a></li>
+    <li><a class="dropdown-item" href="../articles/multivariate-egpd.html">Bivariate BEGPD via Neural Bayes Estimation</a></li>
+    <li><a class="dropdown-item" href="../articles/bivariate-discrete-egpd.html">Bivariate Discrete EGPD via Neural Bayes Estimation</a></li>
+    <li><a class="dropdown-item" href="../articles/mdgpd.html">Multivariate Discrete GPD (MDGPD) via Neural Bayes Estimation</a></li>
   </ul></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
@@ -108,18 +111,22 @@ objects of class <code>"egpd"</code>, <code>"gamlss"</code>, and
 
 <dl><dt id="arg-fit">fit<a class="anchor" aria-label="anchor" href="#arg-fit"></a></dt>
 <dd><p>a fitted model object (class <code>"egpd"</code>,
-  <code>"gamlss"</code>, or <code>"bamlss"</code>)</p></dd>
+<code>"gamlss"</code>, or <code>"bamlss"</code>)</p></dd>
+
+
+<dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
+<dd><p>additional arguments (currently unused)</p></dd>
 
 
 <dt id="arg-y">y<a class="anchor" aria-label="anchor" href="#arg-y"></a></dt>
 <dd><p>numeric vector of observed responses to evaluate coverage
-  against</p></dd>
+against</p></dd>
 
 
 <dt id="arg-newdata">newdata<a class="anchor" aria-label="anchor" href="#arg-newdata"></a></dt>
 <dd><p>optional data frame of covariate values at which to
-  compute predictions.  If <code>NULL</code> (the default), in-sample
-  predictions are used.</p></dd>
+compute predictions.  If <code>NULL</code> (the default), in-sample
+predictions are used.</p></dd>
 
 
 <dt id="arg-level">level<a class="anchor" aria-label="anchor" href="#arg-level"></a></dt>
@@ -128,27 +135,23 @@ objects of class <code>"egpd"</code>, <code>"gamlss"</code>, and
 
 <dt id="arg-nsim">nsim<a class="anchor" aria-label="anchor" href="#arg-nsim"></a></dt>
 <dd><p>number of parameter/response simulation draws (default
-  2000)</p></dd>
+2000)</p></dd>
 
 
 <dt id="arg-method">method<a class="anchor" aria-label="anchor" href="#arg-method"></a></dt>
 <dd><p><code>"parametric"</code> (default) for parameter
-  uncertainty, or <code>"plug-in"</code> for fixed-parameter prediction</p></dd>
+uncertainty, or <code>"plug-in"</code> for fixed-parameter prediction</p></dd>
 
 
 <dt id="arg-use-shortest">use_shortest<a class="anchor" aria-label="anchor" href="#arg-use-shortest"></a></dt>
 <dd><p>logical: use shortest (HDR) interval for
-  discrete families instead of equal-tailed?  Default <code>FALSE</code>.</p></dd>
+discrete families instead of equal-tailed?  Default <code>FALSE</code>.</p></dd>
 
 
 <dt id="arg-data-fit">data_fit<a class="anchor" aria-label="anchor" href="#arg-data-fit"></a></dt>
 <dd><p>(gamlss method only) optional data frame passed as
-  <code>data</code> to <code><a href="https://rdrr.io/pkg/gamlss/man/predict.gamlss.html" class="external-link">predictAll()</a></code>; needed when the original
-  fitting data cannot be recovered from the fit object.</p></dd>
-
-
-<dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>additional arguments (currently unused)</p></dd>
+<code>data</code> to <code><a href="https://rdrr.io/pkg/gamlss/man/predict.gamlss.html" class="external-link">predictAll()</a></code>; needed when the original
+fitting data cannot be recovered from the fit object.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -163,12 +166,10 @@ objects of class <code>"egpd"</code>, <code>"gamlss"</code>, and
 <dd><p>the nominal coverage level</p></dd>
 
   <dt><code>coverage</code></dt>
-<dd><p>the empirical coverage (proportion of <code>y</code>
-    falling within the prediction interval)</p></dd>
+<dd><p>the empirical coverage (proportion of <code>y</code> falling within the prediction interval)</p></dd>
 
   <dt><code>covered</code></dt>
-<dd><p>logical vector indicating which observations are
-    covered</p></dd>
+<dd><p>logical vector indicating which observations are covered</p></dd>
 
   <dt><code>L</code></dt>
 <dd><p>lower prediction interval bounds</p></dd>
@@ -214,20 +215,8 @@ objects of class <code>"egpd"</code>, <code>"gamlss"</code>, and
 <span class="r-in"><span><span class="va">fit_e</span> <span class="op">&lt;-</span> <span class="fu"><a href="egpd.html">egpd</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>lsigma <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="fl">1</span>, lxi <span class="op">=</span> <span class="op">~</span> <span class="fl">1</span>, lkappa <span class="op">=</span> <span class="op">~</span> <span class="fl">1</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>              data <span class="op">=</span> <span class="va">df</span>, family <span class="op">=</span> <span class="st">"degpd"</span>, degpd.args <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>m <span class="op">=</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">predictive_coverage</span><span class="op">(</span><span class="va">fit_e</span>, <span class="va">y</span><span class="op">)</span></span></span>
-<span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># gamlss fit</span></span></span>
-<span class="r-in"><span><span class="va">fit_g</span> <span class="op">&lt;-</span> <span class="fu">gamlss</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/gamlss/man/gamlss.html" class="external-link">gamlss</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="fl">1</span>, sigma.formula <span class="op">=</span> <span class="op">~</span> <span class="fl">1</span>,</span></span>
-<span class="r-in"><span>                        nu.formula <span class="op">=</span> <span class="op">~</span> <span class="fl">1</span>, data <span class="op">=</span> <span class="va">df</span>,</span></span>
-<span class="r-in"><span>                        family <span class="op">=</span> <span class="fu"><a href="DEGPD1.html">DEGPD1</a></span><span class="op">(</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>                        control <span class="op">=</span> <span class="fu">gamlss</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/gamlss/man/gamlss.control.html" class="external-link">gamlss.control</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>                          n.cyc <span class="op">=</span> <span class="fl">200</span>, trace <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="fu">predictive_coverage</span><span class="op">(</span><span class="va">fit_g</span>, <span class="va">y</span><span class="op">)</span></span></span>
-<span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># bamlss fit</span></span></span>
-<span class="r-in"><span><span class="va">fit_b</span> <span class="op">&lt;-</span> <span class="fu">bamlss</span><span class="fu">::</span><span class="fu"><a href="http://www.bamlss.org/reference/bamlss.html" class="external-link">bamlss</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="fl">1</span>, <span class="op">~</span> <span class="fl">1</span>, <span class="op">~</span> <span class="fl">1</span><span class="op">)</span>, data <span class="op">=</span> <span class="va">df</span>,</span></span>
-<span class="r-in"><span>                        family <span class="op">=</span> <span class="fu"><a href="degpd_bamlss.html">degpd_bamlss</a></span><span class="op">(</span>m <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="fu">predictive_coverage</span><span class="op">(</span><span class="va">fit_b</span>, <span class="va">y</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
+<span class="r-in"><span></span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

@@ -1,8 +1,6 @@
 # Distribution function of Compound Poisson-EGPD
 
-Computes the cumulative distribution function of the Compound
-Poisson-EGPD distribution using Panjer recursion on a discretized EGPD
-severity.
+Distribution function of Compound Poisson-EGPD
 
 ## Usage
 
@@ -61,14 +59,8 @@ pcpegpd(
 
 - K:
 
-  number of bins (default: automatically determined from data range)
+  number of bins (default: ceiling(max(x)/h) + 50)
 
 ## Value
 
 numeric vector of cumulative probabilities
-
-## See also
-
-[`dcpegpd`](https://sdwfrost.github.io/egpd/reference/dcpegpd.md),
-[`qcpegpd`](https://sdwfrost.github.io/egpd/reference/qcpegpd.md),
-[`rcpegpd`](https://sdwfrost.github.io/egpd/reference/rcpegpd.md)

@@ -41,9 +41,3 @@ qegpd(p, prob = NA, kappa = NA, delta = NA, sigma = NA, xi = NA, type = 1)
 ## Value
 
 Quantile values
-
-## References
-
-Abbas, A., Ahmad, T. and Ahmad, I. (2025). Modeling zero-inflated
-precipitation extremes. *arXiv preprint* arXiv:2504.11058.
-<https://arxiv.org/abs/2504.11058>
