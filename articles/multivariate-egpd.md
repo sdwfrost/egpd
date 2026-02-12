@@ -54,7 +54,7 @@ induce stronger dependence.
 A weight function smoothly transitions between the lower and upper tail
 regimes. Given the radial quantile $u = F_R(R)$, the weight is:
 
-$$w(u) = F_{\mathrm{Beta}(3,3)}\!\left(\frac{u - \theta_\omega}{1 - 2\theta_\omega}\right)$$
+$$w(u) = F_{\mathrm{Beta}(3,3)}\left(\frac{u - \theta_\omega}{1 - 2\theta_\omega}\right)$$
 
 where $\theta_\omega \in (0, 0.5)$ controls the transition point. The
 bivariate observations are then:
