@@ -6,4 +6,7 @@ egpd.Rcheck/
 docs/
 figure/
 vignettes/*_cache/
+vignettes/*.html
 articles/*.html
+tests/testthat/Rplots.pdf
+inst/models/*/

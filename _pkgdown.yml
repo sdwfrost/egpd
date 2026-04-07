@@ -59,6 +59,7 @@ reference:
     desc: "Maximum likelihood and Bernstein polynomial fitting of univariate EGPD distributions."
     contents:
       - fitegpd
+      - plot.fitegpd
 
   - title: "Prediction and Methods"
     desc: "S3 methods for fitted egpd objects."
@@ -67,8 +68,8 @@ reference:
       - fitted.egpd
       - simulate.egpd
       - logLik.egpd
+      - ginv.egpd
       - plot.egpd
-      - plot.fitegpd
       - summary.egpd
       - vcov.egpd
       - confint.egpd
@@ -125,7 +126,7 @@ reference:
       - rcpdegpd
 
   - title: "Bivariate BEGPD"
-    desc: "Bivariate Extended Generalized Pareto Distribution via neural Bayes estimation."
+    desc: "Bivariate Extended Generalized Pareto Distribution and discrete extensions via neural Bayes estimation."
     contents:
       - rbegpd
       - train_begpd

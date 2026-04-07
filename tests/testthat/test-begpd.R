@@ -25,7 +25,7 @@ test_that("rbegpd validates inputs", {
   expect_error(rbegpd(100, kappa = 2, sigma = 0, xi = 0.1, thL = 5, thU = 5, thw = 0.2),
                "'sigma' must be a positive number")
   expect_error(rbegpd(100, kappa = 2, sigma = 1, xi = -0.1, thL = 5, thU = 5, thw = 0.2),
-               "'xi' must be a positive number")
+               "'xi' must be a non-negative number")
   expect_error(rbegpd(100, kappa = 2, sigma = 1, xi = 0.1, thL = -1, thU = 5, thw = 0.2),
                "'thL' must be a positive number")
   expect_error(rbegpd(100, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 0, thw = 0.2),
@@ -34,6 +34,7 @@ test_that("rbegpd validates inputs", {
                "'thw' must be a number in")
   expect_error(rbegpd(100, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0),
                "'thw' must be a number in")
+  expect_no_error(rbegpd(100, kappa = 2, sigma = 1, xi = 0, thL = 5, thU = 5, thw = 0.2))
 })
 
 test_that("rbegpd is reproducible with set.seed", {

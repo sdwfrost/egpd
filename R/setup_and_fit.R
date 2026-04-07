@@ -199,7 +199,13 @@ if (!compact) {
   lik.data$duplicate <- 1
   ## offsets are per-observation (full-length), expand from unique rows
   lik.data$offsets <- lapply(attr(lik.data$X, "offsets"), function(off) {
-    if (length(off) > 0) off[dup.id] else off
+    if (length(off) == 0) {
+      off
+    } else if (length(off) == 1) {
+      rep(off, length(dup.id))
+    } else {
+      off[dup.id]
+    }
   })
 }
 for (i in seq_along(gams)) {
@@ -249,7 +255,9 @@ list(lik.data=lik.data, gotsmooth=gotsmooth, data=data, gams=gams, sandwich=lik.
 .setup.inner.inits <- function(inits, likdata, likfns, npar, family) {
 
 likdata0 <- likdata
-likdata0$X <- lapply(seq_along(likdata$X), function(i) matrix(1, nrow=nrow(likdata$X[[i]]), ncol=1))
+likdata0$X <- lapply(seq_along(likdata$X), function(i) matrix(1, nrow=nrow(likdata$y), ncol=1))
+likdata0$dupid <- 0
+likdata0$duplicate <- 0
 likdata0$S <- diag(0, npar)
 likdata0$idpars <- seq_len(npar)
 
@@ -313,7 +321,7 @@ if (likdata$sandwich) {
   }
   if (likdata$adjust == 2) {
     cholJ <- try(chol(J), silent=TRUE)
-    if (inherits(cholJ, "try-error") & likdata$adjust == 2) {
+    if (!inherits(cholJ, "try-error")) {
       HA <- crossprod(backsolve(cholJ, H, transpose=TRUE))
     } else {
       iHA <- tcrossprod(crossprod(iH, J), iH)
@@ -428,7 +436,8 @@ fit.reml
 
 fit.inner <- .newton_step(beta, .nllh.nopen, .search.nopen, likdata=likdata, likfns=likfns, control=likdata$control$inner)
 
-list(beta=fit.inner$par)
+fit.inner$beta <- fit.inner$par
+fit.inner
 
 }
 
@@ -506,13 +515,13 @@ Vp <- VpVc$Vp
 Vc <- VpVc$Vc
 if (smooths) gams$sp <- exp(fitreml$par)
 gams$nobs <- likdata$nobs
-gams$logLik <- -1e20
-fit.lik <- list(convergence=0)
-if (fit.lik$convergence == 0) {
+gams$convergence <- if (is.null(fitreml$convergence)) NA_integer_ else fitreml$convergence
+gams$logLik <- NA_real_
+if (identical(gams$convergence, 0L)) {
 gams$logLik <- -.nllh.nopen(fitreml$beta, likdata, likfns)
 gams$logLik <- gams$logLik - likdata$const
 }
-if (fit.lik$convergence != 0) gams$AIC <- gams$BIC <- 1e20
+if (!identical(gams$convergence, 0L)) gams$AIC <- gams$BIC <- 1e20
 attr(gams, "df") <- sum(edf)
 gams$simulate <- list(mu=fitreml$beta, Sigma=Vp)
 gams$family <- family
@@ -541,14 +550,14 @@ if (!removeData) {
 gams$Vc <- Vc
 gams$Vp <- Vp
 gams$Vlsp <- VpVc$Vlsp
-gams$negREML <- fitreml$objective
+gams$negREML <- if (is.null(fitreml$objective)) NA_real_ else fitreml$objective
 gams$coefficients <- as.vector(fitreml$beta)
 for (i in seq_along(likdata$X)) {
   gams[[i]]$X <- likdata$X[[i]]
   if (likdata$duplicate == 1)
-    gams[[i]]$X <- gams[[i]]$X[likdata$dupid + 1,]
-  gams[[i]]$fitted <- as.vector(likdata$X[[i]] %*% gams[[i]]$coefficients)
-  if (likdata$duplicate != 1 && length(likdata$offsets[[i]]) > 0)
+    gams[[i]]$X <- gams[[i]]$X[likdata$dupid + 1, , drop = FALSE]
+  gams[[i]]$fitted <- as.vector(gams[[i]]$X %*% gams[[i]]$coefficients)
+  if (length(likdata$offsets[[i]]) > 0)
     gams[[i]]$fitted <- gams[[i]]$fitted + likdata$offsets[[i]]
   names(gams[[i]]$coefficients) <- colnames(gams[[i]]$X)
 }

@@ -23,12 +23,18 @@
 }
 
 .iG2i_zidegpd <- function(v, kappa1, kappa2, p) {
-  vv <- range(c(v^1/kappa1, v^1/kappa2))
-  d <- diff(vv)
+  if (v <= 0)
+    return(0)
+  if (v >= 1)
+    return(1)
+  if (abs(kappa1 - kappa2) < sqrt(.Machine$double.eps))
+    return(v^(1 / kappa1))
+  vv <- range(c(v^(1 / kappa1), v^(1 / kappa2)))
+  d <- max(diff(vv), .Machine$double.eps)
   lo <- vv[1]
-  while(.G2_zidegpd(lo, kappa1, kappa2, p) - v > 0) lo <- max(0, lo - d)
+  while(.G2_zidegpd(lo, kappa1, kappa2, p) - v > 0 && lo > 0) lo <- max(0, lo - d)
   hi <- vv[2]
-  while(.G2_zidegpd(hi, kappa1, kappa2, p) - v > 0) hi <- min(1, hi + d)
+  while(.G2_zidegpd(hi, kappa1, kappa2, p) - v < 0 && hi < 1) hi <- min(1, hi + d)
   uniroot(function(x) .G2_zidegpd(x, kappa1, kappa2, p) - v, c(lo, hi))$root
 }
 

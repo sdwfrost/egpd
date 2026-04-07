@@ -5,7 +5,7 @@
   if (grepl("^logit", name))
     return(plogis)
   if (grepl("^probit", name))
-    return(qnorm)
+    return(pnorm)
   if (grepl("^log", name))
     return(exp)
   identity

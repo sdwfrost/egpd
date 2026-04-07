@@ -14,6 +14,9 @@ knitr::opts_chunk$set(
   fig.width = 7,
   fig.height = 5
 )
+has_julia_support <- requireNamespace("JuliaConnectoR", quietly = TRUE) &&
+  requireNamespace("NeuralEstimators", quietly = TRUE) &&
+  nzchar(Sys.which("julia"))
 ```
 
 The `egpd` package supports Bivariate Extended Generalized Pareto
@@ -79,7 +82,7 @@ $$Y_1 = R\left[(1-w)\,V_1 + w\,U_1\right], \qquad Y_2 = R\left[(1-w)\,(1-V_1) + 
 |-----------|--------|-------|------|
 | `kappa` | $\kappa$ | $(0, \infty)$ | EGPD shape (intensity) |
 | `sigma` | $\sigma$ | $(0, \infty)$ | GPD scale (intensity) |
-| `xi` | $\xi$ | $(0, \infty)$ | GPD shape (tail heaviness) |
+| `xi` | $\xi$ | $[0, \infty)$ | GPD shape (tail heaviness) |
 | `thL` | $\theta_L$ | $(0, \infty)$ | Lower tail dependence |
 | `thU` | $\theta_U$ | $(0, \infty)$ | Upper tail dependence |
 | `thw` | $\theta_\omega$ | $(0, 0.5)$ | Lower/upper transition |
@@ -279,7 +282,7 @@ remotes::install_github("msainsburydale/NeuralEstimators")
 The NPE provides full posterior inference: given data, it returns samples
 from the approximate posterior distribution over all six parameters.
 
-```{r fit-npe}
+```{r fit-npe, eval = has_julia_support}
 set.seed(42)
 
 # Simulate data from known parameters
@@ -295,7 +298,7 @@ The `nsamples` argument controls how many draws are taken from the
 approximate posterior (default: 1000). More samples give smoother
 posterior summaries at the cost of slightly longer inference.
 
-```{r npe-summary}
+```{r npe-summary, eval = has_julia_support}
 summary(fit_npe)
 ```
 
@@ -310,7 +313,7 @@ The summary provides:
 The NBE is faster but only provides point estimates (no uncertainty
 quantification):
 
-```{r fit-nbe}
+```{r fit-nbe, eval = has_julia_support}
 fit_nbe <- fitegpd(Y, family = "begpd", method = "neuralbayes",
                    estimator = "nbe")
 summary(fit_nbe)
@@ -324,7 +327,7 @@ summary(fit_nbe)
 The `plot()` method produces a 4-panel diagnostic plot adapted for
 bivariate data:
 
-```{r npe-plot, fig.width = 8, fig.height = 8}
+```{r npe-plot, eval = has_julia_support, fig.width = 8, fig.height = 8}
 plot(fit_npe)
 ```
 
@@ -340,7 +343,7 @@ The panels show:
 
 Standard S3 methods work as expected:
 
-```{r s3-methods}
+```{r s3-methods, eval = has_julia_support}
 # Point estimates (posterior median for NPE)
 coef(fit_npe)
 
@@ -359,7 +362,7 @@ confint(fit_npe, parm = c("kappa", "xi"))
 
 Since we know the true parameters, we can assess the estimation quality:
 
-```{r compare-truth}
+```{r compare-truth, eval = has_julia_support}
 truth <- c(kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0.2)
 est <- coef(fit_npe)
 ci <- confint(fit_npe)
@@ -379,13 +382,13 @@ comparison
 Since the neural estimator bypasses the likelihood, some standard
 likelihood-based quantities are not available:
 
-```{r na-quantities-loglik, warning = TRUE}
+```{r na-quantities-loglik, eval = has_julia_support, warning = TRUE}
 logLik(fit_npe)   # returns NA with a warning
 AIC(fit_npe)      # NA
 BIC(fit_npe)      # NA
 ```
 
-```{r na-quantities-nbe, error = TRUE}
+```{r na-quantities-nbe, eval = has_julia_support, error = TRUE}
 # vcov and confint require NPE (not available for NBE)
 vcov(fit_nbe)     # error: no posterior samples
 confint(fit_nbe)  # error: no posterior samples
@@ -416,7 +419,7 @@ cat("Each dataset is a", nrow(datasets[[1]]), "x", ncol(datasets[[1]]), "matrix\
 
 With Julia available, these datasets can be estimated:
 
-```{r sim-study-estimate}
+```{r sim-study-estimate, eval = has_julia_support}
 # Estimate a subset of datasets (full study would use all K)
 K_est <- min(K, 10)
 estimates <- sapply(datasets[seq_len(K_est)], function(Y) {

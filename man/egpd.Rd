@@ -33,7 +33,9 @@ egpd(
 
 \item{data}{a data frame}
 
-\item{family}{a character string: "egpd", "degpd", or "zidegpd"}
+\item{family}{a character string: "egpd", "degpd", "zidegpd", or "custom".
+Continuous zero-inflated EGPD utilities are provided elsewhere in the
+package, but are not fitted via \code{egpd()}.}
 
 \item{correctV}{logical: should variance-covariance matrix account for smoothing parameter uncertainty? Defaults to TRUE}
 

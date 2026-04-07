@@ -191,7 +191,11 @@ if (type %in% c("response", "quantile")) {
           } else {
             pj <- ((pj - pars[, 5]) / (1 - pars[, 5])) - (1e-7)
             pj <- ifelse(pj > 0, pj, 0)
-            pj <- zidegpd_iG(pj, pars[, 3], pars[, 4])
+            if (zidegpd_m == 4) {
+              pj <- zidegpd_iG(pj, pars[, 4], pars[, 3])
+            } else {
+              pj <- zidegpd_iG(pj, pars[, 3], pars[, 4])
+            }
           }
         }
       }
@@ -272,6 +276,8 @@ rqresid <- function(object, ...) UseMethod("rqresid")
 rqresid.egpd <- function(object, seed = NULL, ...) {
 
   if (!is.null(seed)) set.seed(seed)
+  if (is.null(object$data))
+    stop("rqresid requires the original data; refit with removeData = FALSE", call. = FALSE)
 
   family <- object$family
   m <- object$likfns$m
@@ -299,8 +305,8 @@ rqresid.egpd <- function(object, seed = NULL, ...) {
   } else if (m == 3) {
     cdf_args$delta <- pars[[3]]
   } else if (m == 4) {
-    cdf_args$delta <- pars[[3]]
-    cdf_args$kappa <- pars[[4]]
+    cdf_args$delta <- pars[[4]]
+    cdf_args$kappa <- pars[[3]]
   } else if (m %in% c(5, 6)) {
     cdf_args$kappa <- pars[[3]]
   }

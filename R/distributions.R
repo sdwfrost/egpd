@@ -75,11 +75,9 @@ p.G <- function(u, type = 1, prob, kappa, delta) {
     lower <- 1/32
     upper <- 1/2
     stopifnot(lower <= upper, kappa > 0)
-    aa <- rep(lower, length(u))
-    bb <- rep(upper, length(u))
-    normalize.factor <- pbeta(bb, kappa, kappa) - pbeta(aa, kappa, kappa)
+    normalize.factor <- pbeta(upper, kappa, kappa) - pbeta(lower, kappa, kappa)
     tt <- pbeta((upper - lower) * u + lower, kappa, kappa)
-    tt <- tt / normalize.factor
+    tt <- (tt - pbeta(lower, kappa, kappa)) / normalize.factor
     return(tt)
   } else if (type == 4) {
     return(1 - pbeta((1 - u)^delta, 1/delta, 2))
@@ -132,8 +130,9 @@ d.G <- function(u, type = 1, prob = NA, kappa = NA, delta = NA, log = FALSE) {
       stopifnot(lower <= upper, kappa > 0)
       tt <- rep(0, length(u))
       normalize.factor <- pbeta(upper, kappa, kappa) - pbeta(lower, kappa, kappa)
-      tt[u >= lower & u <= upper] <- dbeta(u[u >= lower & u <= upper],
-                                           kappa, kappa) / normalize.factor
+      idx <- u >= 0 & u <= 1
+      tt[idx] <- (upper - lower) * dbeta((upper - lower) * u[idx] + lower,
+                                         kappa, kappa) / normalize.factor
       return(tt)
     } else if (type == 4) {
       return(dbeta((1 - u)^delta, 1/delta, 2) * delta * (1 - u)^(delta - 1))
@@ -159,8 +158,8 @@ d.G <- function(u, type = 1, prob = NA, kappa = NA, delta = NA, log = FALSE) {
       stopifnot(lower <= upper, kappa > 0)
       tt <- rep(-Inf, length(u))
       normalize.factor <- log(pbeta(upper, kappa, kappa) - pbeta(lower, kappa, kappa))
-      idx <- u >= lower & u <= upper
-      tt[idx] <- dbeta(u[idx], kappa, kappa, log = TRUE) - normalize.factor
+      idx <- u >= 0 & u <= 1
+      tt[idx] <- log(upper - lower) + dbeta((upper - lower) * u[idx] + lower, kappa, kappa, log = TRUE) - normalize.factor
       return(tt)
     } else if (type == 4) {
       return(dbeta((1 - u)^delta, 1/delta, 2, log = TRUE) + log(delta) + (delta - 1) * log(1 - u))
@@ -209,7 +208,6 @@ q.G <- function(u, type = 1, prob = NA, kappa = NA, delta = NA) {
   } else if (type == 3) {
     lower <- 1/32
     upper <- 1/2
-    tt <- u
     pin <- pbeta(lower, kappa, kappa) + u * (pbeta(upper, kappa, kappa) - pbeta(lower, kappa, kappa))
     tt <- (qbeta(pin, kappa, kappa) - lower) / (upper - lower)
     return(tt)

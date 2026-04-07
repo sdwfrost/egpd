@@ -49,9 +49,8 @@
 #' @noRd
 .init_npe_begpd <- function(d = 6L, n = 2L) {
   npe <- JuliaConnectoR::juliaLet("
-    q = NormalisingFlow(d, 2d)
-    network = initializenetwork(n, 2d)
-    PosteriorEstimator(q, network)
+    arch = initialize_ratio_network(n, d)
+    NeuralEstimators.RatioEstimator(arch)
   ", d = d, n = n)
 
   npe
@@ -65,7 +64,10 @@
   J <- 5L  # ensemble components
 
   nbe <- JuliaConnectoR::juliaLet("
-    Ensemble([PointEstimator(initializenetwork(n, d)) for j in 1:J])
+    NeuralEstimators.Ensemble([
+      NeuralEstimators.PointEstimator(initialize_point_network(n, d))
+      for j in 1:J
+    ])
   ", n = n, d = d, J = J)
 
   nbe
@@ -148,6 +150,56 @@
   )
 }
 
+#' Draw candidate parameter vectors in the transformed parameter space
+#' @noRd
+.sample_theta_prior <- function(family, K, data_dim = 2L) {
+  K <- as.integer(K)
+  out <- switch(family,
+    "begpd" = rbind(
+      log(runif(K, 0.1, 10)),
+      log(runif(K, 0.1, 3)),
+      log(runif(K, 0.01, 0.5)),
+      log(runif(K, 0.1, 20)),
+      log(runif(K, 0.1, 20)),
+      log(runif(K, 0.01, 0.49))
+    ),
+    "bdegpd" = rbind(
+      log(runif(K, 0.1, 10)),
+      log(runif(K, 0.1, 3)),
+      log(runif(K, 0.01, 0.5)),
+      log(runif(K, 0.1, 20)),
+      log(runif(K, 0.1, 20)),
+      log(runif(K, 0.01, 0.49))
+    ),
+    "bzidegpd" = rbind(
+      log(runif(K, 0.1, 10)),
+      log(runif(K, 0.1, 3)),
+      log(runif(K, 0.01, 0.5)),
+      log(runif(K, 0.1, 20)),
+      log(runif(K, 0.1, 20)),
+      log(runif(K, 0.01, 0.49)),
+      qlogis(runif(K, 0.01, 0.9))
+    ),
+    "mdgpd" = rbind(
+      log(runif(K, 0.1, 10)),
+      log(runif(K, 0.01, 0.5)),
+      log(runif(K, 0.01, 5)),
+      qlogis(runif(K, 0.01, 0.99))
+    ),
+    "zimdgpd" = rbind(
+      log(runif(K, 0.1, 10)),
+      log(runif(K, 0.01, 0.5)),
+      log(runif(K, 0.01, 5)),
+      qlogis(runif(K, 0.01, 0.99)),
+      qlogis(runif(K, 0.01, 0.9))
+    ),
+    stop("Unknown neural-Bayes family: ", family, call. = FALSE)
+  )
+
+  storage.mode(out) <- "double"
+  out
+}
+
 #' Internal: fit multivariate families via neural Bayes estimation
 #'
 #' @param x n-by-d matrix or data.frame of observations (d >= 2).
@@ -216,16 +268,20 @@
   }
   NeuralEstimators::loadstate(est_obj, model.path)
 
-  ## Prepare data: transpose to data_dim x n, apply signed_log, wrap in list
-  Z <- t(x)  # data_dim x n
-  Z <- .begpd_signed_log(Z)
-  Z_list <- list(Z)
+  ## Prepare data: transpose to data_dim x n and apply signed_log
+  Z <- .begpd_signed_log(t(x))
 
   ## Inference
   if (estimator == "npe") {
     ## NPE: sample from approximate posterior
-    samples_raw <- NeuralEstimators::sampleposterior(est_obj, Z_list,
-                                                      as.integer(nsamples))
+    theta_grid <- .sample_theta_prior(
+      family,
+      K = max(2048L, as.integer(nsamples)),
+      data_dim = data_dim
+    )
+    samples_raw <- NeuralEstimators::sampleposterior(est_obj, Z,
+                                                     as.integer(nsamples),
+                                                     theta_grid = theta_grid)
 
     ## Result is a list (one element per dataset); extract the matrix
     if (is.list(samples_raw)) {
@@ -249,7 +305,12 @@
 
   } else {
     ## NBE: point estimates
-    est_raw <- NeuralEstimators::estimate(est_obj, Z_list)
+    est_raw <- JuliaConnectoR::juliaLet(
+      "NeuralEstimators.estimateinbatches(estimator, Z; batchsize = batchsize, use_gpu = true)",
+      estimator = est_obj,
+      Z = Z,
+      batchsize = 32L
+    )
 
     ## Result may be a list or matrix; extract and back-transform
     if (is.list(est_raw)) est_raw <- est_raw[[1]]

@@ -13,7 +13,7 @@ rbdegpd(n, kappa, sigma, xi, thL, thU, thw)
 
 \item{sigma}{positive numeric; GPD scale parameter.}
 
-\item{xi}{positive numeric; GPD shape parameter.}
+\item{xi}{non-negative numeric; GPD shape parameter.}
 
 \item{thL}{positive numeric; lower tail dependence parameter (beta shape).}
 

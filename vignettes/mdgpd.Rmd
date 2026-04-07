@@ -14,6 +14,9 @@ knitr::opts_chunk$set(
   fig.width = 7,
   fig.height = 5
 )
+has_julia_support <- requireNamespace("JuliaConnectoR", quietly = TRUE) &&
+  requireNamespace("NeuralEstimators", quietly = TRUE) &&
+  nzchar(Sys.which("julia"))
 ```
 
 The `egpd` package provides **experimental** support for the Multivariate
@@ -339,7 +342,7 @@ The MDGPD has no closed-form likelihood (the construction involves a
 discrete maximum and floor operations). Neural Bayes estimation is used
 instead, via pre-trained neural networks.
 
-```{r fit-mdgpd-npe}
+```{r fit-mdgpd-npe, eval = has_julia_support}
 set.seed(42)
 
 Y <- rmdgpd(1000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5)
@@ -348,13 +351,13 @@ fit <- fitegpd(Y, family = "mdgpd", method = "neuralbayes",
 summary(fit)
 ```
 
-```{r fit-mdgpd-diagnostics, fig.width = 8, fig.height = 8}
+```{r fit-mdgpd-diagnostics, eval = has_julia_support, fig.width = 8, fig.height = 8}
 plot(fit)
 ```
 
 ### Fitting ZIMDGPD
 
-```{r fit-zimdgpd-npe}
+```{r fit-zimdgpd-npe, eval = has_julia_support}
 set.seed(42)
 
 Y_zi <- rzimdgpd(1000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5,
@@ -366,7 +369,7 @@ summary(fit_zi)
 
 ### S3 methods
 
-```{r s3-mdgpd}
+```{r s3-mdgpd, eval = has_julia_support}
 coef(fit)                # Posterior median estimates
 confint(fit)             # 95% credible intervals
 vcov(fit)                # Posterior covariance matrix
@@ -379,7 +382,7 @@ For $d \geq 3$, a separate neural network must be trained for each
 data dimension, since the network architecture depends on the input
 dimension. Use `train_mdgpd()` with the `data_dim` parameter:
 
-```{r fit-3d}
+```{r fit-3d, eval = has_julia_support}
 # Fit 3D data using a pre-trained model
 Y3_fit <- rmdgpd(1000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5, d = 3)
 

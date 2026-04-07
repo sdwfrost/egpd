@@ -14,6 +14,9 @@ knitr::opts_chunk$set(
   fig.width = 7,
   fig.height = 5
 )
+has_julia_support <- requireNamespace("JuliaConnectoR", quietly = TRUE) &&
+  requireNamespace("NeuralEstimators", quietly = TRUE) &&
+  nzchar(Sys.which("julia"))
 ```
 
 The `egpd` package provides **experimental** bivariate discrete EGPD
@@ -66,7 +69,7 @@ $$
 |-----------|--------|-------|------|
 | `kappa` | $\kappa$ | $(0, \infty)$ | EGPD shape (controls bulk) |
 | `sigma` | $\sigma$ | $(0, \infty)$ | GPD scale (intensity) |
-| `xi` | $\xi$ | $(0, \infty)$ | GPD shape (tail heaviness) |
+| `xi` | $\xi$ | $[0, \infty)$ | GPD shape (tail heaviness) |
 | `thL` | $\theta_L$ | $(0, \infty)$ | Lower tail dependence |
 | `thU` | $\theta_U$ | $(0, \infty)$ | Upper tail dependence |
 | `thw` | $\theta_\omega$ | $(0, 0.5)$ | Lower/upper mixing transition |
@@ -259,7 +262,7 @@ remotes::install_github("msainsburydale/NeuralEstimators")
 
 ### Fitting BDEGPD with NPE
 
-```{r fit-bdegpd-npe}
+```{r fit-bdegpd-npe, eval = has_julia_support}
 set.seed(42)
 
 Y <- rbdegpd(2000, kappa = 2, sigma = 1, xi = 0.1,
@@ -275,7 +278,7 @@ The summary reports posterior medians, posterior standard deviations, and
 
 ### Fitting BZIDEGPD with NPE
 
-```{r fit-bzidegpd-npe}
+```{r fit-bzidegpd-npe, eval = has_julia_support}
 set.seed(42)
 
 Y_zi <- rbzidegpd(2000, kappa = 2, sigma = 1, xi = 0.1,
@@ -291,7 +294,7 @@ plus $\pi_0$).
 
 ### Diagnostic plots
 
-```{r plot-bdegpd, fig.width = 8, fig.height = 8}
+```{r plot-bdegpd, eval = has_julia_support, fig.width = 8, fig.height = 8}
 plot(fit)
 ```
 
@@ -306,7 +309,7 @@ The diagnostic plot for BDEGPD/BZIDEGPD shows four panels:
 
 All standard S3 methods work for BDEGPD fits:
 
-```{r s3-bdegpd}
+```{r s3-bdegpd, eval = has_julia_support}
 coef(fit)                # Posterior median estimates
 confint(fit)             # 95% credible intervals
 confint(fit, level = 0.9) # 90% credible intervals

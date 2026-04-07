@@ -7,9 +7,10 @@ Authors@R: c(
     person("Simon", "Frost", role = c("aut"),
            email = "sdwfrost@gmail.com"))
 Description: Fits Extended Generalized Pareto Distribution (EGPD), Discrete
-    EGPD (DEGPD), Zero-Inflated EGPD (ZIEGPD), and Zero-Inflated Discrete
-    EGPD (ZIDEGPD) models within a GAM (Generalized Additive Model) framework,
-    with additional support for fitting via 'gamlss' and 'bamlss'. The fitting
+    EGPD (DEGPD), and Zero-Inflated Discrete EGPD (ZIDEGPD) models within a
+    GAM (Generalized Additive Model) framework, with additional support for
+    continuous zero-inflated EGPD utilities, neural-Bayes multivariate EGPD
+    extensions, and fitting via 'gamlss' and 'bamlss'. The fitting
     infrastructure is adapted from the 'evgam' package by Ben Youngman.
     P-value testing code is adapted from the 'mgcv' package by Simon Wood.
     Models 1-6 are supported for each distribution family. References:
@@ -25,8 +26,8 @@ Imports: Rcpp (>= 1.0.0), mgcv, gamlss.dist, Deriv
 LinkingTo: Rcpp, RcppArmadillo
 Suggests: bamlss, evgam, gamlss, JuliaConnectoR, knitr, NeuralEstimators,
     pkgdown, rmarkdown, testthat (>= 3.0.0)
-SystemRequirements: Julia (>= 1.11) for bivariate EGPD fitting
-    (method='neuralbayes')
+SystemRequirements: Julia (>= 1.11) for neural-Bayes multivariate EGPD
+    fitting (method='neuralbayes')
 VignetteBuilder: knitr
 LazyData: true
 RoxygenNote: 7.3.2

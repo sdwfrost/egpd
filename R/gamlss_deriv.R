@@ -34,12 +34,13 @@
 }
 
 ## Type 3 / model 6 (EGPD6): truncated beta (main part without log(C))
-## d.G type 3 evaluates dbeta(u, κ, κ)/C with u = GPD CDF directly
-## (no rescaling to [1/32, 0.5] — the density is 0 outside that range).
+## The GPD CDF is first rescaled from [0, 1] to [1/32, 1/2].
 .logdens_egpd6_main <- function(y, mu, sigma, nu) {
   v <- 1 + sigma * y / mu
   u <- 1 - v^(-1 / sigma)
-  (nu - 1) * log(u) + (nu - 1) * log(1 - u) - lbeta(nu, nu) -
+  hml <- 0.5 - 1 / 32
+  t <- hml * u + 1 / 32
+  log(hml) + (nu - 1) * log(t) + (nu - 1) * log(1 - t) - lbeta(nu, nu) -
     log(mu) - (1 / sigma + 1) * log(v)
 }
 

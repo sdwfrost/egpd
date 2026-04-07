@@ -28,13 +28,19 @@ p * v^kappa1 + (1 - p) * v^kappa2
 }
 
 .iG2i_egpd <- function(v, kappa1, kappa2, p) {
-vv <- range(c(v^1/kappa1, v^1/kappa2))
-d <- diff(vv)
-lo <- vv[1]
-while(.G2_egpd(lo, kappa1, kappa2, p) - v > 0) lo <- max(0, lo - d)
-hi <- vv[2]
-while(.G2_egpd(hi, kappa1, kappa2, p) - v > 0) hi <- min(1, hi + d)
-uniroot(function(x) .G2_egpd(x, kappa1, kappa2, p) - v, c(lo, hi))$root
+ if (v <= 0)
+   return(0)
+ if (v >= 1)
+   return(1)
+ if (abs(kappa1 - kappa2) < sqrt(.Machine$double.eps))
+   return(v^(1 / kappa1))
+ vv <- range(c(v^(1 / kappa1), v^(1 / kappa2)))
+ d <- max(diff(vv), .Machine$double.eps)
+ lo <- vv[1]
+ while(.G2_egpd(lo, kappa1, kappa2, p) - v > 0 && lo > 0) lo <- max(0, lo - d)
+ hi <- vv[2]
+ while(.G2_egpd(hi, kappa1, kappa2, p) - v < 0 && hi < 1) hi <- min(1, hi + d)
+ uniroot(function(x) .G2_egpd(x, kappa1, kappa2, p) - v, c(lo, hi))$root
 }
 
 .iG2_egpd <- function(v, kappa1, kappa2, p) {

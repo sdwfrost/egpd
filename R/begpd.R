@@ -10,7 +10,7 @@
 #' @param n integer; number of observations to generate.
 #' @param kappa positive numeric; EGPD shape parameter (power transform).
 #' @param sigma positive numeric; GPD scale parameter.
-#' @param xi positive numeric; GPD shape parameter.
+#' @param xi non-negative numeric; GPD shape parameter.
 #' @param thL positive numeric; lower tail dependence parameter (beta shape).
 #' @param thU positive numeric; upper tail dependence parameter (beta shape).
 #' @param thw numeric in (0, 0.5); weight mixing parameter.
@@ -46,8 +46,8 @@ rbegpd <- function(n, kappa, sigma, xi, thL, thU, thw) {
     stop("'kappa' must be a positive number")
   if (!is.numeric(sigma) || length(sigma) != 1 || sigma <= 0)
     stop("'sigma' must be a positive number")
-  if (!is.numeric(xi) || length(xi) != 1 || xi <= 0)
-    stop("'xi' must be a positive number")
+  if (!is.numeric(xi) || length(xi) != 1 || xi < 0)
+    stop("'xi' must be a non-negative number")
   if (!is.numeric(thL) || length(thL) != 1 || thL <= 0)
     stop("'thL' must be a positive number")
   if (!is.numeric(thU) || length(thU) != 1 || thU <= 0)
@@ -58,7 +58,11 @@ rbegpd <- function(n, kappa, sigma, xi, thL, thU, thw) {
   ## Radial component: power-transformed GPD
 
   R_unif <- runif(n)
-  R <- sigma * ((1 - R_unif^(1 / kappa))^(-xi) - 1) / xi
+  if (abs(xi) < sqrt(.Machine$double.eps)) {
+    R <- -sigma * log1p(-R_unif^(1 / kappa))
+  } else {
+    R <- sigma * ((1 - R_unif^(1 / kappa))^(-xi) - 1) / xi
+  }
 
   ## Lower tail dependence (symmetric beta)
   V1 <- rbeta(n, thL, thL)

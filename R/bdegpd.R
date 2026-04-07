@@ -10,7 +10,7 @@
 #' @param n integer; number of observations to generate.
 #' @param kappa positive numeric; EGPD shape parameter (power transform).
 #' @param sigma positive numeric; GPD scale parameter.
-#' @param xi positive numeric; GPD shape parameter.
+#' @param xi non-negative numeric; GPD shape parameter.
 #' @param thL positive numeric; lower tail dependence parameter (beta shape).
 #' @param thU positive numeric; upper tail dependence parameter (beta shape).
 #' @param thw numeric in (0, 0.5); weight mixing parameter.

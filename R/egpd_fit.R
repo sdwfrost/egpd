@@ -5,7 +5,9 @@
 #'
 #' @param formula a formula or list of formulae
 #' @param data a data frame
-#' @param family a character string: "egpd", "degpd", or "zidegpd"
+#' @param family a character string: "egpd", "degpd", "zidegpd", or "custom".
+#'   Continuous zero-inflated EGPD utilities are provided elsewhere in the
+#'   package, but are not fitted via \code{egpd()}.
 #' @param correctV logical: should variance-covariance matrix account for smoothing parameter uncertainty? Defaults to TRUE
 #' @param rho0 initial log smoothing parameters
 #' @param inits initial parameter values
