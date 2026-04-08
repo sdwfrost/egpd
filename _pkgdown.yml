@@ -30,6 +30,8 @@ navbar:
           href: articles/fitegpd-continuous.html
         - text: "Fitting Discrete Distributions with fitegpd"
           href: articles/fitegpd-discrete.html
+        - text: "Multiscale Aggregated EGPD Models"
+          href: articles/aggregated-egpd.html
         - text: "Comparing egpd and bamlss Fits"
           href: articles/bamlss-comparison.html
         - text: "Comparing egpd and gamlss Fits"
@@ -60,6 +62,11 @@ reference:
     contents:
       - fitegpd
       - plot.fitegpd
+
+  - title: "Multiscale Aggregated Models"
+    desc: "Composite-likelihood fitting across aggregation durations for continuous and discrete compound Poisson EGPD models."
+    contents:
+      - fit_aggregate_egpd
 
   - title: "Prediction and Methods"
     desc: "S3 methods for fitted egpd objects."

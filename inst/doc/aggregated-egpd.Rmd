@@ -1,0 +1,244 @@
+---
+title: "Multiscale Aggregated EGPD Models"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Multiscale Aggregated EGPD Models}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+The `egpd` package includes compound Poisson EGPD models for a **single**
+aggregation scale through `dcpegpd()`, `dcpdegpd()`, and
+`fitegpd(..., family = "cpegpd"/"cpdegpd")`. The
+`fit_aggregate_egpd()` function extends that infrastructure to a
+**multiscale** setting, following the aggregated EGPD framework described by
+Ailliot, Gaetan, and Naveau (2026).
+
+The current implementation fits the positive part of the model across several
+durations at once:
+
+$$
+A_d \sim \mathrm{EGPD}(\sigma_d, \kappa, \xi, \lambda_d),
+$$
+
+with shared shape parameters $\kappa$ and $\xi$, and duration-specific
+parameters modeled as polynomials in $\log d$:
+
+$$
+\log \sigma_d = s_0 + s_1 \log d + \cdots + s_p (\log d)^p,
+\qquad
+\log \lambda_d = l_0 + l_1 \log d + \cdots + l_q (\log d)^q.
+$$
+
+Here, $\lambda_d$ controls the zero mass through
+$P(A_d = 0) = \exp(-\lambda_d)$, while the positive aggregates are modeled
+through the compound Poisson EGPD law. In the current package implementation,
+`predict(..., type = "quantile")` returns **positive-part quantiles**, that
+is, quantiles conditional on the aggregate being strictly positive.
+
+## 1. A synthetic multiscale example
+
+We start from a set of aggregated samples already grouped by duration. This is
+the cleanest way to see the fitted multiscale model because the data are
+generated directly from the family used by `fit_aggregate_egpd()`.
+
+```{r multiscale-sim}
+library(egpd)
+set.seed(2)
+
+durations <- c(1L, 2L, 4L, 8L)
+sigma_coef_true <- c(log(0.6), 0.12)
+lambda_coef_true <- c(log(0.8), 0.25)
+kappa_true <- 0.35
+xi_true <- 0.2
+
+sigma_true <- exp(sigma_coef_true[1] + sigma_coef_true[2] * log(durations))
+lambda_true <- exp(lambda_coef_true[1] + lambda_coef_true[2] * log(durations))
+
+agg_samples <- setNames(lapply(seq_along(durations), function(i) {
+  rcpegpd(
+    300,
+    sigma = sigma_true[i],
+    xi = xi_true,
+    kappa = kappa_true,
+    lambda = lambda_true[i],
+    type = 1
+  )
+}), durations)
+
+data.frame(
+  duration = durations,
+  n = vapply(agg_samples, length, integer(1)),
+  prop_zero = round(vapply(agg_samples, function(x) mean(x == 0), numeric(1)), 3),
+  mean = round(vapply(agg_samples, mean, numeric(1)), 2)
+)
+```
+
+The aggregate samples show the two main ingredients of the model:
+
+1. zeros become less frequent as $\lambda_d$ increases with duration;
+2. positive aggregates typically get larger as $\sigma_d$ increases.
+
+## 2. Fitting the multiscale model
+
+The fit shares `kappa` and `xi` across durations and estimates the polynomial
+coefficients for `log(sigma_d)` and `log(lambda_d)`. In this example we use
+linear trends in `log(d)`, so `p = 1` and `q = 1`.
+
+```{r multiscale-fit}
+fit_agg <- fit_aggregate_egpd(
+  agg_samples,
+  durations = durations,
+  family = "cpegpd",
+  p = 1,
+  q = 1,
+  start = list(
+    sigma_coef = sigma_coef_true,
+    lambda_coef = lambda_coef_true,
+    kappa = kappa_true,
+    xi = xi_true
+  ),
+  optim.method = "BFGS",
+  control = list(maxit = 200)
+)
+
+fit_agg
+```
+
+```{r multiscale-summary}
+summary(fit_agg)
+```
+
+The fitted object stores both the regression-style coefficients and the
+duration-specific parameter values implied by those coefficients.
+
+```{r multiscale-parameters}
+fit_pars <- predict(fit_agg, type = "parameter")
+
+comparison <- data.frame(
+  duration = durations,
+  sigma_true = sigma_true,
+  sigma_hat = fit_pars$sigma,
+  lambda_true = lambda_true,
+  lambda_hat = fit_pars$lambda,
+  kappa_true = kappa_true,
+  kappa_hat = fit_pars$kappa,
+  xi_true = xi_true,
+  xi_hat = fit_pars$xi
+)
+
+round(comparison, 3)
+```
+
+## 3. Extrapolating across durations
+
+Because the scale and Poisson mean are modeled as smooth functions of
+$\log d$, we can predict parameters and positive-part quantiles at durations
+that were not used directly in the fit.
+
+```{r multiscale-predict}
+new_durations <- c(1L, 2L, 4L, 8L, 16L)
+
+round(
+  predict(fit_agg, durations = new_durations, type = "parameter"),
+  3
+)
+```
+
+```{r multiscale-quantiles}
+round(
+  predict(
+    fit_agg,
+    durations = new_durations,
+    type = "quantile",
+    prob = c(0.5, 0.9, 0.99)
+  ),
+  2
+)
+```
+
+The monotone parameter curves are visible in the default plot method:
+
+```{r multiscale-plot, fig.height = 4}
+plot(fit_agg)
+```
+
+## 4. Starting from a finest-scale series
+
+If you have the original non-negative series rather than precomputed
+aggregates, `fit_aggregate_egpd()` can construct the duration-specific sums
+internally.
+
+```{r series-fit, eval = FALSE}
+set.seed(4)
+x <- rcpegpd(300, sigma = 0.8, xi = 0.2, kappa = 0.35, lambda = 0.7, type = 1)
+
+fit_from_series <- fit_aggregate_egpd(
+  x,
+  durations = c(1L, 2L, 4L, 8L),
+  family = "cpegpd",
+  p = 1,
+  q = 1,
+  overlap = TRUE
+)
+
+predict(fit_from_series, type = "parameter")
+```
+
+With `overlap = TRUE`, the function uses rolling sums. Set `overlap = FALSE`
+to use non-overlapping block sums instead.
+
+## 5. Discrete aggregates
+
+For integer-valued aggregated counts, switch to `family = "cpdegpd"`. The
+interface is the same, but the aggregated samples must be integer-valued.
+
+```{r discrete-fit, eval = FALSE}
+set.seed(3)
+count_samples <- setNames(lapply(durations, function(d) {
+  rcpdegpd(
+    250,
+    sigma = exp(log(1.2) + 0.08 * log(d)),
+    xi = 0.18,
+    kappa = 0.4,
+    lambda = exp(log(0.9) + 0.22 * log(d)),
+    type = 1
+  )
+}), durations)
+
+fit_counts <- fit_aggregate_egpd(
+  count_samples,
+  durations = durations,
+  family = "cpdegpd",
+  p = 1,
+  q = 1
+)
+
+predict(fit_counts, type = "quantile", prob = c(0.5, 0.9))
+```
+
+## 6. Current scope
+
+`fit_aggregate_egpd()` is intended as a first package implementation of the
+multiscale framework. In particular:
+
+- it uses the package's existing compound Poisson EGPD and compound Poisson
+  discrete EGPD building blocks;
+- it fits a composite likelihood over **positive** aggregates, while
+  `lambda_d` captures the zero mass;
+- it enforces monotone fitted curves for `sigma_d` and `lambda_d` during
+  optimization to preserve non-crossing behavior across durations.
+
+For single-scale aggregate modeling, or when you need the full single-duration
+density/CDF/quantile utilities directly, continue to use `fitegpd()` together
+with `dcpegpd()`, `pcpegpd()`, `qcpegpd()`, `dcpdegpd()`, `pcpdegpd()`, and
+`qcpdegpd()`.

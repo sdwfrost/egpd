@@ -29,7 +29,7 @@
   v <- 1 + sigma * y / mu
   u <- 1 - v^(-1 / sigma)
   C <- pnorm(sqrt(nu), 0, 1) - 0.5
-  log(nu) - 0.5 * log(2 * pi) - 0.5 * nu * (u - 1)^2 -
+  0.5 * log(nu) - 0.5 * log(2 * pi) - 0.5 * nu * (u - 1)^2 -
     log(C) - log(mu) - (1 / sigma + 1) * log(v)
 }
 

@@ -122,7 +122,7 @@ d.G <- function(u, type = 1, prob = NA, kappa = NA, delta = NA, log = FALSE) {
       F.min <- 1 - pnorm(1, mean = 0, sd = 1/sqrt(kappa))
       F.max <- pnorm(1, mean = 1, sd = 1/sqrt(kappa))
       d <- dnorm(u, mean = 1, sd = 1/sqrt(kappa))
-      den <- (sqrt(kappa) * d) / (F.max - F.min)
+      den <- d / (F.max - F.min)
       return(den)
     } else if (type == 3) {
       lower <- 1/32
@@ -150,7 +150,7 @@ d.G <- function(u, type = 1, prob = NA, kappa = NA, delta = NA, log = FALSE) {
       F.min <- 1 - pnorm(1, mean = 0, sd = 1/sqrt(kappa))
       F.max <- pnorm(1, mean = 1, sd = 1/sqrt(kappa))
       d <- dnorm(u, mean = 1, sd = 1/sqrt(kappa), log = TRUE)
-      den <- log(sqrt(kappa)) + d - log(F.max - F.min)
+      den <- d - log(F.max - F.min)
       return(den)
     } else if (type == 3) {
       lower <- 1/32

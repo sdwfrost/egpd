@@ -18,6 +18,7 @@ export(egpd)
 
 # Univariate fitting
 export(fitegpd)
+export(fit_aggregate_egpd)
 
 # Bivariate EGPD
 export(rbegpd)
@@ -57,6 +58,12 @@ S3method(vcov, fitegpd)
 S3method(logLik, fitegpd)
 S3method(nobs, fitegpd)
 S3method(confint, fitegpd)
+S3method(print, aggregate_egpd)
+S3method(summary, aggregate_egpd)
+S3method(print, summary.aggregate_egpd)
+S3method(predict, aggregate_egpd)
+S3method(plot, aggregate_egpd)
+S3method(coef, aggregate_egpd)
 
 # Generic exports
 export(rqresid)
