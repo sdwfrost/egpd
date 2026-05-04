@@ -25,7 +25,7 @@ Depends: R (>= 3.5.0)
 Imports: Rcpp (>= 1.0.0), mgcv, gamlss.dist, Deriv
 LinkingTo: Rcpp, RcppArmadillo
 Suggests: bamlss, evgam, gamlss, JuliaConnectoR, knitr, NeuralEstimators,
-    pkgdown, rmarkdown, testthat (>= 3.0.0)
+    pkgdown, qgam, rmarkdown, testthat (>= 3.0.0)
 SystemRequirements: Julia (>= 1.11) for neural-Bayes multivariate EGPD
     fitting (method='neuralbayes')
 VignetteBuilder: knitr

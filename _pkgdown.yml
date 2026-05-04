@@ -30,6 +30,8 @@ navbar:
           href: articles/fitegpd-continuous.html
         - text: "Fitting Discrete Distributions with fitegpd"
           href: articles/fitegpd-discrete.html
+        - text: "Blended Generalized Pareto Distributions"
+          href: articles/blended-gp.html
         - text: "Multiscale Aggregated EGPD Models"
           href: articles/aggregated-egpd.html
         - text: "Comparing egpd and bamlss Fits"
@@ -68,6 +70,11 @@ reference:
     contents:
       - fit_aggregate_egpd
 
+  - title: "Spliced Count Models"
+    desc: "Bulk quantile regression plus DEGPD tail modeling for discrete forecast distributions."
+    contents:
+      - fit_spliced_degpd
+
   - title: "Prediction and Methods"
     desc: "S3 methods for fitted egpd objects."
     contents:
@@ -91,6 +98,14 @@ reference:
       - degpd_density
       - qegpd
       - regpd
+
+  - title: "Blended GP Distributions"
+    desc: "Paper-style bulk/tail blends with exact GP upper tails."
+    contents:
+      - pbgpd
+      - dbgpd
+      - qbgpd
+      - rbgpd
 
   - title: "Discrete EGPD Distributions"
     desc: "Discrete Extended Generalized Pareto Distribution functions."
