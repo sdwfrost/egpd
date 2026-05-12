@@ -1,4 +1,4 @@
-.setup.family.egpd <- function(family, egpd, degpd, zidegpd, formula, likfns) {
+.setup.family.egpd <- function(family, egpd, degpd, zidegpd, comppareto, formula, likfns) {
   if (family == "egpd") {
     if (is.null(egpd$m))
       egpd$m <- 1
@@ -125,6 +125,12 @@
     } else {
       stop("zidegpd$m must be 1, 2, 3, 4, 5, or 6.")
     }
+  } else if (family == "comppareto") {
+    comp.info <- .comppareto_family_setup(comppareto)
+    lik.fns <- comp.info$lik.fns
+    npar <- comp.info$npar
+    nms <- comp.info$nms
+    nms2 <- comp.info$nms2
   } else {
     if (length(likfns)) {
       lik.fns <- likfns
@@ -137,7 +143,7 @@
       }
       nms2 <- nms
     } else {
-      stop(paste("Family '", family, "' not supported. Use 'egpd', 'degpd', or 'zidegpd'.", sep=""))
+      stop(paste("Family '", family, "' not supported. Use 'egpd', 'degpd', 'zidegpd', or 'comppareto'.", sep=""))
     }
   }
   out <- list(npar=npar, npar2=npar, lik.fns=lik.fns, nms=nms, family=family, nms2 = nms2)

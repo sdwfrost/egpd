@@ -22,6 +22,7 @@ egpd(
   egpd.args = list(),
   degpd.args = list(),
   zidegpd.args = list(),
+  comppareto.args = list(),
   sandwich.args = list(),
   custom.fns = list(),
   sp = NULL,
@@ -33,7 +34,8 @@ egpd(
 
 \item{data}{a data frame}
 
-\item{family}{a character string: "egpd", "degpd", "zidegpd", or "custom".
+\item{family}{a character string: "egpd", "degpd", "zidegpd",
+"comppareto", or "custom".
 Continuous zero-inflated EGPD utilities are provided elsewhere in the
 package, but are not fitted via \code{egpd()}.}
 
@@ -64,6 +66,10 @@ package, but are not fitted via \code{egpd()}.}
 \item{degpd.args}{a list of arguments for DEGPD family (e.g., m=1)}
 
 \item{zidegpd.args}{a list of arguments for ZIDEGPD family (e.g., m=1)}
+
+\item{comppareto.args}{a list of arguments for the CompPareto GAM family.
+Currently this supports \code{spec = "lnorm"}, \code{"gamma"},
+\code{"weibull"}, or \code{"exp"} for the body distribution.}
 
 \item{sandwich.args}{a list of sandwich correction arguments}
 

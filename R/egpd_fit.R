@@ -5,7 +5,8 @@
 #'
 #' @param formula a formula or list of formulae
 #' @param data a data frame
-#' @param family a character string: "egpd", "degpd", "zidegpd", or "custom".
+#' @param family a character string: "egpd", "degpd", "zidegpd",
+#'   "comppareto", or "custom".
 #'   Continuous zero-inflated EGPD utilities are provided elsewhere in the
 #'   package, but are not fitted via \code{egpd()}.
 #' @param correctV logical: should variance-covariance matrix account for smoothing parameter uncertainty? Defaults to TRUE
@@ -22,6 +23,9 @@
 #' @param egpd.args a list of arguments for EGPD family (e.g., m=1)
 #' @param degpd.args a list of arguments for DEGPD family (e.g., m=1)
 #' @param zidegpd.args a list of arguments for ZIDEGPD family (e.g., m=1)
+#' @param comppareto.args a list of arguments for the CompPareto GAM family.
+#'   Currently this supports \code{spec = "lnorm"}, \code{"gamma"},
+#'   \code{"weibull"}, or \code{"exp"} for the body distribution.
 #' @param sandwich.args a list of sandwich correction arguments
 #' @param custom.fns a list of custom likelihood functions
 #' @param sp fixed smoothing parameters (if supplied, outer optimization is skipped)
@@ -33,11 +37,11 @@
 egpd <- function(formula, data, family="egpd", correctV=TRUE, rho0=0,
 inits=NULL, outer="bfgs", control=NULL, removeData=FALSE, trace=0,
 knots=NULL, maxdata=1e20, maxspline=1e20, compact=FALSE,
-egpd.args=list(), degpd.args=list(), zidegpd.args=list(),
+egpd.args=list(), degpd.args=list(), zidegpd.args=list(), comppareto.args=list(),
 sandwich.args=list(), custom.fns=list(), sp=NULL, gamma=1) {
 
 ## setup family
-family.info <- .setup.family.egpd(family, egpd.args, degpd.args, zidegpd.args, formula, custom.fns)
+family.info <- .setup.family.egpd(family, egpd.args, degpd.args, zidegpd.args, comppareto.args, formula, custom.fns)
 family <- family.info$family
 
 ## setup formulae
@@ -170,10 +174,10 @@ if (type %in% c("link", "response")) {
         X[[i]] <- X[[i]] / (1 + X[[i]])
     }
   }
-  nms <- gsub("cloglog", "", nms)
-  nms <- gsub("probit", "", nms)
-  nms <- gsub("logit", "", nms)
-  nms <- gsub("log", "", nms)
+  nms <- sub("^cloglog", "", nms)
+  nms <- sub("^probit", "", nms)
+  nms <- sub("^logit", "", nms)
+  nms <- sub("^log", "", nms)
   names(X) <- nms
 }
 if (type == "quantile") {

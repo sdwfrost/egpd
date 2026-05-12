@@ -30,4 +30,4 @@ SystemRequirements: Julia (>= 1.11) for neural-Bayes multivariate EGPD
     fitting (method='neuralbayes')
 VignetteBuilder: knitr
 LazyData: true
-RoxygenNote: 7.3.2
+Config/roxygen2/version: 8.0.0

@@ -34,6 +34,10 @@ if (family == "custom") {
   q_fn <- object$likfns$q
   unlink_fns <- object$likfns$unlink
 }
+if (family == "comppareto") {
+  q_fn <- object$likfns$q
+  p_fn <- object$likfns$p
+}
 
 if (!is.null(prob))
   type <- "quantile"
@@ -130,10 +134,10 @@ if (type %in% c("response", "quantile")) {
     }
   }
 
-  nms <- gsub("cloglog", "", nms)
-  nms <- gsub("probit", "", nms)
-  nms <- gsub("logit", "", nms)
-  nms <- gsub("log", "", nms)
+  nms <- sub("^cloglog", "", nms)
+  nms <- sub("^probit", "", nms)
+  nms <- sub("^logit", "", nms)
+  nms <- sub("^log", "", nms)
   names(out) <- nms
 
   if (se.fit & type == "response")
@@ -210,6 +214,12 @@ if (type %in% c("response", "quantile")) {
         } else {
           out[, j] <- q_fn(pj, pars[,1], pars[,2], pars[,3], pars[,4])
         }
+      } else if (family == "comppareto") {
+        if (length(nms) == 3) {
+          out[, j] <- q_fn(pj, pars[,1], pars[,2], pars[,3])
+        } else {
+          out[, j] <- q_fn(pj, pars[,1], pars[,2], pars[,3], pars[,4])
+        }
       } else {
         if (family %in% c("gpd", "egpd")) {
           out[, j] <- .qgpd(pj, 0, pars[,1], pars[,2])
@@ -280,9 +290,15 @@ rqresid.egpd <- function(object, seed = NULL, ...) {
     stop("rqresid requires the original data; refit with removeData = FALSE", call. = FALSE)
 
   family <- object$family
-  m <- object$likfns$m
-  type_map <- c(1L, 6L, 4L, 5L, 2L, 3L)
-  dtype <- type_map[m]
+  if (family == "comppareto") {
+    p_fn <- object$likfns$p
+    m <- NULL
+    dtype <- NULL
+  } else {
+    m <- object$likfns$m
+    type_map <- c(1L, 6L, 4L, 5L, 2L, 3L)
+    dtype <- type_map[m]
+  }
 
   ## response vector
   y <- object$data[[object$response.name]]
@@ -290,25 +306,26 @@ rqresid.egpd <- function(object, seed = NULL, ...) {
 
   ## predicted parameters on response scale
   pars <- predict(object, type = "response")
+  if (family != "comppareto") {
+    sigma <- pars[[1]]
+    xi    <- pars[[2]]
 
-  sigma <- pars[[1]]
-  xi    <- pars[[2]]
-
-  ## build CDF arguments depending on model type
-  cdf_args <- list(sigma = sigma, xi = xi, type = dtype)
-  if (m == 1) {
-    cdf_args$kappa <- pars[[3]]
-  } else if (m == 2) {
-    cdf_args$kappa <- pars[[3]]                  # kappa1
-    cdf_args$delta <- pars[[3]] + pars[[4]]      # kappa2 = kappa1 + dkappa
-    cdf_args$prob  <- pars[[5]]
-  } else if (m == 3) {
-    cdf_args$delta <- pars[[3]]
-  } else if (m == 4) {
-    cdf_args$delta <- pars[[4]]
-    cdf_args$kappa <- pars[[3]]
-  } else if (m %in% c(5, 6)) {
-    cdf_args$kappa <- pars[[3]]
+    ## build CDF arguments depending on model type
+    cdf_args <- list(sigma = sigma, xi = xi, type = dtype)
+    if (m == 1) {
+      cdf_args$kappa <- pars[[3]]
+    } else if (m == 2) {
+      cdf_args$kappa <- pars[[3]]                  # kappa1
+      cdf_args$delta <- pars[[3]] + pars[[4]]      # kappa2 = kappa1 + dkappa
+      cdf_args$prob  <- pars[[5]]
+    } else if (m == 3) {
+      cdf_args$delta <- pars[[3]]
+    } else if (m == 4) {
+      cdf_args$delta <- pars[[4]]
+      cdf_args$kappa <- pars[[3]]
+    } else if (m %in% c(5, 6)) {
+      cdf_args$kappa <- pars[[3]]
+    }
   }
 
   if (family == "egpd") {
@@ -342,6 +359,13 @@ rqresid.egpd <- function(object, seed = NULL, ...) {
     p_lower[y == 0] <- 0
     u <- runif(n, p_lower, p_upper)
     r <- qnorm(u)
+  } else if (family == "comppareto") {
+    if (length(pars) == 3L) {
+      Fu <- p_fn(y, pars[[1]], pars[[2]], pars[[3]])
+    } else {
+      Fu <- p_fn(y, pars[[1]], pars[[2]], pars[[3]], pars[[4]])
+    }
+    r <- qnorm(Fu)
   } else {
     stop("rqresid not implemented for family '", family, "'")
   }

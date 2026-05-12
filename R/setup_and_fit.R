@@ -262,6 +262,9 @@ likdata0$S <- diag(0, npar)
 likdata0$idpars <- seq_len(npar)
 
 if (is.null(inits)) {
+  if (!is.null(likfns$inits)) {
+    inits <- likfns$inits(likdata)
+  } else {
   if (family %in% c("egpd", "degpd")) {
     inits <- numeric(npar)
     inits[1:2] <- c(log(mean(likdata$y[,1])), .05)
@@ -276,6 +279,7 @@ if (is.null(inits)) {
     } else {
       inits <- numeric(npar)
     }
+  }
   }
   likdata0$CH <- diag(length(inits))
   likdata0$compmode <- numeric(length(inits))

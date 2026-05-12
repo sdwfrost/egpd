@@ -47,6 +47,7 @@ Useful links:
 
 Authors:
 \itemize{
+  \item Touqeer Ahmad \email{touqeer.ahmad8960@gmail.com}
   \item Simon Frost \email{sdwfrost@gmail.com}
 }
 
