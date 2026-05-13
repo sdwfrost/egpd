@@ -148,17 +148,19 @@ examples because it only needs three parameter formulas.
 ## 4. Fitting a CompPareto GAM
 
 Here we simulate data from an exponential-body composite Pareto model
-with a smooth predictor effect on the body rate.
+with a smooth predictor effect on the body rate. For this illustration,
+we use a somewhat larger sample and a higher splice point so the
+nonlinear body signal is visible in the fitted GAM.
 
 ``` r
 set.seed(22)
 
-n <- 120
+n <- 400
 x <- sort(stats::runif(n, -1, 1))
-rate <- exp(-0.1 + 0.6 * sin(pi * x))
+rate <- exp(-0.2 + 1.0 * sin(pi * x))
 y <- vapply(
   seq_len(n),
-  function(i) rcomppareto(1, spec = "exp", rate = rate[i], alpha = 1.3, theta = 1.5),
+  function(i) rcomppareto(1, spec = "exp", rate = rate[i], alpha = 1.3, theta = 3.5),
   numeric(1)
 )
 
@@ -172,7 +174,7 @@ We then fit the composite Pareto GAM by selecting
 ``` r
 fit <- suppressMessages(
   egpd(
-    list(lograte = y ~ s(x, k = 5), logalpha = ~1, logtheta = ~1),
+    list(lograte = y ~ s(x, k = 7), logalpha = ~1, logtheta = ~1),
     data = dat,
     family = "comppareto",
     comppareto.args = list(spec = "exp")
@@ -189,25 +191,35 @@ The fitted response-scale parameters can be predicted in the usual way.
 ``` r
 pred_grid <- data.frame(x = seq(-1, 1, length.out = 100))
 pars_hat <- predict(fit, newdata = pred_grid, type = "response")
+rate_true <- exp(-0.2 + 1.0 * sin(pi * pred_grid$x))
 
 head(round(pars_hat, 3))
 ```
 
        rate alpha theta
-    1 0.418 1.031  0.89
-    2 0.426 1.031  0.89
-    3 0.434 1.031  0.89
-    4 0.442 1.031  0.89
-    5 0.451 1.031  0.89
-    6 0.460 1.031  0.89
+    1 0.794 1.219  3.98
+    2 0.766 1.219  3.98
+    3 0.738 1.219  3.98
+    4 0.712 1.219  3.98
+    5 0.686 1.219  3.98
+    6 0.662 1.219  3.98
 
 ``` r
 plot(pred_grid$x, pars_hat$rate, type = "l", lwd = 2,
-     xlab = "x", ylab = "rate", main = "Fitted exponential-body rate")
+     xlab = "x", ylab = "rate", main = "Exponential-body rate: true vs fitted")
+lines(pred_grid$x, rate_true, lwd = 2, lty = 2, col = "steelblue")
 points(x, rate, pch = 16, cex = 0.4, col = grDevices::adjustcolor("black", alpha.f = 0.25))
+legend("topright",
+       legend = c("fitted", "true", "simulated truth"),
+       lty = c(1, 2, NA), lwd = c(2, 2, NA), pch = c(NA, NA, 16),
+       col = c("black", "steelblue", grDevices::adjustcolor("black", alpha.f = 0.25)),
+       bty = "n")
 ```
 
 ![](composite-pareto_files/figure-gfm/gam-plot-1.png)
+
+In this setup, the fitted smooth tracks the nonlinear truth well rather
+than shrinking toward a nearly linear trend.
 
 Quantile prediction also works through the regular `predict.egpd()`
 interface.
@@ -224,10 +236,10 @@ round(
 )
 ```
 
-      q:0.5 q:0.9 q:0.99
-    1 1.245 9.287 94.156
-    2 1.245 9.287 94.156
-    3 1.245 9.287 94.156
+      q:0.5  q:0.9  q:0.99
+    1  2.06 17.374 137.146
+    2  2.06 17.374 137.146
+    3  2.06 17.374 137.146
 
 Randomized quantile residuals are available as well.
 
@@ -235,8 +247,8 @@ Randomized quantile residuals are available as well.
 summary(rqresid(fit, seed = 1))
 ```
 
-        Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
-    -2.39004 -0.61597 -0.05425  0.02381  0.61878  2.40466 
+         Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+    -3.638041 -0.672671  0.025790  0.006043  0.664020  3.182872 
 
 ## 5. Intercept-only four-parameter fits
 

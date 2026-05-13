@@ -139,17 +139,19 @@ because it only needs three parameter formulas.
 ## 4. Fitting a CompPareto GAM
 
 Here we simulate data from an exponential-body composite Pareto model with a
-smooth predictor effect on the body rate.
+smooth predictor effect on the body rate. For this illustration, we use a
+somewhat larger sample and a higher splice point so the nonlinear body signal
+is visible in the fitted GAM.
 
 ```{r gam-sim}
 set.seed(22)
 
-n <- 120
+n <- 400
 x <- sort(stats::runif(n, -1, 1))
-rate <- exp(-0.1 + 0.6 * sin(pi * x))
+rate <- exp(-0.2 + 1.0 * sin(pi * x))
 y <- vapply(
   seq_len(n),
-  function(i) rcomppareto(1, spec = "exp", rate = rate[i], alpha = 1.3, theta = 1.5),
+  function(i) rcomppareto(1, spec = "exp", rate = rate[i], alpha = 1.3, theta = 3.5),
   numeric(1)
 )
 
@@ -162,7 +164,7 @@ passing the body specification through `comppareto.args`.
 ```{r gam-fit}
 fit <- suppressMessages(
   egpd(
-    list(lograte = y ~ s(x, k = 5), logalpha = ~1, logtheta = ~1),
+    list(lograte = y ~ s(x, k = 7), logalpha = ~1, logtheta = ~1),
     data = dat,
     family = "comppareto",
     comppareto.args = list(spec = "exp")
@@ -177,15 +179,25 @@ The fitted response-scale parameters can be predicted in the usual way.
 ```{r gam-response}
 pred_grid <- data.frame(x = seq(-1, 1, length.out = 100))
 pars_hat <- predict(fit, newdata = pred_grid, type = "response")
+rate_true <- exp(-0.2 + 1.0 * sin(pi * pred_grid$x))
 
 head(round(pars_hat, 3))
 ```
 
 ```{r gam-plot, fig.height = 4}
 plot(pred_grid$x, pars_hat$rate, type = "l", lwd = 2,
-     xlab = "x", ylab = "rate", main = "Fitted exponential-body rate")
+     xlab = "x", ylab = "rate", main = "Exponential-body rate: true vs fitted")
+lines(pred_grid$x, rate_true, lwd = 2, lty = 2, col = "steelblue")
 points(x, rate, pch = 16, cex = 0.4, col = grDevices::adjustcolor("black", alpha.f = 0.25))
+legend("topright",
+       legend = c("fitted", "true", "simulated truth"),
+       lty = c(1, 2, NA), lwd = c(2, 2, NA), pch = c(NA, NA, 16),
+       col = c("black", "steelblue", grDevices::adjustcolor("black", alpha.f = 0.25)),
+       bty = "n")
 ```
+
+In this setup, the fitted smooth tracks the nonlinear truth well rather than
+shrinking toward a nearly linear trend.
 
 Quantile prediction also works through the regular `predict.egpd()` interface.
 
