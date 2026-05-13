@@ -32,6 +32,8 @@ navbar:
           href: articles/fitegpd-discrete.html
         - text: "Blended Generalized Pareto Distributions"
           href: articles/blended-gp.html
+        - text: "Composite Pareto Distributions and GAMs"
+          href: articles/composite-pareto.html
         - text: "Multiscale Aggregated EGPD Models"
           href: articles/aggregated-egpd.html
         - text: "Comparing egpd and bamlss Fits"
@@ -106,6 +108,14 @@ reference:
       - dbgpd
       - qbgpd
       - rbgpd
+
+  - title: "Composite Pareto Distributions"
+    desc: "Continuous composite Pareto distributions and GAM family support."
+    contents:
+      - dcomppareto
+      - pcomppareto
+      - qcomppareto
+      - rcomppareto
 
   - title: "Discrete EGPD Distributions"
     desc: "Discrete Extended Generalized Pareto Distribution functions."
