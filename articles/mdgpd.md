@@ -448,10 +448,10 @@ summary(fit)
 #> 
 #> Posterior summary:
 #>        Median Post.SD   2.5%  97.5%
-#> sigma  2.0373  0.2556 1.5729 2.5548
-#> xi     0.2339  0.1408 0.0238 0.5114
-#> lambda 1.4712  1.2878 0.4035 4.9281
-#> rho    0.6811  0.2611 0.0666 0.9148
+#> sigma  2.0422  0.2539 1.5602 2.5246
+#> xi     0.2311  0.1386 0.0259 0.5130
+#> lambda 1.5493  1.2952 0.4040 5.0424
+#> rho    0.6901  0.2654 0.0581 0.9190
 #> 
 #> Note: log-likelihood, AIC, and BIC are not available for neural estimation
 #> Number of observations:  1000
@@ -480,11 +480,11 @@ summary(fit_zi)
 #> 
 #> Posterior summary:
 #>        Median Post.SD   2.5%  97.5%
-#> sigma  1.7381  0.2975 1.2077 2.3554
-#> xi     0.2191  0.1212 0.0162 0.4268
-#> lambda 1.6117  1.1618 0.3807 4.7926
-#> rho    0.6366  0.2383 0.0965 0.9081
-#> pi0    0.2503  0.1101 0.0482 0.4624
+#> sigma  1.7204  0.3022 1.2175 2.3607
+#> xi     0.2291  0.1200 0.0190 0.4244
+#> lambda 1.6469  1.1433 0.4070 4.5948
+#> rho    0.6341  0.2297 0.0988 0.9043
+#> pi0    0.2442  0.1073 0.0424 0.4579
 #> 
 #> Note: log-likelihood, AIC, and BIC are not available for neural estimation
 #> Number of observations:  1000
@@ -495,20 +495,20 @@ summary(fit_zi)
 ``` r
 
 coef(fit)                # Posterior median estimates
-#>    sigma       xi   lambda      rho 
-#> 2.037282 0.233938 1.471153 0.681051
+#>     sigma        xi    lambda       rho 
+#> 2.0421515 0.2310697 1.5492992 0.6901026
 confint(fit)             # 95% credible intervals
 #>             2.5 %    97.5 %
-#> sigma  1.57288426 2.5547769
-#> xi     0.02377782 0.5114318
-#> lambda 0.40350734 4.9280589
-#> rho    0.06656750 0.9148393
+#> sigma  1.56024460 2.5245575
+#> xi     0.02585418 0.5129883
+#> lambda 0.40404607 5.0424019
+#> rho    0.05812391 0.9190095
 vcov(fit)                # Posterior covariance matrix
-#>                sigma           xi       lambda          rho
-#> sigma   0.0653121330 -0.024736149 -0.005829067 0.0005754695
-#> xi     -0.0247361487  0.019833619  0.012748590 0.0028251108
-#> lambda -0.0058290666  0.012748590  1.658399252 0.2762968616
-#> rho     0.0005754695  0.002825111  0.276296862 0.0681657652
+#>               sigma            xi       lambda          rho
+#> sigma   0.064472836 -0.0241910648 -0.008101244 0.0020798914
+#> xi     -0.024191065  0.0191987934  0.002822618 0.0006933697
+#> lambda -0.008101244  0.0028226177  1.677452722 0.2830250454
+#> rho     0.002079891  0.0006933697  0.283025045 0.0704264676
 nobs(fit)                # Number of observations
 #> [1] 1000
 ```
@@ -535,10 +535,10 @@ summary(fit_3d)
 #> 
 #> Posterior summary:
 #>        Median Post.SD   2.5%  97.5%
-#> sigma  1.8967  0.2849 1.3838 2.4651
-#> xi     0.1942  0.1274 0.0143 0.4506
-#> lambda 1.4899  1.2285 0.4130 4.9407
-#> rho    0.6957  0.2439 0.0907 0.9179
+#> sigma  1.9229  0.2774 1.3945 2.4714
+#> xi     0.1762  0.1261 0.0139 0.4520
+#> lambda 1.4527  1.2709 0.3715 4.9289
+#> rho    0.6959  0.2465 0.0831 0.9138
 #> 
 #> Note: log-likelihood, AIC, and BIC are not available for neural estimation
 #> Number of observations:  1000

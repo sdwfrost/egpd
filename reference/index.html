@@ -26,6 +26,9 @@
     <li><a class="dropdown-item" href="../articles/temperature-extremes.html">Continuous EGPD Models for Temperature Extremes</a></li>
     <li><a class="dropdown-item" href="../articles/fitegpd-continuous.html">Fitting Continuous Distributions with fitegpd</a></li>
     <li><a class="dropdown-item" href="../articles/fitegpd-discrete.html">Fitting Discrete Distributions with fitegpd</a></li>
+    <li><a class="dropdown-item" href="../articles/blended-gp.html">Blended Generalized Pareto Distributions</a></li>
+    <li><a class="dropdown-item" href="../articles/composite-pareto.html">Composite Pareto Distributions and GAMs</a></li>
+    <li><a class="dropdown-item" href="../articles/aggregated-egpd.html">Multiscale Aggregated EGPD Models</a></li>
     <li><a class="dropdown-item" href="../articles/bamlss-comparison.html">Comparing egpd and bamlss Fits</a></li>
     <li><a class="dropdown-item" href="../articles/gamlss-comparison.html">Comparing egpd and gamlss Fits</a></li>
     <li><a class="dropdown-item" href="../articles/predictive-coverage.html">Predictive Coverage Assessment</a></li>
@@ -96,6 +99,45 @@
 
         </dt>
         <dd>Fit EGPD distribution to data</dd>
+
+        <dt>
+
+          <code><a href="plot.fitegpd.html">plot(<i>&lt;fitegpd&gt;</i>)</a></code>
+
+        </dt>
+        <dd>Plot diagnostics for a fitegpd object</dd>
+      </dl></div><div class="section level2">
+      <h2 id="multiscale-aggregated-models">Multiscale Aggregated Models<a class="anchor" aria-label="anchor" href="#multiscale-aggregated-models"></a></h2>
+
+      <div class="section-desc"><p>Composite-likelihood fitting across aggregation durations for continuous and discrete compound Poisson EGPD models.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="fit_aggregate_egpd.html">fit_aggregate_egpd()</a></code> <code><a href="fit_aggregate_egpd.html">coef(<i>&lt;aggregate_egpd&gt;</i>)</a></code> <code><a href="fit_aggregate_egpd.html">print(<i>&lt;aggregate_egpd&gt;</i>)</a></code> <code><a href="fit_aggregate_egpd.html">summary(<i>&lt;aggregate_egpd&gt;</i>)</a></code> <code><a href="fit_aggregate_egpd.html">print(<i>&lt;summary.aggregate_egpd&gt;</i>)</a></code> <code><a href="fit_aggregate_egpd.html">predict(<i>&lt;aggregate_egpd&gt;</i>)</a></code> <code><a href="fit_aggregate_egpd.html">plot(<i>&lt;aggregate_egpd&gt;</i>)</a></code>
+
+        </dt>
+        <dd>Fit a multiscale aggregated EGPD framework</dd>
+      </dl></div><div class="section level2">
+      <h2 id="spliced-count-models">Spliced Count Models<a class="anchor" aria-label="anchor" href="#spliced-count-models"></a></h2>
+
+      <div class="section-desc"><p>Bulk quantile regression plus DEGPD tail modeling for discrete forecast distributions.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="fit_spliced_degpd.html">fit_spliced_degpd()</a></code> <code><a href="fit_spliced_degpd.html">print(<i>&lt;spliced_degpd&gt;</i>)</a></code> <code><a href="fit_spliced_degpd.html">summary(<i>&lt;spliced_degpd&gt;</i>)</a></code> <code><a href="fit_spliced_degpd.html">print(<i>&lt;summary.spliced_degpd&gt;</i>)</a></code> <code><a href="fit_spliced_degpd.html">predict(<i>&lt;spliced_degpd&gt;</i>)</a></code>
+
+        </dt>
+        <dd>Fit a spliced discrete EGPD forecasting model</dd>
       </dl></div><div class="section level2">
       <h2 id="prediction-and-methods">Prediction and Methods<a class="anchor" aria-label="anchor" href="#prediction-and-methods"></a></h2>
 
@@ -136,17 +178,17 @@
 
         <dt>
 
+          <code><a href="pinv.html">pinv()</a></code> <code><a href="pinv.html">ginv.egpd()</a></code>
+
+        </dt>
+        <dd>Moore-Penrose pseudo-inverse of a matrix</dd>
+
+        <dt>
+
           <code><a href="plot.egpd.html">plot(<i>&lt;egpd&gt;</i>)</a></code>
 
         </dt>
         <dd>Plot a fitted <code>egpd</code> object</dd>
-
-        <dt>
-
-          <code><a href="plot.fitegpd.html">plot(<i>&lt;fitegpd&gt;</i>)</a></code>
-
-        </dt>
-        <dd>Plot diagnostics for a fitegpd object</dd>
 
         <dt>
 
@@ -226,6 +268,87 @@
 
         </dt>
         <dd>Random generation from the Extended GPD</dd>
+      </dl></div><div class="section level2">
+      <h2 id="blended-gp-distributions">Blended GP Distributions<a class="anchor" aria-label="anchor" href="#blended-gp-distributions"></a></h2>
+
+      <div class="section-desc"><p>Paper-style bulk/tail blends with exact GP upper tails.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="bgpd.html">pbgpd()</a></code> <code><a href="bgpd.html">dbgpd()</a></code> <code><a href="bgpd.html">qbgpd()</a></code> <code><a href="bgpd.html">rbgpd()</a></code>
+
+        </dt>
+        <dd>Blended generalized Pareto distribution functions</dd>
+
+        <dt>
+
+          <code><a href="pbgpd.html">pbgpd()</a></code>
+
+        </dt>
+        <dd>CDF of the blended generalized Pareto distribution</dd>
+
+        <dt>
+
+          <code><a href="dbgpd.html">dbgpd()</a></code>
+
+        </dt>
+        <dd>Density of the blended generalized Pareto distribution</dd>
+
+        <dt>
+
+          <code><a href="qbgpd.html">qbgpd()</a></code>
+
+        </dt>
+        <dd>Quantile function of the blended generalized Pareto distribution</dd>
+
+        <dt>
+
+          <code><a href="rbgpd.html">rbgpd()</a></code>
+
+        </dt>
+        <dd>Random generation from the blended generalized Pareto distribution</dd>
+      </dl></div><div class="section level2">
+      <h2 id="composite-pareto-distributions">Composite Pareto Distributions<a class="anchor" aria-label="anchor" href="#composite-pareto-distributions"></a></h2>
+
+      <div class="section-desc"><p>Continuous composite Pareto distributions and GAM family support.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="dcomppareto.html">dcomppareto()</a></code>
+
+        </dt>
+        <dd>Density of the continuous composite Pareto distribution</dd>
+
+        <dt>
+
+          <code><a href="pcomppareto.html">pcomppareto()</a></code>
+
+        </dt>
+        <dd>Distribution function of the continuous composite Pareto distribution</dd>
+
+        <dt>
+
+          <code><a href="qcomppareto.html">qcomppareto()</a></code>
+
+        </dt>
+        <dd>Quantile function of the continuous composite Pareto distribution</dd>
+
+        <dt>
+
+          <code><a href="rcomppareto.html">rcomppareto()</a></code>
+
+        </dt>
+        <dd>Random generation from the continuous composite Pareto distribution</dd>
       </dl></div><div class="section level2">
       <h2 id="discrete-egpd-distributions">Discrete EGPD Distributions<a class="anchor" aria-label="anchor" href="#discrete-egpd-distributions"></a></h2>
 
@@ -414,7 +537,7 @@
       </dl></div><div class="section level2">
       <h2 id="bivariate-begpd">Bivariate BEGPD<a class="anchor" aria-label="anchor" href="#bivariate-begpd"></a></h2>
 
-      <div class="section-desc"><p>Bivariate Extended Generalized Pareto Distribution via neural Bayes estimation.</p></div>
+      <div class="section-desc"><p>Bivariate Extended Generalized Pareto Distribution and discrete extensions via neural Bayes estimation.</p></div>
 
       <dl></dl></div><div class="section level2">
 

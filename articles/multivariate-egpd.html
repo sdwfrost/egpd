@@ -31,7 +31,7 @@
       <ul class="navbar-nav me-auto">
 <li class="nav-item"><a class="nav-link" href="../index.html">Home</a></li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
-<li class="nav-item dropdown">
+<li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/insurance-complaints.html">Discrete EGPD Models for Insurance Complaint Counts</a></li>
@@ -483,12 +483,12 @@ inference.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Posterior summary:</span></span>
 <span><span class="co">#&gt;       Median Post.SD   2.5%   97.5%</span></span>
-<span><span class="co">#&gt; kappa 4.1296  2.4917 1.1319 10.2463</span></span>
-<span><span class="co">#&gt; sigma 0.5916  0.2868 0.2745  1.3622</span></span>
-<span><span class="co">#&gt; xi    0.1786  0.1074 0.0180  0.4073</span></span>
-<span><span class="co">#&gt; thL   7.0179  5.8291 0.6013 21.6860</span></span>
-<span><span class="co">#&gt; thU   4.9276  3.2240 2.2466 13.9202</span></span>
-<span><span class="co">#&gt; thw   0.2560  0.1440 0.0374  0.5616</span></span>
+<span><span class="co">#&gt; kappa 4.3055  2.4573 1.0860 10.1771</span></span>
+<span><span class="co">#&gt; sigma 0.5708  0.2875 0.2719  1.3542</span></span>
+<span><span class="co">#&gt; xi    0.1865  0.1071 0.0205  0.4066</span></span>
+<span><span class="co">#&gt; thL   6.9177  5.7649 0.4851 21.5516</span></span>
+<span><span class="co">#&gt; thU   4.9914  2.8001 2.2984 13.1253</span></span>
+<span><span class="co">#&gt; thw   0.2609  0.1414 0.0341  0.5621</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Note: log-likelihood, AIC, and BIC are not available for neural estimation</span></span>
 <span><span class="co">#&gt; Number of observations:  2000</span></span></code></pre></div>
@@ -565,48 +565,48 @@ chart</strong> (NBE)</li>
 <code class="sourceCode R"><span><span class="co"># Point estimates (posterior median for NPE)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef</a></span><span class="op">(</span><span class="va">fit_npe</span><span class="op">)</span></span>
 <span><span class="co">#&gt;     kappa     sigma        xi       thL       thU       thw </span></span>
-<span><span class="co">#&gt; 4.1296459 0.5915987 0.1785721 7.0179195 4.9275990 0.2559894</span></span>
+<span><span class="co">#&gt; 4.3054671 0.5707785 0.1864659 6.9177241 4.9913715 0.2608946</span></span>
 <span></span>
 <span><span class="co"># Variance-covariance (from posterior sample covariance for NPE)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/vcov.html" class="external-link">vcov</a></span><span class="op">(</span><span class="va">fit_npe</span><span class="op">)</span></span>
-<span><span class="co">#&gt;             kappa        sigma            xi          thL           thU</span></span>
-<span><span class="co">#&gt; kappa  6.20876884 -0.571721025  0.1335469245   0.63108999   0.601615525</span></span>
-<span><span class="co">#&gt; sigma -0.57172103  0.082238160 -0.0210034243   0.10547034  -0.175714043</span></span>
-<span><span class="co">#&gt; xi     0.13354692 -0.021003424  0.0115331643  -0.01193396   0.005737354</span></span>
-<span><span class="co">#&gt; thL    0.63108999  0.105470336 -0.0119339605  33.97843008 -10.499744226</span></span>
-<span><span class="co">#&gt; thU    0.60161552 -0.175714043  0.0057373543 -10.49974423  10.394390693</span></span>
-<span><span class="co">#&gt; thw    0.04488354 -0.005127827  0.0001122861   0.00196085   0.124885490</span></span>
+<span><span class="co">#&gt;            kappa        sigma            xi         thL          thU</span></span>
+<span><span class="co">#&gt; kappa  6.0383610 -0.569099733  0.1334242775  1.12679903  0.469468894</span></span>
+<span><span class="co">#&gt; sigma -0.5690997  0.082640062 -0.0210026769  0.03389059 -0.144149272</span></span>
+<span><span class="co">#&gt; xi     0.1334243 -0.021002677  0.0114692329 -0.01135606  0.007713971</span></span>
+<span><span class="co">#&gt; thL    1.1267990  0.033890591 -0.0113560599 33.23370961 -9.582361555</span></span>
+<span><span class="co">#&gt; thU    0.4694689 -0.144149272  0.0077139708 -9.58236155  7.840778003</span></span>
+<span><span class="co">#&gt; thw    0.0404016 -0.005249683  0.0001356025  0.02719962  0.099818408</span></span>
 <span><span class="co">#&gt;                 thw</span></span>
-<span><span class="co">#&gt; kappa  0.0448835378</span></span>
-<span><span class="co">#&gt; sigma -0.0051278273</span></span>
-<span><span class="co">#&gt; xi     0.0001122861</span></span>
-<span><span class="co">#&gt; thL    0.0019608500</span></span>
-<span><span class="co">#&gt; thU    0.1248854900</span></span>
-<span><span class="co">#&gt; thw    0.0207488274</span></span>
+<span><span class="co">#&gt; kappa  0.0404015978</span></span>
+<span><span class="co">#&gt; sigma -0.0052496834</span></span>
+<span><span class="co">#&gt; xi     0.0001356025</span></span>
+<span><span class="co">#&gt; thL    0.0271996245</span></span>
+<span><span class="co">#&gt; thU    0.0998184078</span></span>
+<span><span class="co">#&gt; thw    0.0199865157</span></span>
 <span></span>
 <span><span class="co"># 95% credible intervals (from posterior quantiles for NPE)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/confint.html" class="external-link">confint</a></span><span class="op">(</span><span class="va">fit_npe</span><span class="op">)</span></span>
 <span><span class="co">#&gt;            2.5 %     97.5 %</span></span>
-<span><span class="co">#&gt; kappa 1.13185648 10.2462680</span></span>
-<span><span class="co">#&gt; sigma 0.27450253  1.3621800</span></span>
-<span><span class="co">#&gt; xi    0.01798964  0.4073298</span></span>
-<span><span class="co">#&gt; thL   0.60129781 21.6860339</span></span>
-<span><span class="co">#&gt; thU   2.24656541 13.9202364</span></span>
-<span><span class="co">#&gt; thw   0.03736404  0.5616213</span></span>
+<span><span class="co">#&gt; kappa 1.08600938 10.1771322</span></span>
+<span><span class="co">#&gt; sigma 0.27193225  1.3542142</span></span>
+<span><span class="co">#&gt; xi    0.02053126  0.4065600</span></span>
+<span><span class="co">#&gt; thL   0.48505560 21.5515754</span></span>
+<span><span class="co">#&gt; thU   2.29839724 13.1252676</span></span>
+<span><span class="co">#&gt; thw   0.03413956  0.5621031</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/confint.html" class="external-link">confint</a></span><span class="op">(</span><span class="va">fit_npe</span>, level <span class="op">=</span> <span class="fl">0.90</span><span class="op">)</span></span>
 <span><span class="co">#&gt;              5 %       95 %</span></span>
-<span><span class="co">#&gt; kappa 1.38581448  9.1184592</span></span>
-<span><span class="co">#&gt; sigma 0.30007208  1.1953838</span></span>
-<span><span class="co">#&gt; xi    0.02824100  0.3728958</span></span>
-<span><span class="co">#&gt; thL   0.96799042 18.8530634</span></span>
-<span><span class="co">#&gt; thU   2.51369718 11.7649020</span></span>
-<span><span class="co">#&gt; thw   0.05467705  0.5223033</span></span>
+<span><span class="co">#&gt; kappa 1.35943784  9.0037728</span></span>
+<span><span class="co">#&gt; sigma 0.29724626  1.1779225</span></span>
+<span><span class="co">#&gt; xi    0.03094663  0.3741902</span></span>
+<span><span class="co">#&gt; thL   0.89918911 19.0362849</span></span>
+<span><span class="co">#&gt; thU   2.64144828 10.9145860</span></span>
+<span><span class="co">#&gt; thw   0.05179912  0.5176432</span></span>
 <span></span>
 <span><span class="co"># Subset parameters</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/confint.html" class="external-link">confint</a></span><span class="op">(</span><span class="va">fit_npe</span>, parm <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"kappa"</span>, <span class="st">"xi"</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt;            2.5 %     97.5 %</span></span>
-<span><span class="co">#&gt; kappa 1.13185648 10.2462680</span></span>
-<span><span class="co">#&gt; xi    0.01798964  0.4073298</span></span></code></pre></div>
+<span><span class="co">#&gt;            2.5 %   97.5 %</span></span>
+<span><span class="co">#&gt; kappa 1.08600938 10.17713</span></span>
+<span><span class="co">#&gt; xi    0.02053126  0.40656</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="comparing-to-true-values">Comparing to true values<a class="anchor" aria-label="anchor" href="#comparing-to-true-values"></a>
@@ -627,12 +627,12 @@ quality:</p>
 <span><span class="op">)</span></span>
 <span><span class="va">comparison</span></span>
 <span><span class="co">#&gt;       True Estimate  Lower   Upper Covered</span></span>
-<span><span class="co">#&gt; kappa  2.0   4.1296 1.1319 10.2463    TRUE</span></span>
-<span><span class="co">#&gt; sigma  1.0   0.5916 0.2745  1.3622    TRUE</span></span>
-<span><span class="co">#&gt; xi     0.1   0.1786 0.0180  0.4073    TRUE</span></span>
-<span><span class="co">#&gt; thL    5.0   7.0179 0.6013 21.6860    TRUE</span></span>
-<span><span class="co">#&gt; thU    5.0   4.9276 2.2466 13.9202    TRUE</span></span>
-<span><span class="co">#&gt; thw    0.2   0.2560 0.0374  0.5616    TRUE</span></span></code></pre></div>
+<span><span class="co">#&gt; kappa  2.0   4.3055 1.0860 10.1771    TRUE</span></span>
+<span><span class="co">#&gt; sigma  1.0   0.5708 0.2719  1.3542    TRUE</span></span>
+<span><span class="co">#&gt; xi     0.1   0.1865 0.0205  0.4066    TRUE</span></span>
+<span><span class="co">#&gt; thL    5.0   6.9177 0.4851 21.5516    TRUE</span></span>
+<span><span class="co">#&gt; thU    5.0   4.9914 2.2984 13.1253    TRUE</span></span>
+<span><span class="co">#&gt; thw    0.2   0.2609 0.0341  0.5621    TRUE</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="limitations">Limitations<a class="anchor" aria-label="anchor" href="#limitations"></a>
@@ -697,7 +697,7 @@ simulation study.</p>
 <span><span class="co">#&gt; RMSE (based on 10 replications):</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">rmse</span>, <span class="fl">4</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;  kappa  sigma     xi    thL    thU    thw </span></span>
-<span><span class="co">#&gt; 2.2449 0.4107 0.0825 2.0747 0.6619 0.0537</span></span></code></pre></div>
+<span><span class="co">#&gt; 2.2678 0.4166 0.0845 1.9226 0.6996 0.0566</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="training-custom-models">7. Training custom models<a class="anchor" aria-label="anchor" href="#training-custom-models"></a>

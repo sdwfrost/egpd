@@ -31,7 +31,7 @@
       <ul class="navbar-nav me-auto">
 <li class="nav-item"><a class="nav-link" href="../index.html">Home</a></li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
-<li class="nav-item dropdown">
+<li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/insurance-complaints.html">Discrete EGPD Models for Insurance Complaint Counts</a></li>
@@ -429,12 +429,12 @@ nearly instant.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Posterior summary:</span></span>
 <span><span class="co">#&gt;        Median Post.SD   2.5%   97.5%</span></span>
-<span><span class="co">#&gt; kappa  4.4929  3.1151 0.9939 12.3908</span></span>
-<span><span class="co">#&gt; sigma  0.6330  0.2939 0.2654  1.4040</span></span>
-<span><span class="co">#&gt; xi     0.1629  0.1128 0.0166  0.4279</span></span>
-<span><span class="co">#&gt; thL   10.0429  6.3580 0.5709 23.1020</span></span>
-<span><span class="co">#&gt; thU    5.8545  2.8684 1.9730 13.1217</span></span>
-<span><span class="co">#&gt; thw    0.2309  0.1377 0.0245  0.5024</span></span>
+<span><span class="co">#&gt; kappa  4.4752  2.9557 0.9719 11.7122</span></span>
+<span><span class="co">#&gt; sigma  0.6313  0.2972 0.2853  1.4110</span></span>
+<span><span class="co">#&gt; xi     0.1604  0.1094 0.0161  0.4061</span></span>
+<span><span class="co">#&gt; thL   10.2861  6.3586 0.6602 23.1342</span></span>
+<span><span class="co">#&gt; thU    5.8412  2.7538 2.1133 13.0905</span></span>
+<span><span class="co">#&gt; thw    0.2531  0.1377 0.0220  0.5098</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Note: log-likelihood, AIC, and BIC are not available for neural estimation</span></span>
 <span><span class="co">#&gt; Number of observations:  2000</span></span></code></pre></div>
@@ -458,13 +458,13 @@ and 95% credible intervals for all six parameters.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Posterior summary:</span></span>
 <span><span class="co">#&gt;       Median Post.SD   2.5%   97.5%</span></span>
-<span><span class="co">#&gt; kappa 4.3215  3.2761 0.8761 13.0502</span></span>
-<span><span class="co">#&gt; sigma 0.7046  0.3256 0.2804  1.4882</span></span>
-<span><span class="co">#&gt; xi    0.1604  0.1103 0.0127  0.3971</span></span>
-<span><span class="co">#&gt; thL   8.8578  5.7294 0.7478 21.4948</span></span>
-<span><span class="co">#&gt; thU   5.1771  3.4908 0.8581 14.1159</span></span>
-<span><span class="co">#&gt; thw   0.2558  0.1429 0.0290  0.5420</span></span>
-<span><span class="co">#&gt; pi0   0.2724  0.2055 0.0087  0.6872</span></span>
+<span><span class="co">#&gt; kappa 4.0766  3.2666 0.9330 12.8699</span></span>
+<span><span class="co">#&gt; sigma 0.7279  0.3165 0.2821  1.4862</span></span>
+<span><span class="co">#&gt; xi    0.1557  0.1091 0.0133  0.3913</span></span>
+<span><span class="co">#&gt; thL   8.9513  5.7627 0.7661 21.6438</span></span>
+<span><span class="co">#&gt; thU   5.1197  3.5308 0.7553 13.9279</span></span>
+<span><span class="co">#&gt; thw   0.2469  0.1420 0.0279  0.5273</span></span>
+<span><span class="co">#&gt; pi0   0.2781  0.2015 0.0100  0.6854</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Note: log-likelihood, AIC, and BIC are not available for neural estimation</span></span>
 <span><span class="co">#&gt; Number of observations:  2000</span></span></code></pre></div>
@@ -503,38 +503,38 @@ chart</strong> (NBE)</li>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span>                <span class="co"># Posterior median estimates</span></span>
 <span><span class="co">#&gt;      kappa      sigma         xi        thL        thU        thw </span></span>
-<span><span class="co">#&gt;  4.4928845  0.6330015  0.1628595 10.0428603  5.8544827  0.2309155</span></span>
+<span><span class="co">#&gt;  4.4752241  0.6312719  0.1604454 10.2861150  5.8412018  0.2530742</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/confint.html" class="external-link">confint</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span>             <span class="co"># 95% credible intervals</span></span>
 <span><span class="co">#&gt;            2.5 %     97.5 %</span></span>
-<span><span class="co">#&gt; kappa 0.99389462 12.3907538</span></span>
-<span><span class="co">#&gt; sigma 0.26536305  1.4040061</span></span>
-<span><span class="co">#&gt; xi    0.01660769  0.4278888</span></span>
-<span><span class="co">#&gt; thL   0.57088922 23.1019973</span></span>
-<span><span class="co">#&gt; thU   1.97297296 13.1216692</span></span>
-<span><span class="co">#&gt; thw   0.02453829  0.5024474</span></span>
+<span><span class="co">#&gt; kappa 0.97194581 11.7122372</span></span>
+<span><span class="co">#&gt; sigma 0.28527539  1.4110428</span></span>
+<span><span class="co">#&gt; xi    0.01613607  0.4060811</span></span>
+<span><span class="co">#&gt; thL   0.66022752 23.1342292</span></span>
+<span><span class="co">#&gt; thU   2.11334446 13.0904857</span></span>
+<span><span class="co">#&gt; thw   0.02196194  0.5097720</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/confint.html" class="external-link">confint</a></span><span class="op">(</span><span class="va">fit</span>, level <span class="op">=</span> <span class="fl">0.9</span><span class="op">)</span> <span class="co"># 90% credible intervals</span></span>
 <span><span class="co">#&gt;              5 %       95 %</span></span>
-<span><span class="co">#&gt; kappa 1.25211543 11.1133906</span></span>
-<span><span class="co">#&gt; sigma 0.29931825  1.2648777</span></span>
-<span><span class="co">#&gt; xi    0.02604579  0.3832131</span></span>
-<span><span class="co">#&gt; thL   1.06572944 21.2153999</span></span>
-<span><span class="co">#&gt; thU   2.45191137 11.7026999</span></span>
-<span><span class="co">#&gt; thw   0.03691453  0.4698184</span></span>
+<span><span class="co">#&gt; kappa 1.18233187 10.4352311</span></span>
+<span><span class="co">#&gt; sigma 0.31831881  1.2439622</span></span>
+<span><span class="co">#&gt; xi    0.02500019  0.3746150</span></span>
+<span><span class="co">#&gt; thL   1.22509626 21.2132232</span></span>
+<span><span class="co">#&gt; thU   2.50891347 11.3293489</span></span>
+<span><span class="co">#&gt; thw   0.03507937  0.4752726</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/vcov.html" class="external-link">vcov</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span>                <span class="co"># Posterior covariance matrix</span></span>
 <span><span class="co">#&gt;             kappa         sigma            xi         thL         thU</span></span>
-<span><span class="co">#&gt; kappa  9.70354669 -0.7342482901  0.1827664998  0.45042036  1.38813252</span></span>
-<span><span class="co">#&gt; sigma -0.73424829  0.0863741629 -0.0234915696  0.01452720 -0.09187063</span></span>
-<span><span class="co">#&gt; xi     0.18276650 -0.0234915696  0.0127243260 -0.03512248 -0.02389033</span></span>
-<span><span class="co">#&gt; thL    0.45042036  0.0145272021 -0.0351224829 40.42441686 -2.10625723</span></span>
-<span><span class="co">#&gt; thU    1.38813252 -0.0918706289 -0.0238903321 -2.10625723  8.22761354</span></span>
-<span><span class="co">#&gt; thw    0.01395369 -0.0009261211  0.0005739534  0.11202078  0.03024729</span></span>
+<span><span class="co">#&gt; kappa  8.73628724 -0.7063749252  0.1631585116  0.14109433  1.53860825</span></span>
+<span><span class="co">#&gt; sigma -0.70637493  0.0883270028 -0.0222393643  0.02015662 -0.11288664</span></span>
+<span><span class="co">#&gt; xi     0.16315851 -0.0222393643  0.0119700561 -0.05426991 -0.03493579</span></span>
+<span><span class="co">#&gt; thL    0.14109433  0.0201566229 -0.0542699062 40.43116105 -1.32830200</span></span>
+<span><span class="co">#&gt; thU    1.53860825 -0.1128866430 -0.0349357934 -1.32830200  7.58352850</span></span>
+<span><span class="co">#&gt; thw    0.01083464  0.0001005286 -0.0003575999  0.08823208  0.04268291</span></span>
 <span><span class="co">#&gt;                 thw</span></span>
-<span><span class="co">#&gt; kappa  0.0139536868</span></span>
-<span><span class="co">#&gt; sigma -0.0009261211</span></span>
-<span><span class="co">#&gt; xi     0.0005739534</span></span>
-<span><span class="co">#&gt; thL    0.1120207780</span></span>
-<span><span class="co">#&gt; thU    0.0302472858</span></span>
-<span><span class="co">#&gt; thw    0.0189747138</span></span>
+<span><span class="co">#&gt; kappa  0.0108346441</span></span>
+<span><span class="co">#&gt; sigma  0.0001005286</span></span>
+<span><span class="co">#&gt; xi    -0.0003575999</span></span>
+<span><span class="co">#&gt; thL    0.0882320809</span></span>
+<span><span class="co">#&gt; thU    0.0426829062</span></span>
+<span><span class="co">#&gt; thw    0.0189629638</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/nobs.html" class="external-link">nobs</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span>                <span class="co"># Number of observations</span></span>
 <span><span class="co">#&gt; [1] 2000</span></span></code></pre></div>
 <p>Since neural estimation bypasses the likelihood,
