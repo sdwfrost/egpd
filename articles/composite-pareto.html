@@ -213,13 +213,16 @@ examples because it only needs three parameter formulas.</p>
 <h2 id="fitting-a-comppareto-gam">4. Fitting a CompPareto GAM<a class="anchor" aria-label="anchor" href="#fitting-a-comppareto-gam"></a>
 </h2>
 <p>Here we simulate data from an exponential-body composite Pareto model
-with a smooth predictor effect on the body rate. For this illustration,
-we use a somewhat larger sample and a higher splice point so the
-nonlinear body signal is visible in the fitted GAM.</p>
+with a smooth predictor effect on the body rate. Recovery of
+<code>rate(x)</code> is a maximum likelihood problem, so its precision
+scales like
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1</mn><mi>/</mi><msqrt><mi>n</mi></msqrt></mrow><annotation encoding="application/x-tex">1/\sqrt{n}</annotation></semantics></math>;
+we use a moderately large sample so the nonlinear body signal is clearly
+visible.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">22</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">400</span></span>
+<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">2000</span></span>
 <span><span class="va">x</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sort.html" class="external-link">sort</a></span><span class="op">(</span><span class="fu">stats</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n</span>, <span class="op">-</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">rate</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="op">-</span><span class="fl">0.2</span> <span class="op">+</span> <span class="fl">1.0</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/Trig.html" class="external-link">sin</a></span><span class="op">(</span><span class="va">pi</span> <span class="op">*</span> <span class="va">x</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span></span>
@@ -253,12 +256,12 @@ way.</p>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">pars_hat</span>, <span class="fl">3</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    rate alpha theta</span></span>
-<span><span class="co">#&gt; 1 0.794 1.219  3.98</span></span>
-<span><span class="co">#&gt; 2 0.766 1.219  3.98</span></span>
-<span><span class="co">#&gt; 3 0.738 1.219  3.98</span></span>
-<span><span class="co">#&gt; 4 0.712 1.219  3.98</span></span>
-<span><span class="co">#&gt; 5 0.686 1.219  3.98</span></span>
-<span><span class="co">#&gt; 6 0.662 1.219  3.98</span></span></code></pre></div>
+<span><span class="co">#&gt; 1 0.688 1.338  3.43</span></span>
+<span><span class="co">#&gt; 2 0.654 1.338  3.43</span></span>
+<span><span class="co">#&gt; 3 0.622 1.338  3.43</span></span>
+<span><span class="co">#&gt; 4 0.591 1.338  3.43</span></span>
+<span><span class="co">#&gt; 5 0.562 1.338  3.43</span></span>
+<span><span class="co">#&gt; 6 0.535 1.338  3.43</span></span></code></pre></div>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">pred_grid</span><span class="op">$</span><span class="va">x</span>, <span class="va">pars_hat</span><span class="op">$</span><span class="va">rate</span>, type <span class="op">=</span> <span class="st">"l"</span>, lwd <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>     xlab <span class="op">=</span> <span class="st">"x"</span>, ylab <span class="op">=</span> <span class="st">"rate"</span>, main <span class="op">=</span> <span class="st">"Exponential-body rate: true vs fitted"</span><span class="op">)</span></span>
@@ -271,7 +274,15 @@ way.</p>
 <span>       bty <span class="op">=</span> <span class="st">"n"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="composite-pareto_files/figure-html/gam-plot-1.png" class="r-plt" alt="" width="672"></p>
 <p>In this setup, the fitted smooth tracks the nonlinear truth well
-rather than shrinking toward a nearly linear trend.</p>
+rather than shrinking toward a nearly linear trend. Note that recovering
+<code>rate(x)</code> from a single CompPareto draw per design point is a
+noisy maximum likelihood problem: each observation carries limited
+information about its own rate, so the smooth estimate tightens with
+sample size at the usual
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1</mn><mi>/</mi><msqrt><mi>n</mi></msqrt></mrow><annotation encoding="application/x-tex">1/\sqrt{n}</annotation></semantics></math>
+rate. With <code>n = 400</code>, the same setup typically gives RMSE
+around <code>0.15</code>; the <code>n = 2000</code> example above lands
+around <code>0.06</code>.</p>
 <p>Quantile prediction also works through the regular
 <code><a href="../reference/predict.egpd.html">predict.egpd()</a></code> interface.</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
@@ -285,14 +296,14 @@ rather than shrinking toward a nearly linear trend.</p>
 <span>  <span class="fl">3</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;   q:0.5  q:0.9  q:0.99</span></span>
-<span><span class="co">#&gt; 1  2.06 17.374 137.147</span></span>
-<span><span class="co">#&gt; 2  2.06 17.374 137.147</span></span>
-<span><span class="co">#&gt; 3  2.06 17.374 137.147</span></span></code></pre></div>
+<span><span class="co">#&gt; 1 2.565 16.492 107.904</span></span>
+<span><span class="co">#&gt; 2 2.565 16.492 107.904</span></span>
+<span><span class="co">#&gt; 3 2.565 16.492 107.904</span></span></code></pre></div>
 <p>Randomized quantile residuals are available as well.</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="fu"><a href="../reference/rqresid.html">rqresid</a></span><span class="op">(</span><span class="va">fit</span>, seed <span class="op">=</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;      Min.   1st Qu.    Median      Mean   3rd Qu.      Max. </span></span>
-<span><span class="co">#&gt; -3.638040 -0.672670  0.025788  0.006043  0.664021  3.182871</span></span></code></pre></div>
+<span><span class="co">#&gt; -3.530068 -0.637197 -0.001519  0.004450  0.689844  3.382021</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="intercept-only-four-parameter-fits">5. Intercept-only four-parameter fits<a class="anchor" aria-label="anchor" href="#intercept-only-four-parameter-fits"></a>
