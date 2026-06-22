@@ -52,10 +52,9 @@ Every DEGPD model is `nll = -log(G(F_hi) - G(F_lo))`, where
 - Everything reduces to the normal pdf/cdf (`φ`, `Φ`); second derivatives use
   `φ'(x) = −x·φ(x)` — also closed-form.
 
-**Verified:** an R prototype of the analytic gradient matches numerical differences of
-`nll5` to **1.4e-7** over 40 (y, θ) cases (`/tmp/m5analytic.R`, reproduced in the session).
-→ A full analytic `degpd5d12` (gradient + 6-entry Hessian) is straightforward, just
-tedious. Recommended.
+**Verified:** an analytic-gradient prototype matched numerical differences of `nll5` to
+**1.4e-7** during development; the shipped `degpd5d12` (gradient + 6-entry Hessian) is
+checked against finite differences in `tests/testthat/test-gam-d12-fd.R`.
 
 ## Model 6 — truncated beta: **σ, ξ analytic; κ is the obstacle** ⚠️
 
@@ -63,8 +62,8 @@ tedious. Recommended.
 beta (`pbeta`), `u = c1·F + c2`, `c1 = 0.5 − 1/32`, `c2 = 1/32`.
 
 - `G'(u) = c1 · dbeta(u;κ,κ) / D` — **closed form** (the beta density). So the σ, ξ
-  derivatives are analytic. **Verified:** analytic σ/ξ gradient matches FD to **2.9e-7**
-  (`/tmp/m6analytic.R`).
+  derivatives are analytic. **Verified:** analytic σ/ξ gradient matched FD to **2.9e-7**
+  during development (the full model-6 d12 is covered by `tests/testthat/test-gam-d12-fd.R`).
 - `∂G/∂κ` needs `∂/∂κ I(x;κ,κ)` — the **parameter-derivative of the regularized
   incomplete beta**, which has no elementary closed form. **Now implemented** via the
   identities
