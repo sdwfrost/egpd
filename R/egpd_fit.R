@@ -21,7 +21,13 @@
 #' @param maxspline maximum number of rows for spline basis construction
 #' @param compact logical: use compact representation? Defaults to FALSE
 #' @param egpd.args a list of arguments for EGPD family (e.g., m=1)
-#' @param degpd.args a list of arguments for DEGPD family (e.g., m=1)
+#' @param degpd.args a list of arguments for the DEGPD family. \code{m} selects the
+#'   G-function (model 1-6, default 1). \code{xi.max} (default \code{Inf}) caps the
+#'   tail index \eqn{\xi} via a bounded shape link
+#'   \eqn{\xi = \texttt{xi.max}\,(1 - \exp(-\exp(\eta)/\texttt{xi.max}))}, which reduces
+#'   to the usual unbounded \eqn{\xi = \exp(\eta)} log link as \code{xi.max} tends to
+#'   \code{Inf} and saturates at \code{xi.max}; this stabilises fits on short, spiky,
+#'   or heavily over-dispersed series. Applies to all DEGPD models 1-6.
 #' @param zidegpd.args a list of arguments for ZIDEGPD family (e.g., m=1)
 #' @param comppareto.args a list of arguments for the CompPareto GAM family.
 #'   Currently this supports \code{spec = "lnorm"}, \code{"gamma"},
@@ -48,11 +54,38 @@ family <- family.info$family
 formula <- .setup.formulae(formula, family.info$npar, family.info$npar2, data, trace, family.info$nms)
 response.name <- attr(formula, "response.name")
 
+## ZIDEGPD nests DEGPD (zero-inflation pi -> 0). Warm-start the richer model from
+## the DEGPD MLE so a converged ZIDEGPD can never sit below the simpler model's
+## likelihood (the nesting guarantee). The last ZIDEGPD parameter is always
+## logitpi, so dropping it yields the matching DEGPD formula. Seed (sigma, xi,
+## kappa, ...) from DEGPD's per-parameter linear-predictor means and pi near 0.
+if (family == "zidegpd" && is.null(inits) && length(response.name) == 1) {
+  inits <- tryCatch({
+    zi_m <- if (is.null(zidegpd.args$m)) 1 else zidegpd.args$m
+    dfit <- egpd(formula[-length(formula)], data, family = "degpd",
+                 correctV = FALSE, inits = NULL, outer = outer, knots = knots,
+                 degpd.args = list(m = zi_m), trace = 0, gamma = gamma)
+    lp <- predict(dfit, type = "link")
+    p0 <- min(max(mean(data[[response.name]] == 0, na.rm = TRUE), 1e-3), 0.5)
+    c(vapply(lp, mean, numeric(1)), qlogis(p0))
+  }, error = function(e) {
+    if (trace > 0) message("ZIDEGPD warm-start from DEGPD failed; using default inits.")
+    NULL
+  })
+}
+
 ## setup mgcv objects and data
 temp.data <- .setup.data(data, response.name, formula, family, family.info$nms,
   removeData, knots, maxdata, maxspline, compact, sandwich.args,
   tolower(outer), trace, gamma)
 data <- temp.data$data
+
+## issue #2: bounded shape link for DEGPD model 1. xi.max (via degpd.args) caps the
+## tail index; the default Inf reproduces the usual unbounded exp() link. Only the
+## degpd1 likelihood wrapper reads this, so it is inert for other families/models.
+temp.data$lik.data$xi.max <- if (!is.null(degpd.args$xi.max)) degpd.args$xi.max else Inf
+temp.data$lik.data$bounded.xi <- (family == "degpd" &&
+  is.finite(temp.data$lik.data$xi.max))
 
 ## initialise inner iteration
 beta <- .setup.inner.inits(inits, temp.data$lik.data, family.info$lik.fns, family.info$npar, family)

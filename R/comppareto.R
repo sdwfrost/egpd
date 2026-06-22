@@ -390,7 +390,7 @@ attr(.comppareto_identity_link, "deriv") <- function(x) rep(1, length(x))
 }
 
 .comppareto_eta_matrix <- function(pars, likdata) {
-  split_pars <- split(pars, likdata$idpars)
+  split_pars <- split(pars, factor(likdata$idpars, levels = seq_along(likdata$X)))
   eta <- lapply(seq_along(split_pars), function(i) {
     val <- drop(likdata$X[[i]] %*% split_pars[[i]])
     if (likdata$duplicate == 1) {

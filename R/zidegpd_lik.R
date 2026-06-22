@@ -5,11 +5,11 @@
 .zidegpd1.d0 <- function(pars, likdata) {
   if (likdata$censored)
     stop("Censored likelihoods not currently available for extended GPDs.")
-  zidegpd1d0(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  zidegpd1d0(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
 .zidegpd1.d12 <- function(pars, likdata) {
-  zidegpd1d12(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  zidegpd1d12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
 .iG1_zidegpd <- function(v, kappa) v^(1/kappa)
@@ -46,11 +46,11 @@
 .zidegpd2.d0 <- function(pars, likdata) {
   if (likdata$censored)
     stop("Censored likelihoods not currently available for extended GPDs.")
-  zidegpd2d0(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$X[[5]], likdata$X[[6]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  zidegpd2d0(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$X[[5]], likdata$X[[6]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
 .zidegpd2.d12 <- function(pars, likdata) {
-  zidegpd2d12(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$X[[5]], likdata$X[[6]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  zidegpd2d12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$X[[5]], likdata$X[[6]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
 .zidegpd2fns <- list(d0=.zidegpd2.d0, d120=.zidegpd2.d12, d340=NULL, m=2, iG=.iG2_zidegpd)
@@ -60,11 +60,11 @@
 .zidegpd3.d0 <- function(pars, likdata) {
   if (likdata$censored)
     stop("Censored likelihoods not currently available for extended GPDs.")
-  zidegpd3d0(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  zidegpd3d0(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
 .zidegpd3.d12 <- function(pars, likdata) {
-  zidegpd3d12(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  zidegpd3d12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
 .iG3_zidegpd <- function(v, delta) 1 - qbeta(1 - v, 1/delta, 2)^(1/delta)
@@ -76,11 +76,11 @@
 .zidegpd4.d0 <- function(pars, likdata) {
   if (likdata$censored)
     stop("Censored likelihoods not currently available for extended GPDs.")
-  zidegpd4d0(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$X[[5]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  zidegpd4d0(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$X[[5]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
 .zidegpd4.d12 <- function(pars, likdata) {
-  zidegpd4d12(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$X[[5]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  zidegpd4d12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$X[[5]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
 .iG4_zidegpd <- function(v, delta, kappa) 1 - qbeta(1 - v^(2/kappa), 1/delta, 2)^(1/delta)
@@ -92,11 +92,11 @@
 .zidegpd5.d0 <- function(pars, likdata) {
   if (likdata$censored)
     stop("Censored likelihoods not currently available for extended GPDs.")
-  zidegpd5d0(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  zidegpd5d0(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
 .zidegpd5.d12 <- function(pars, likdata) {
-  zidegpd5d12(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  zidegpd5d12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
 .iG5_zidegpd <- function(v, kappa) q.G(v, type = 2, kappa = kappa)
@@ -108,11 +108,11 @@
 .zidegpd6.d0 <- function(pars, likdata) {
   if (likdata$censored)
     stop("Censored likelihoods not currently available for extended GPDs.")
-  zidegpd6d0(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  zidegpd6d0(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
 .zidegpd6.d12 <- function(pars, likdata) {
-  zidegpd6d12(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  zidegpd6d12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
 .iG6_zidegpd <- function(v, kappa) q.G(v, type = 3, kappa = kappa)

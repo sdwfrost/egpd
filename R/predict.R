@@ -143,6 +143,15 @@ if (type %in% c("response", "quantile")) {
   if (se.fit & type == "response")
     names(std.err) <- nms
 
+  ## issue #2: report the *bounded* tail index for DEGPD model 1 fitted with a
+  ## finite xi.max, matching the link used in the likelihood. The unlink above
+  ## produced exp(eta); map it through xi = xi.max*(1 - exp(-exp(eta)/xi.max)).
+  ## Applied before the quantile block so quantiles use the same bounded xi.
+  if (isTRUE(object$likdata$bounded.xi) && "shape" %in% names(out)) {
+    a <- object$likdata$xi.max
+    out[["shape"]] <- a * (1 - exp(-out[["shape"]] / a))
+  }
+
   if (type == "quantile") {
 
     pars <- out
@@ -244,6 +253,14 @@ if (type %in% c("response", "quantile")) {
     names(out) <- paste("q", round(prob, 3), sep=":")
 
   } ## end quantile
+
+  ## Convenience alias: the GPD tail index is returned in the column named
+  ## "shape" (from the logshape/shape link). Many users reach for `xi`; expose
+  ## it as an alias so `pars[["xi"]]` does not silently return NULL (see #5).
+  if (type == "response" && is.data.frame(out) &&
+      "shape" %in% names(out) && !("xi" %in% names(out))) {
+    out$xi <- out[["shape"]]
+  }
 
   if (se.fit) {
     out <- list(fitted = out, se.fit = std.err)

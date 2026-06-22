@@ -1,15 +1,51 @@
 ## Discrete EGPD negative log-likelihood functions
 
+## issue #2: bounded shape link for DEGPD models 2-6. The C++ d12 is fed
+## lxi_eff = log(xi_bounded) via its forward map, so it returns per-observation
+## derivatives w.r.t. lxi_eff. This converts the shape (parameter 2) gradient and
+## Hessian columns to the raw predictor eta with the closed-form chain rule
+## (m'(eta), m''(eta)); no-op when xi.max = Inf. Column packing matches the C++
+## d12 layout: gradient cols 1..npar, then upper-triangular Hessian row-major.
+## (Model 1 applies this same chain rule inside C++.)
+.bounded_xi_chain <- function(out, pars, likdata) {
+  a <- likdata$xi.max
+  if (is.null(a) || !is.finite(a)) return(out)
+  npar <- length(likdata$X)
+  xcol <- 2L                                   # shape is parameter 2 (1-based)
+  beta <- split(pars, factor(likdata$idpars, levels = seq_along(likdata$X)))[[xcol]]
+  eta <- as.numeric(likdata$X[[xcol]] %*% beta)
+  if (isTRUE(likdata$duplicate == 1)) eta <- eta[likdata$dupid + 1]
+  if (length(likdata$offsets[[xcol]]) > 0) eta <- eta + likdata$offsets[[xcol]]
+  u <- exp(eta); tt <- u / a
+  mp <- (u * exp(-tt)) / (a * -expm1(-tt)); mpp <- mp * (1 - tt - mp)
+  sat <- !is.finite(mp) | (tt > 700); mp[sat] <- 0; mpp[sat] <- 0
+  ## packed upper-tri column (1-based) for parameter pair (i,j), i<=j, 0-based
+  col_ij <- function(i, j) {
+    off <- 0L; if (i > 0) for (r in 0:(i - 1)) off <- off + (npar - r)
+    npar + off + (j - i) + 1L
+  }
+  xi0 <- 1L                                    # 0-based index of the shape parameter
+  g <- out[, xcol]; cdd <- col_ij(xi0, xi0); hdd <- out[, cdd]
+  out[, xcol] <- g * mp
+  for (k in 0:(npar - 1)) if (k != xi0) {
+    cc <- col_ij(min(k, xi0), max(k, xi0)); out[, cc] <- out[, cc] * mp
+  }
+  out[, cdd] <- hdd * mp^2 + g * mpp
+  out
+}
+
 ## model 1 ##
 
 .degpd1.d0 <- function(pars, likdata) {
   if (likdata$censored)
     stop("Censored likelihoods not currently available for extended GPDs.")
-  degpd1d0(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  xm <- if (is.null(likdata$xi.max)) Inf else likdata$xi.max
+  degpd1d0(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, xm)
 }
 
 .degpd1.d12 <- function(pars, likdata) {
-  degpd1d12(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  xm <- if (is.null(likdata$xi.max)) Inf else likdata$xi.max
+  degpd1d12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, xm)
 }
 
 .iG1_degpd <- function(v, kappa) v^(1/kappa)
@@ -46,11 +82,14 @@
 .degpd2.d0 <- function(pars, likdata) {
   if (likdata$censored)
     stop("Censored likelihoods not currently available for extended GPDs.")
-  degpd2d0(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$X[[5]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  xm <- if (is.null(likdata$xi.max)) Inf else likdata$xi.max
+  degpd2d0(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$X[[5]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, xm)
 }
 
 .degpd2.d12 <- function(pars, likdata) {
-  degpd2d12(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$X[[5]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  xm <- if (is.null(likdata$xi.max)) Inf else likdata$xi.max
+  out <- degpd2d12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$X[[5]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, xm)
+  .bounded_xi_chain(out, pars, likdata)
 }
 
 .degpd2fns <- list(d0=.degpd2.d0, d120=.degpd2.d12, d340=NULL, m=2, iG=.iG2_degpd)
@@ -60,11 +99,14 @@
 .degpd3.d0 <- function(pars, likdata) {
   if (likdata$censored)
     stop("Censored likelihoods not currently available for extended GPDs.")
-  degpd3d0(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  xm <- if (is.null(likdata$xi.max)) Inf else likdata$xi.max
+  degpd3d0(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, xm)
 }
 
 .degpd3.d12 <- function(pars, likdata) {
-  degpd3d12(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  xm <- if (is.null(likdata$xi.max)) Inf else likdata$xi.max
+  out <- degpd3d12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, xm)
+  .bounded_xi_chain(out, pars, likdata)
 }
 
 .iG3_degpd <- function(v, delta) 1 - qbeta(1 - v, 1/delta, 2)^(1/delta)
@@ -76,11 +118,14 @@
 .degpd4.d0 <- function(pars, likdata) {
   if (likdata$censored)
     stop("Censored likelihoods not currently available for extended GPDs.")
-  degpd4d0(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  xm <- if (is.null(likdata$xi.max)) Inf else likdata$xi.max
+  degpd4d0(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, xm)
 }
 
 .degpd4.d12 <- function(pars, likdata) {
-  degpd4d12(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  xm <- if (is.null(likdata$xi.max)) Inf else likdata$xi.max
+  out <- degpd4d12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, xm)
+  .bounded_xi_chain(out, pars, likdata)
 }
 
 .iG4_degpd <- function(v, delta, kappa) 1 - qbeta(1 - v^(2/kappa), 1/delta, 2)^(1/delta)
@@ -92,11 +137,14 @@
 .degpd5.d0 <- function(pars, likdata) {
   if (likdata$censored)
     stop("Censored likelihoods not currently available for extended GPDs.")
-  degpd5d0(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  xm <- if (is.null(likdata$xi.max)) Inf else likdata$xi.max
+  degpd5d0(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, xm)
 }
 
 .degpd5.d12 <- function(pars, likdata) {
-  degpd5d12(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  xm <- if (is.null(likdata$xi.max)) Inf else likdata$xi.max
+  out <- degpd5d12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, xm)
+  .bounded_xi_chain(out, pars, likdata)
 }
 
 .iG5_degpd <- function(v, kappa) q.G(v, type = 2, kappa = kappa)
@@ -108,11 +156,14 @@
 .degpd6.d0 <- function(pars, likdata) {
   if (likdata$censored)
     stop("Censored likelihoods not currently available for extended GPDs.")
-  degpd6d0(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  xm <- if (is.null(likdata$xi.max)) Inf else likdata$xi.max
+  degpd6d0(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, xm)
 }
 
 .degpd6.d12 <- function(pars, likdata) {
-  degpd6d12(split(pars, likdata$idpars), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
+  xm <- if (is.null(likdata$xi.max)) Inf else likdata$xi.max
+  out <- degpd6d12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, xm)
+  .bounded_xi_chain(out, pars, likdata)
 }
 
 .iG6_degpd <- function(v, kappa) q.G(v, type = 3, kappa = kappa)

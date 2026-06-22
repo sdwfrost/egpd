@@ -1,8 +1,30 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 #include <RcppArmadillo.h>
 #include <Rcpp.h>
+#include "gfunc_derivs.h"
 
 const double xieps = 0.0;
+
+// Bounded shape link for DEGPD model 1 (issue #2: stop tail blow-up).
+// The raw linear predictor eta maps to xi = xi_max*(1 - exp(-exp(eta)/xi_max)),
+// which -> exp(eta) (the usual log link) as xi_max -> Inf and saturates at xi_max.
+// We keep the density/derivative formulas unchanged by feeding them the
+// reparameterised lxi_eff = log(xi); the chain-rule factors below convert
+// derivatives w.r.t. lxi_eff into derivatives w.r.t. eta (cf. BUGS.md fix #6).
+//   returns lxi_eff = log(xi); *mp = d lxi_eff/d eta; *mpp = d2 lxi_eff/d eta2.
+static inline double bounded_lxi(double eta, double xi_max, double* mp, double* mpp) {
+  if (!R_finite(xi_max)) { if (mp) *mp = 1.0; if (mpp) *mpp = 0.0; return eta; }
+  double t = exp(eta - log(xi_max));           // exp(eta)/xi_max
+  if (t > 700.0) { if (mp) *mp = 0.0; if (mpp) *mpp = 0.0; return log(xi_max); } // saturated
+  double em = exp(-t);                          // exp(-u/xi_max)
+  double omem = -expm1(-t);                     // 1 - exp(-u/xi_max), accurate for small t
+  double B = xi_max * omem;                     // xi
+  double u = t * xi_max;                         // exp(eta)
+  double mpl = (u * em) / B;                     // d log(xi)/d eta
+  if (mp) *mp = mpl;
+  if (mpp) *mpp = mpl * (1.0 - t - mpl);
+  return log(B);
+}
 
 // //' Discrete Extended generalized Pareto distribution of type 1 (deGPD1) negative log-likelihood
 // //'
@@ -19,7 +41,7 @@ const double xieps = 0.0;
 // //' ## to follow
 // //' @export
 // [[Rcpp::export]]
-double degpd1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets)
+double degpd1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max)
 {
   
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -52,9 +74,9 @@ double degpd1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
     
     y = yvec[j];
     lsigma = lsigmavec[j];
-    lxi = lxivec[j];
+    lxi = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);  // issue #2: bounded shape link (xi_max=Inf -> log link)
     lkappa = lkappavec[j];
-    
+
     e1=1/exp(lxi);
     e2 =  exp(lxi) / exp(lsigma);
     e3= 1+ (y+1)*e2;
@@ -87,7 +109,7 @@ double degpd1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 
 // //' @rdname degpd1d0
 // [[Rcpp::export]]
-arma::mat degpd1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec , const arma::uvec dupid, int dcate, const Rcpp::List& offsets)
+arma::mat degpd1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec , const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max)
 {
   
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -134,14 +156,15 @@ arma::mat degpd1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
   double eee33, eee34,eee35, eee39, eee41;
   
   
+  double mp_xi, mpp_xi;
   for (int j=0; j < nobs; j++) {
-    
+
     y  = yvec[j];
       lsigma  = lsigmavec[j];
-      lxi  = lxivec[j];
+      lxi  = bounded_lxi(lxivec[j], xi_max, &mp_xi, &mpp_xi);  // issue #2: bounded shape link + chain factors
       lkappa  = lkappavec[j];
-   
-    if(y>0){   
+
+    if(y>0){
     ee1  = exp(lxi);
     ee2  = exp(lsigma);
     ee3  = 1/ee1;
@@ -293,10 +316,20 @@ else {
     out(j, 6) = ((eee39 * eee2/eee34 + 1/eee14) * eee3 - (eee26 * eee25/eee41 + 
                                                        (eee20 + eee8 - eee22) * eee1 * eee13/eee35)) * eee12/eee11;
     out(j, 7) =  -(eee26 * eee12/eee41); 
-    out(j, 8) =  -(eee12 *log(eee11));                                                                            
+    out(j, 8) =  -(eee12 *log(eee11));
   }
+    // issue #2: chain rule converting derivatives w.r.t. lxi_eff into derivatives
+    // w.r.t. the raw predictor eta. No-op when xi_max=Inf (mp_xi=1, mpp_xi=0).
+    // Columns touched: grad 1 = d/dxi; Hessian 4 = (sigma,xi), 6 = (xi,xi), 7 = (xi,kappa).
+    if (mp_xi != 1.0 || mpp_xi != 0.0) {
+      double g1 = out(j, 1), h_sx = out(j, 4), h_xx = out(j, 6), h_xk = out(j, 7);
+      out(j, 1) = g1 * mp_xi;
+      out(j, 4) = h_sx * mp_xi;
+      out(j, 7) = h_xk * mp_xi;
+      out(j, 6) = h_xx * mp_xi * mp_xi + g1 * mpp_xi;
+    }
 }
-     
+
    return out;
 }
   
@@ -320,7 +353,7 @@ else {
 // //' @export
 // [[Rcpp::export]]
 
-double degpd2d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, const arma::mat& X4, const arma::mat& X5, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets)
+double degpd2d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, const arma::mat& X4, const arma::mat& X5, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max)
 {
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
   arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
@@ -359,7 +392,7 @@ double degpd2d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 
     y = yvec[j];
     lsigma = lsigmavec[j];
-    lxi = lxivec[j];
+    lxi = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);
     lkappa1 = lkappa1vec[j];
     // Reparameterization: ldkappa = log(kappa2 - kappa1), compute lkappa2 via log-sum-exp
     {
@@ -398,7 +431,7 @@ double degpd2d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 
 // //' @rdname degpd2d0
 // [[Rcpp::export]]
-arma::mat degpd2d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3,  arma::mat X4, arma::mat X5, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets)
+arma::mat degpd2d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3,  arma::mat X4, arma::mat X5, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max)
 {
   
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -453,7 +486,7 @@ arma::mat degpd2d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
     
     y  = yvec[j];
       lsigma  = lsigmavec[j];
-      lxi  = lxivec[j];
+      lxi  = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);
       lkappa1  = lkappa1vec[j];
       // Reparameterization: ldkappa = log(kappa2 - kappa1), compute lkappa2 via log-sum-exp
       {
@@ -878,7 +911,7 @@ else {
 // //' ## to follow
 // //' @export
 // [[Rcpp::export]]
-double degpd3d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets)
+double degpd3d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max)
 {
   
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -910,7 +943,7 @@ double degpd3d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
     
     y = yvec[j];
     lsigma = lsigmavec[j];
-    lxi = lxivec[j];
+    lxi = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);
     ldelta = ldeltavec[j];
     
     e1=1.0/exp(lxi);
@@ -943,7 +976,7 @@ double degpd3d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 
 // //' @rdname degpd3d0
 // [[Rcpp::export]]
-arma::mat degpd3d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets)
+arma::mat degpd3d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max)
 {
   
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -991,7 +1024,7 @@ arma::mat degpd3d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
     
     y  = yvec[j];
       lsigma  = lsigmavec[j];
-      lxi  = lxivec[j];
+      lxi  = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);
       ldelta  = ldeltavec[j];
    
     if(y>0){   
@@ -1237,7 +1270,7 @@ else {
 // //' @export
 // [[Rcpp::export]]
 
-double degpd4d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, const arma::mat& X4, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets)
+double degpd4d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, const arma::mat& X4, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max)
 {
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
   arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
@@ -1272,7 +1305,7 @@ double degpd4d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 
     y = yvec[j];
     lsigma = lsigmavec[j];
-    lxi = lxivec[j];
+    lxi = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);
     ldelta = ldeltavec[j];
     lkappa = lkappavec[j];
     
@@ -1306,7 +1339,7 @@ double degpd4d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 
 // //' @rdname degpd4d0
 // [[Rcpp::export]]
-arma::mat degpd4d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3,  arma::mat X4, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets)
+arma::mat degpd4d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3,  arma::mat X4, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max)
 {
   
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -1358,7 +1391,7 @@ arma::mat degpd4d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
     
     y  = yvec[j];
       lsigma  = lsigmavec[j];
-      lxi  = lxivec[j];
+      lxi  = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);
       ldelta  = ldeltavec[j];
       lkappa  = lkappavec[j];
    
@@ -1717,7 +1750,7 @@ else {
 // //' ## to follow
 // //' @export
 // [[Rcpp::export]]
-double degpd5d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets)
+double degpd5d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max)
 {
 
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -1747,7 +1780,7 @@ double degpd5d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 
     y = yvec[j];
     lsigma = lsigmavec[j];
-    lxi = lxivec[j];
+    lxi = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);
     lkappa = lkappavec[j];
 
     double sigma = exp(lsigma);
@@ -1787,7 +1820,7 @@ double degpd5d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 
 // //' @rdname degpd5d0
 // [[Rcpp::export]]
-arma::mat degpd5d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets)
+arma::mat degpd5d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max)
 {
 
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -1813,77 +1846,97 @@ arma::mat degpd5d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
 
   double y, lsigma, lxi, lkappa;
 
-  // Per-observation NLL helper for model 5 (truncated normal)
-  auto nll5 = [](double y, double lsigma, double lxi, double lkappa) -> double {
-    double sigma = exp(lsigma);
-    double xi = exp(lxi);
-    double kappa = exp(lkappa);
-    double sk = sqrt(kappa);
-    double v_lo = xi * y / sigma;
-    double t_lo = 1.0 + v_lo;
-    double v_hi = xi * (y + 1.0) / sigma;
-    double t_hi = 1.0 + v_hi;
-    if (t_lo <= 0.0 || t_hi <= 0.0) return 1e20;
-    double F_lo = 1.0 - R_pow(t_lo, -1.0 / xi);
-    double F_hi = 1.0 - R_pow(t_hi, -1.0 / xi);
-    double Fmin = R::pnorm(-sk, 0.0, 1.0, 1, 0);
-    double denom = 0.5 - Fmin;
-    if (denom < 1e-300) denom = 1e-300;
-    double G_lo = (R::pnorm(sk * (F_lo - 1.0), 0.0, 1.0, 1, 0) - Fmin) / denom;
-    double G_hi = (R::pnorm(sk * (F_hi - 1.0), 0.0, 1.0, 1, 0) - Fmin) / denom;
-    double pmf = G_hi - G_lo;
-    if (pmf <= 0.0) pmf = 1e-20;
-    return -log(pmf);
-  };
-
+  // Analytic gradient + Hessian for model 5 (truncated-normal G). nll = -log(P),
+  // P = G(F_hi) - G(F_lo). The GPD CDF F (and its lsigma/lxi derivatives) and the
+  // truncated-normal G (and its F/kappa derivatives) are all closed form; see
+  // models56_analytic_derivs.md. Column order matches the FD version it replaces:
+  // grad 0..2 = (lsigma,lxi,lkappa); Hessian 3..8 = [ss,sx,sk,xx,xk,kk].
   for (int j = 0; j < nobs; j++) {
 
     y = yvec[j];
     lsigma = lsigmavec[j];
-    lxi = lxivec[j];
+    lxi = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);  // chain rule applied in R
     lkappa = lkappavec[j];
 
-    double params[3] = {lsigma, lxi, lkappa};
-    double grads[3];
+    double sigma = exp(lsigma);
+    double xi = exp(lxi);
+    double kappa = exp(lkappa);
+    double q = 1.0 / xi;
+    double sk = sqrt(kappa);
+    double skp = 0.5 / sk;                       // dsk/dkappa
+    double skpp = -skp / (2.0 * kappa);          // d2 sk/dkappa2
+    double Fmin = R::pnorm(-sk, 0.0, 1.0, 1, 0);
+    double phisk = R::dnorm(sk, 0.0, 1.0, 0);    // phi(sk) = phi(-sk)
+    double D = 0.5 - Fmin; if (D < 1e-300) D = 1e-300;
+    double Dk = skp * phisk;
+    double Dkk = phisk * (skpp - skp * skp * sk);
+    double Fmin_kk = phisk * (skp * skp * sk - skpp);
 
-    // Central difference gradients
-    for (int k = 0; k < 3; k++) {
-      double h = std::max(std::abs(params[k]) * 1e-5, 1e-8);
-      double pp[3] = {params[0], params[1], params[2]};
-      double pm[3] = {params[0], params[1], params[2]};
-      pp[k] += h;
-      pm[k] -= h;
-      grads[k] = (nll5(y, pp[0], pp[1], pp[2]) - nll5(y, pm[0], pm[1], pm[2])) / (2.0 * h);
+    // theta-derivatives of G at the two endpoints (e=0: m=y, e=1: m=y+1)
+    double Gv[2], Gls[2], Glx[2], Glk[2], Glsls[2], Glslx[2], Glslk[2], Glxlx[2], Glxlk[2], Glklk[2];
+    bool bad = false;
+    for (int e = 0; e < 2; e++) {
+      double m = (e == 0) ? y : (y + 1.0);
+      double v = xi * m / sigma;
+      double t = 1.0 + v;
+      if (t <= 0.0) { bad = true; break; }
+      double L = log(t);
+      double w = R_pow(t, -q);                   // t^(-1/xi)
+      double F = 1.0 - w;
+      // GPD CDF derivatives via w = exp(-q L): F_th = -w e_th, F_thph = -w(e_th e_ph + e_thph)
+      double e_ls = q * v / t;
+      double e_lx = q * (L - v / t);
+      double e_lsls = -q * (v / t - v * v / (t * t));
+      double e_lslx = -q * v * v / (t * t);
+      double e_lxlx = -q * (L - v / t - v * v / (t * t));
+      double F_ls = -w * e_ls;
+      double F_lx = -w * e_lx;
+      double F_lsls = -w * (e_ls * e_ls + e_lsls);
+      double F_lslx = -w * (e_ls * e_lx + e_lslx);
+      double F_lxlx = -w * (e_lx * e_lx + e_lxlx);
+      // truncated-normal G(F, kappa)
+      double z = sk * (F - 1.0);
+      double phiz = R::dnorm(z, 0.0, 1.0, 0);
+      double Phiz = R::pnorm(z, 0.0, 1.0, 1, 0);
+      double N = Phiz - Fmin;
+      double G = N / D;
+      double G_F = phiz * sk / D;
+      double G_FF = -sk * sk * z * phiz / D;
+      double zk = skp * (F - 1.0);
+      double zkk = skpp * (F - 1.0);
+      double Nk = phiz * zk + skp * phisk;                 // dN/dkappa (Fmin_k = -skp phisk)
+      double G_K = (Nk * D - N * Dk) / (D * D);
+      double Nkk = phiz * (zkk - z * zk * zk) - Fmin_kk;
+      double G_KK = (Nkk * D - N * Dkk) / (D * D) - 2.0 * Dk * G_K / D;
+      double G_FK = ((-z * phiz) * zk * sk + phiz * skp) / D - phiz * sk * Dk / (D * D);
+      // chain to theta = (lsigma, lxi, lkappa); kappa = exp(lkappa)
+      Gv[e]    = G;
+      Gls[e]   = G_F * F_ls;
+      Glx[e]   = G_F * F_lx;
+      Glk[e]   = G_K * kappa;
+      Glsls[e] = G_FF * F_ls * F_ls + G_F * F_lsls;
+      Glslx[e] = G_FF * F_ls * F_lx + G_F * F_lslx;
+      Glxlx[e] = G_FF * F_lx * F_lx + G_F * F_lxlx;
+      Glslk[e] = G_FK * kappa * F_ls;
+      Glxlk[e] = G_FK * kappa * F_lx;
+      Glklk[e] = G_KK * kappa * kappa + G_K * kappa;
     }
+    if (bad) { for (int c = 0; c < 9; c++) out(j, c) = 0.0; continue; }
 
-    out(j, 0) = grads[0];
-    out(j, 1) = grads[1];
-    out(j, 2) = grads[2];
-
-    // Central difference Hessian (upper triangle)
-    int col = 3;
-    for (int i = 0; i < 3; i++) {
-      for (int k = i; k < 3; k++) {
-        double hi = std::max(std::abs(params[i]) * 1e-4, 1e-7);
-        double hk = std::max(std::abs(params[k]) * 1e-4, 1e-7);
-        double pp[3], pm[3], mp[3], mm[3];
-        for (int l = 0; l < 3; l++) {
-          pp[l] = params[l];
-          pm[l] = params[l];
-          mp[l] = params[l];
-          mm[l] = params[l];
-        }
-        pp[i] += hi; pp[k] += hk;
-        pm[i] += hi; pm[k] -= hk;
-        mp[i] -= hi; mp[k] += hk;
-        mm[i] -= hi; mm[k] -= hk;
-        out(j, col) = (nll5(y, pp[0], pp[1], pp[2])
-                      - nll5(y, pm[0], pm[1], pm[2])
-                      - nll5(y, mp[0], mp[1], mp[2])
-                      + nll5(y, mm[0], mm[1], mm[2])) / (4.0 * hi * hk);
-        col++;
-      }
-    }
+    double P = Gv[1] - Gv[0]; if (P <= 0.0) P = 1e-20;
+    double Pls = Gls[1]   - Gls[0],   Plx = Glx[1]   - Glx[0],   Plk = Glk[1]   - Glk[0];
+    double Pss = Glsls[1] - Glsls[0], Psx = Glslx[1] - Glslx[0], Psk = Glslk[1] - Glslk[0];
+    double Pxx = Glxlx[1] - Glxlx[0], Pxk = Glxlk[1] - Glxlk[0], Pkk = Glklk[1] - Glklk[0];
+    double iP = 1.0 / P, iP2 = iP * iP;
+    out(j, 0) = -Pls * iP;
+    out(j, 1) = -Plx * iP;
+    out(j, 2) = -Plk * iP;
+    out(j, 3) = -Pss * iP + Pls * Pls * iP2;
+    out(j, 4) = -Psx * iP + Pls * Plx * iP2;
+    out(j, 5) = -Psk * iP + Pls * Plk * iP2;
+    out(j, 6) = -Pxx * iP + Plx * Plx * iP2;
+    out(j, 7) = -Pxk * iP + Plx * Plk * iP2;
+    out(j, 8) = -Pkk * iP + Plk * Plk * iP2;
   }
   return out;
 }
@@ -1903,7 +1956,7 @@ arma::mat degpd5d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
 // //' ## to follow
 // //' @export
 // [[Rcpp::export]]
-double degpd6d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets)
+double degpd6d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max)
 {
 
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -1933,7 +1986,7 @@ double degpd6d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 
     y = yvec[j];
     lsigma = lsigmavec[j];
-    lxi = lxivec[j];
+    lxi = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);
     lkappa = lkappavec[j];
 
     double sigma = exp(lsigma);
@@ -1980,7 +2033,7 @@ double degpd6d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 
 // //' @rdname degpd6d0
 // [[Rcpp::export]]
-arma::mat degpd6d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets)
+arma::mat degpd6d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max)
 {
 
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -2006,81 +2059,38 @@ arma::mat degpd6d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
 
   double y, lsigma, lxi, lkappa;
 
-  // Per-observation NLL helper for model 6 (truncated beta)
-  auto nll6 = [](double y, double lsigma, double lxi, double lkappa) -> double {
-    double sigma = exp(lsigma);
-    double xi = exp(lxi);
-    double kappa = exp(lkappa);
-    double v_lo = xi * y / sigma;
-    double t_lo = 1.0 + v_lo;
-    double v_hi = xi * (y + 1.0) / sigma;
-    double t_hi = 1.0 + v_hi;
-    if (t_lo <= 0.0 || t_hi <= 0.0) return 1e20;
-    double F_lo = 1.0 - R_pow(t_lo, -1.0 / xi);
-    double F_hi = 1.0 - R_pow(t_hi, -1.0 / xi);
-    double c1 = 0.5 - 1.0 / 32.0;
-    double c2 = 1.0 / 32.0;
-    double pb_min = R::pbeta(c2, kappa, kappa, 1, 0);
-    double pb_half = R::pbeta(0.5, kappa, kappa, 1, 0);
-    double denom_b = pb_half - pb_min;
-    if (denom_b < 1e-300) denom_b = 1e-300;
-    double u_lo = c1 * F_lo + c2;
-    double u_hi = c1 * F_hi + c2;
-    double G_lo = (R::pbeta(u_lo, kappa, kappa, 1, 0) - pb_min) / denom_b;
-    double G_hi = (R::pbeta(u_hi, kappa, kappa, 1, 0) - pb_min) / denom_b;
-    double pmf = G_hi - G_lo;
-    if (pmf <= 0.0) pmf = 1e-20;
-    return -log(pmf);
-  };
-
+  // Fully analytic gradient + Hessian for model 6 (truncated-beta G). Same assembly as
+  // model 5, but tb_Gtheta supplies the truncated-beta G derivatives; its kappa pieces
+  // come from incbeta_kk_derivs (adaptive Gauss-Kronrod quadrature for d/dkappa pbeta,
+  // which has no elementary closed form). See gfunc_derivs.h and models56_analytic_derivs.md.
   for (int j = 0; j < nobs; j++) {
 
     y = yvec[j];
     lsigma = lsigmavec[j];
-    lxi = lxivec[j];
+    lxi = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);  // chain rule applied in R
     lkappa = lkappavec[j];
+    double sigma = exp(lsigma), xi = exp(lxi), kappa = exp(lkappa);
 
-    double params[3] = {lsigma, lxi, lkappa};
-    double grads[3];
+    FDeriv flo = gpd_Fderiv(y, sigma, xi);
+    FDeriv fhi = gpd_Fderiv(y + 1.0, sigma, xi);
+    if (!flo.ok || !fhi.ok) { for (int c = 0; c < 9; c++) out(j, c) = 0.0; continue; }
+    TBkappa kk = tb_kappa(kappa);
+    GTheta glo = tb_Gtheta(flo, kk), ghi = tb_Gtheta(fhi, kk);
 
-    // Central difference gradients
-    for (int k = 0; k < 3; k++) {
-      double h = std::max(std::abs(params[k]) * 1e-5, 1e-8);
-      double pp[3] = {params[0], params[1], params[2]};
-      double pm[3] = {params[0], params[1], params[2]};
-      pp[k] += h;
-      pm[k] -= h;
-      grads[k] = (nll6(y, pp[0], pp[1], pp[2]) - nll6(y, pm[0], pm[1], pm[2])) / (2.0 * h);
-    }
-
-    out(j, 0) = grads[0];
-    out(j, 1) = grads[1];
-    out(j, 2) = grads[2];
-
-    // Central difference Hessian (upper triangle)
-    int col = 3;
-    for (int i = 0; i < 3; i++) {
-      for (int k = i; k < 3; k++) {
-        double hi = std::max(std::abs(params[i]) * 1e-4, 1e-7);
-        double hk = std::max(std::abs(params[k]) * 1e-4, 1e-7);
-        double pp[3], pm[3], mp[3], mm[3];
-        for (int l = 0; l < 3; l++) {
-          pp[l] = params[l];
-          pm[l] = params[l];
-          mp[l] = params[l];
-          mm[l] = params[l];
-        }
-        pp[i] += hi; pp[k] += hk;
-        pm[i] += hi; pm[k] -= hk;
-        mp[i] -= hi; mp[k] += hk;
-        mm[i] -= hi; mm[k] -= hk;
-        out(j, col) = (nll6(y, pp[0], pp[1], pp[2])
-                      - nll6(y, pm[0], pm[1], pm[2])
-                      - nll6(y, mp[0], mp[1], mp[2])
-                      + nll6(y, mm[0], mm[1], mm[2])) / (4.0 * hi * hk);
-        col++;
-      }
-    }
+    double P = ghi.G - glo.G; if (P <= 0.0) P = 1e-20;
+    double iP = 1.0 / P, iP2 = iP * iP;
+    double Pls = ghi.ls - glo.ls, Plx = ghi.lx - glo.lx, Plk = ghi.lk - glo.lk;
+    double Pss = ghi.lsls - glo.lsls, Psx = ghi.lslx - glo.lslx, Psk = ghi.lslk - glo.lslk;
+    double Pxx = ghi.lxlx - glo.lxlx, Pxk = ghi.lxlk - glo.lxlk, Pkk = ghi.lklk - glo.lklk;
+    out(j, 0) = -Pls * iP;
+    out(j, 1) = -Plx * iP;
+    out(j, 2) = -Plk * iP;
+    out(j, 3) = -Pss * iP + Pls * Pls * iP2;
+    out(j, 4) = -Psx * iP + Pls * Plx * iP2;
+    out(j, 5) = -Psk * iP + Pls * Plk * iP2;
+    out(j, 6) = -Pxx * iP + Plx * Plx * iP2;
+    out(j, 7) = -Pxk * iP + Plx * Plk * iP2;
+    out(j, 8) = -Pkk * iP + Plk * Plk * iP2;
   }
   return out;
 }
