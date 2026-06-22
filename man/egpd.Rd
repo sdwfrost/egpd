@@ -63,7 +63,13 @@ package, but are not fitted via \code{egpd()}.}
 
 \item{egpd.args}{a list of arguments for EGPD family (e.g., m=1)}
 
-\item{degpd.args}{a list of arguments for DEGPD family (e.g., m=1)}
+\item{degpd.args}{a list of arguments for the DEGPD family. \code{m} selects the
+G-function (model 1-6, default 1). \code{xi.max} (default \code{Inf}) caps the
+tail index \eqn{\xi} via a bounded shape link
+\eqn{\xi = \texttt{xi.max}\,(1 - \exp(-\exp(\eta)/\texttt{xi.max}))}, which reduces
+to the usual unbounded \eqn{\xi = \exp(\eta)} log link as \code{xi.max} tends to
+\code{Inf} and saturates at \code{xi.max}; this stabilises fits on short, spiky,
+or heavily over-dispersed series. Applies to all DEGPD models 1-6.}
 
 \item{zidegpd.args}{a list of arguments for ZIDEGPD family (e.g., m=1)}
 

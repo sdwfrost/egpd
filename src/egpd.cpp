@@ -1,6 +1,7 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 #include <RcppArmadillo.h>
 #include <Rcpp.h>
+#include "gfunc_derivs.h"
 
 const double xieps = 0.0;
 
@@ -5628,21 +5629,18 @@ d2nll_xi2 = -(d2ldb_dt2 * dt_dxi * dt_dxi + dldb_dt * d2t_dxi2)
 // nll(kappa) contribution from kappa: -log(dbeta(t, k, k)) + log(nf(k))
 // where t depends on F (not on kappa), and nf depends on kappa.
 // Use central differences on the kappa-dependent part.
-h = fmax(kappa * 1.0e-5, 1.0e-10);
-kp = kappa + h;
-km = kappa - h;
-if (km <= 0.0) km = 1.0e-15;
-
-// nll_k part: -log(dbeta(t, k, k)) + log(pbeta(hi,k,k) - pbeta(lo,k,k))
-// at kappa:
-nll_k_p = -log(R::dbeta(t, kp, kp, 0)) + log(R::pbeta(hi, kp, kp, 1, 0) - R::pbeta(lo, kp, kp, 1, 0));
-nll_k_m = -log(R::dbeta(t, km, km, 0)) + log(R::pbeta(hi, km, km, 1, 0) - R::pbeta(lo, km, km, 1, 0));
-
-// d(nll_k_part)/d(kappa) by central difference:
-dldb_dk = (nll_k_p - nll_k_m) / (2.0 * h);
-// nll at kappa for reference:
-double nll_k_0 = -log(db) + log(nf);
-d2ldb_dk2 = (nll_k_p - 2.0 * nll_k_0 + nll_k_m) / (h * h);
+// Analytic kappa derivatives of the kappa-dependent part -log(dbeta(t;k,k)) + log(nf),
+// nf = pbeta(hi,k,k) - pbeta(lo,k,k) (t fixed in kappa). d/dk pbeta via incbeta_kk_derivs
+// (adaptive Gauss-Kronrod quadrature). Replaces the previous central-difference kappa part.
+double b1_eg = 2.0 * (R::digamma(kappa) - R::digamma(2.0 * kappa));
+double b1p_eg = 2.0 * (R::trigamma(kappa) - 2.0 * R::trigamma(2.0 * kappa));
+double dI_hi_eg, d2I_hi_eg, dI_lo_eg, d2I_lo_eg;
+incbeta_kk_derivs(hi, kappa, dI_hi_eg, d2I_hi_eg);
+incbeta_kk_derivs(lo, kappa, dI_lo_eg, d2I_lo_eg);
+double Dk_eg = dI_hi_eg - dI_lo_eg, Dkk_eg = d2I_hi_eg - d2I_lo_eg;
+double nf_eg = nf < 1e-300 ? 1e-300 : nf;
+dldb_dk = -log(t * (1.0 - t)) + b1_eg + Dk_eg / nf_eg;
+d2ldb_dk2 = b1p_eg + Dkk_eg / nf_eg - (Dk_eg / nf_eg) * (Dk_eg / nf_eg);
 
 // d(nll)/d(lkappa) = kappa * d(nll)/d(kappa)
 nll_lk = kappa * dldb_dk;

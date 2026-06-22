@@ -26,10 +26,25 @@ terms.list <- lapply(formula, terms.formula, specials=c("s", "te", "ti"))
 got.specials <- sapply(lapply(terms.list, function(x) unlist(attr(x, "specials"))), any)
 termlabels.list <- lapply(terms.list, attr, "term.labels")
 got.intercept <- sapply(terms.list, attr, "intercept") == 1
+## Per-element offset term strings (e.g. "offset(z)"). terms.formula() strips
+## offsets out of term.labels, so the reformulate() calls below used to drop
+## them silently for every non-first parameter -- meaning `lxi = ~ offset(z)`
+## had no effect on the fit. We capture them here and reattach them below.
+offterms.list <- lapply(terms.list, function(tt) {
+  oi <- attr(tt, "offset")
+  if (is.null(oi)) return(character(0))
+  vars <- attr(tt, "variables")
+  vapply(oi, function(k) deparse(vars[[k + 1L]]), character(1))
+})
 for (i in seq_along(termlabels.list)) {
   if (length(termlabels.list[[i]]) == 0) {
     if (got.intercept[i]) {
       termlabels.list[[i]] <- "1"
+    } else if (length(offterms.list[[i]]) > 0) {
+      ## offset-only predictor, e.g. ~ offset(z) - 1: a fixed/known linear
+      ## predictor with no free coefficients (0-column design). The parameter
+      ## is pinned to its offset. Leave term labels empty; the offset is
+      ## reattached and the dropped intercept is respected below.
     } else {
       stop(paste("formula element", i, "incorrectly specified"))
     }
@@ -43,10 +58,13 @@ if (!got.response[1]) {
 }
 if (any(!got.response)) {
   for (i in which(!got.response)) {
-    formula[[i]] <- reformulate(termlabels=termlabels.list[[i]], response=response.name)
+    formula[[i]] <- reformulate(termlabels=c(termlabels.list[[i]], offterms.list[[i]]),
+                                response=response.name, intercept=got.intercept[i])
   }
 }
-stripped.formula <- lapply(termlabels.list, function(x) reformulate(termlabels=x))
+stripped.formula <- lapply(seq_along(termlabels.list), function(i)
+  reformulate(termlabels=c(termlabels.list[[i]], offterms.list[[i]]),
+              intercept=got.intercept[i]))
 censored <- FALSE
 if (substr(response.name, 1, 5) == "cens(") {
   response.name <- substr(response.name, 6, nchar(response.name) - 1)
@@ -78,6 +96,16 @@ formula
 .predictable.gam <- function(G, formula) {
 keep <- c("dev.extra", "pterms", "nsdf", "X", "terms", "mf", "smooth", "sp", "term.names", "offset")
 G <- G[keep]
+## Offset-only predictor (e.g. ~ offset(z) - 1): mgcv returns a 0-column design,
+## which would create zero-width Hessian blocks (Armadillo submat out-of-bounds in
+## gradHess). Inject a single all-zero column so the parameter is fixed to its
+## offset (X %*% beta == 0) without any C++ change; its coefficient is inert (zero
+## gradient/Hessian) and is absorbed by the existing pinv/perturb path.
+if (ncol(G$X) == 0) {
+  G$X <- matrix(0, nrow = nrow(G$X), ncol = 1)
+  colnames(G$X) <- "(fixed)"
+  G$term.names <- "(fixed)"
+}
 G$nb <- ncol(G$X)
 G$coefficients <- numeric(G$nb)
 old <- c("mf", "pP", "cl")
@@ -100,6 +128,16 @@ if (missing(newdata)) {
   for (i in seq_along(object))
     class(object[[i]]) <- "gam"
   X <- lapply(object, mgcv::predict.gam, newdata=newdata, type="lpmatrix")
+  ## mirror the offset-only zero-column injection from .predictable.gam so that
+  ## newdata prediction matches the fitted design (preserve the model offset).
+  X <- lapply(X, function(x) {
+    if (ncol(x) == 0) {
+      off <- attr(x, "model.offset")
+      z <- matrix(0, nrow = nrow(x), ncol = 1)
+      if (!is.null(off)) attr(z, "model.offset") <- off
+      z
+    } else x
+  })
   offsets <- lapply(X, function(x) {
     off <- attr(x, "model.offset")
     if (is.null(off)) numeric(0) else off
@@ -297,7 +335,10 @@ if (is.null(inits)) {
     beta0 <- inits
   }
 }
-beta0 <- unlist(lapply(seq_len(npar), function(i) c(beta0[i], rep(0, ncol(likdata$X[[i]]) - 1))))
+beta0 <- unlist(lapply(seq_len(npar), function(i) {
+  nci <- ncol(likdata$X[[i]])
+  if (nci == 0) numeric(0) else c(beta0[i], rep(0, nci - 1))  # 0-column (offset-only) block contributes no coefficients
+}))
 compmode <- 0 * beta0
 CH <- diag(compmode + 1)
 k <- likdata$k
@@ -519,13 +560,21 @@ Vp <- VpVc$Vp
 Vc <- VpVc$Vc
 if (smooths) gams$sp <- exp(fitreml$par)
 gams$nobs <- likdata$nobs
-gams$convergence <- if (is.null(fitreml$convergence)) NA_integer_ else fitreml$convergence
+gams$convergence <- if (is.null(fitreml$convergence)) NA_integer_ else as.integer(fitreml$convergence)
 gams$logLik <- NA_real_
-if (identical(gams$convergence, 0L)) {
+## NB: optimizers return a *double* 0 on success, so the old
+## identical(gams$convergence, 0L) test was always FALSE and logLik/AIC/BIC
+## were never populated. Compare numerically instead.
+converged <- isTRUE(gams$convergence == 0L)
+gams$df <- sum(edf)
+if (converged) {
 gams$logLik <- -.nllh.nopen(fitreml$beta, likdata, likfns)
 gams$logLik <- gams$logLik - likdata$const
+gams$AIC <- -2 * gams$logLik + 2 * gams$df
+gams$BIC <- -2 * gams$logLik + log(likdata$nobs) * gams$df
+} else {
+gams$AIC <- gams$BIC <- 1e20
 }
-if (!identical(gams$convergence, 0L)) gams$AIC <- gams$BIC <- 1e20
 attr(gams, "df") <- sum(edf)
 gams$simulate <- list(mu=fitreml$beta, Sigma=Vp)
 gams$family <- family

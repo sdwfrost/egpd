@@ -1,6 +1,7 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 #include <RcppArmadillo.h>
 #include <Rcpp.h>
+#include "gfunc_derivs.h"
 
 const double xieps = 0.0;
 // //' Zero Inflated Discrete Extended generalized Pareto distribution of type 1 (zideGPD1) negative log-likelihood
@@ -2257,75 +2258,70 @@ arma::mat zidegpd5d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::
     if (off_i.n_elem > 0) logitpivec += off_i;
   }
 
-  // Per-observation NLL for model 5 (Truncated Normal G, zero-inflated discrete)
-  auto nll_fn = [](double y, double lsigma, double lxi, double lkappa, double logitpi) -> double {
-    double sigma = exp(lsigma);
-    double xi = exp(lxi);
-    double kappa = exp(lkappa);
-    double sk = sqrt(kappa);
-    double pi_val = 1.0 / (1.0 + exp(-logitpi));
-    double Fmin = R::pnorm(-sk, 0.0, 1.0, 1, 0);
-    double denom = 0.5 - Fmin;
-    if (denom < 1e-300) denom = 1e-300;
-
-    if (y > 0) {
-      double v_lo = xi * y / sigma;
-      double t_lo = 1.0 + v_lo;
-      double v_hi = xi * (y + 1.0) / sigma;
-      double t_hi = 1.0 + v_hi;
-      if (t_lo <= 0.0 || t_hi <= 0.0) return 1e20;
-      double F_lo = 1.0 - R_pow(t_lo, -1.0 / xi);
-      double F_hi = 1.0 - R_pow(t_hi, -1.0 / xi);
-      double G_lo = (R::pnorm(sk * (F_lo - 1.0), 0.0, 1.0, 1, 0) - Fmin) / denom;
-      double G_hi = (R::pnorm(sk * (F_hi - 1.0), 0.0, 1.0, 1, 0) - Fmin) / denom;
-      double pmf = G_hi - G_lo;
-      if (pmf <= 0.0) pmf = 1e-20;
-      return -log((1.0 - pi_val) * pmf);
-    } else {
-      double v1 = xi * 1.0 / sigma;
-      double t1 = 1.0 + v1;
-      if (t1 <= 0.0) return 1e20;
-      double F1 = 1.0 - R_pow(t1, -1.0 / xi);
-      double G1 = (R::pnorm(sk * (F1 - 1.0), 0.0, 1.0, 1, 0) - Fmin) / denom;
-      return -log(pi_val + (1.0 - pi_val) * G1);
-    }
-  };
-
+  // Analytic gradient + Hessian for ZIDEGPD model 5 (truncated-normal G).
+  // y>0: nll = -log(1-pi) - log(P), P = G(F_hi)-G(F_lo). y=0: nll = -log(pi+(1-pi)G(F(1))).
+  // sigma/xi/kappa via the shared closed-form helpers; pi = sigmoid(logitpi). Columns:
+  // grad 0..3 = (lsigma,lxi,lkappa,logitpi); Hessian 4..13 upper-tri
+  // [ss,sx,sk,sp, xx,xk,xp, kk,kp, pp].
   for (int j = 0; j < nobs; j++) {
     double y = yvec[j];
-    double params[4] = {lsigmavec[j], lxivec[j], lkappavec[j], logitpivec[j]};
+    double lsigma = lsigmavec[j], lxi = lxivec[j], lkappa = lkappavec[j], logitpi = logitpivec[j];
+    double sigma = exp(lsigma), xi = exp(lxi), kappa = exp(lkappa);
+    double pi_val = 1.0 / (1.0 + exp(-logitpi));
+    double omp = 1.0 - pi_val;                       // 1 - pi
+    TNkappa kk = tn_kappa(kappa);
 
-    // Central difference gradient
-    for (int k = 0; k < 4; k++) {
-      double h = std::max(std::abs(params[k]) * 1e-5, 1e-8);
-      double pp[4] = {params[0], params[1], params[2], params[3]};
-      double pm[4] = {params[0], params[1], params[2], params[3]};
-      pp[k] += h;
-      pm[k] -= h;
-      out(j, k) = (nll_fn(y, pp[0], pp[1], pp[2], pp[3]) - nll_fn(y, pm[0], pm[1], pm[2], pm[3])) / (2.0 * h);
-    }
-
-    // Central difference Hessian (upper triangle, 10 elements)
-    int col = 4;
-    for (int i = 0; i < 4; i++) {
-      for (int k = i; k < 4; k++) {
-        double hi_val = std::max(std::abs(params[i]) * 1e-4, 1e-7);
-        double hk_val = std::max(std::abs(params[k]) * 1e-4, 1e-7);
-        double pp[4], pm_arr[4], mp_arr[4], mm_arr[4];
-        for (int l = 0; l < 4; l++) {
-          pp[l] = pm_arr[l] = mp_arr[l] = mm_arr[l] = params[l];
-        }
-        pp[i] += hi_val; pp[k] += hk_val;
-        pm_arr[i] += hi_val; pm_arr[k] -= hk_val;
-        mp_arr[i] -= hi_val; mp_arr[k] += hk_val;
-        mm_arr[i] -= hi_val; mm_arr[k] -= hk_val;
-        out(j, col) = (nll_fn(y, pp[0], pp[1], pp[2], pp[3])
-                      - nll_fn(y, pm_arr[0], pm_arr[1], pm_arr[2], pm_arr[3])
-                      - nll_fn(y, mp_arr[0], mp_arr[1], mp_arr[2], mp_arr[3])
-                      + nll_fn(y, mm_arr[0], mm_arr[1], mm_arr[2], mm_arr[3]))
-                      / (4.0 * hi_val * hk_val);
-        col++;
-      }
+    if (y > 0) {
+      FDeriv flo = gpd_Fderiv(y, sigma, xi);
+      FDeriv fhi = gpd_Fderiv(y + 1.0, sigma, xi);
+      if (!flo.ok || !fhi.ok) { for (int c = 0; c < 14; c++) out(j, c) = 0.0; continue; }
+      GTheta glo = tn_Gtheta(flo, kk), ghi = tn_Gtheta(fhi, kk);
+      double P = ghi.G - glo.G; if (P <= 0.0) P = 1e-20;
+      double iP = 1.0 / P, iP2 = iP * iP;
+      double Pls = ghi.ls - glo.ls, Plx = ghi.lx - glo.lx, Plk = ghi.lk - glo.lk;
+      double Pss = ghi.lsls - glo.lsls, Psx = ghi.lslx - glo.lslx, Psk = ghi.lslk - glo.lslk;
+      double Pxx = ghi.lxlx - glo.lxlx, Pxk = ghi.lxlk - glo.lxlk, Pkk = ghi.lklk - glo.lklk;
+      out(j, 0)  = -Pls * iP;
+      out(j, 1)  = -Plx * iP;
+      out(j, 2)  = -Plk * iP;
+      out(j, 3)  = pi_val;                            // d(-log(1-pi))/dlogitpi
+      out(j, 4)  = -Pss * iP + Pls * Pls * iP2;       // ss
+      out(j, 5)  = -Psx * iP + Pls * Plx * iP2;       // sx
+      out(j, 6)  = -Psk * iP + Pls * Plk * iP2;       // sk
+      out(j, 7)  = 0.0;                               // s,pi
+      out(j, 8)  = -Pxx * iP + Plx * Plx * iP2;       // xx
+      out(j, 9)  = -Pxk * iP + Plx * Plk * iP2;       // xk
+      out(j, 10) = 0.0;                               // x,pi
+      out(j, 11) = -Pkk * iP + Plk * Plk * iP2;       // kk
+      out(j, 12) = 0.0;                               // k,pi
+      out(j, 13) = pi_val * omp;                      // pi,pi
+    } else {
+      FDeriv f1 = gpd_Fderiv(1.0, sigma, xi);
+      if (!f1.ok) { for (int c = 0; c < 14; c++) out(j, c) = 0.0; continue; }
+      GTheta g1 = tn_Gtheta(f1, kk);
+      double G1 = g1.G;
+      double Q = pi_val + omp * G1; if (Q <= 0.0) Q = 1e-20;
+      double iQ = 1.0 / Q, iQ2 = iQ * iQ;
+      double Qls = omp * g1.ls, Qlx = omp * g1.lx, Qlk = omp * g1.lk;
+      double Qpi = pi_val * omp * (1.0 - G1);
+      double Qss = omp * g1.lsls, Qsx = omp * g1.lslx, Qsk = omp * g1.lslk;
+      double Qxx = omp * g1.lxlx, Qxk = omp * g1.lxlk, Qkk = omp * g1.lklk;
+      double Qspi = -pi_val * omp * g1.ls, Qxpi = -pi_val * omp * g1.lx, Qkpi = -pi_val * omp * g1.lk;
+      double Qpipi = (1.0 - G1) * pi_val * omp * (1.0 - 2.0 * pi_val);
+      out(j, 0)  = -Qls * iQ;
+      out(j, 1)  = -Qlx * iQ;
+      out(j, 2)  = -Qlk * iQ;
+      out(j, 3)  = -Qpi * iQ;
+      out(j, 4)  = -Qss * iQ + Qls * Qls * iQ2;
+      out(j, 5)  = -Qsx * iQ + Qls * Qlx * iQ2;
+      out(j, 6)  = -Qsk * iQ + Qls * Qlk * iQ2;
+      out(j, 7)  = -Qspi * iQ + Qls * Qpi * iQ2;
+      out(j, 8)  = -Qxx * iQ + Qlx * Qlx * iQ2;
+      out(j, 9)  = -Qxk * iQ + Qlx * Qlk * iQ2;
+      out(j, 10) = -Qxpi * iQ + Qlx * Qpi * iQ2;
+      out(j, 11) = -Qkk * iQ + Qlk * Qlk * iQ2;
+      out(j, 12) = -Qkpi * iQ + Qlk * Qpi * iQ2;
+      out(j, 13) = -Qpipi * iQ + Qpi * Qpi * iQ2;
     }
   }
   return out;
@@ -2468,80 +2464,64 @@ arma::mat zidegpd6d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::
     if (off_i.n_elem > 0) logitpivec += off_i;
   }
 
-  // Per-observation NLL for model 6 (Truncated Beta G, zero-inflated discrete)
-  auto nll_fn = [](double y, double lsigma, double lxi, double lkappa, double logitpi) -> double {
-    double sigma = exp(lsigma);
-    double xi = exp(lxi);
-    double kappa = exp(lkappa);
-    double pi_val = 1.0 / (1.0 + exp(-logitpi));
-    double c = 1.0 / 32.0;
-    double sc = 0.5 - c;
-    double Bmin = R::pbeta(c, kappa, kappa, 1, 0);
-    double Bhalf = R::pbeta(0.5, kappa, kappa, 1, 0);
-    double denom = Bhalf - Bmin;
-    if (denom < 1e-300) denom = 1e-300;
-
-    if (y > 0) {
-      double v_lo = xi * y / sigma;
-      double t_lo = 1.0 + v_lo;
-      double v_hi = xi * (y + 1.0) / sigma;
-      double t_hi = 1.0 + v_hi;
-      if (t_lo <= 0.0 || t_hi <= 0.0) return 1e20;
-      double F_lo = 1.0 - R_pow(t_lo, -1.0 / xi);
-      double F_hi = 1.0 - R_pow(t_hi, -1.0 / xi);
-      double u_lo = sc * F_lo + c;
-      double u_hi = sc * F_hi + c;
-      double G_lo = (R::pbeta(u_lo, kappa, kappa, 1, 0) - Bmin) / denom;
-      double G_hi = (R::pbeta(u_hi, kappa, kappa, 1, 0) - Bmin) / denom;
-      double pmf = G_hi - G_lo;
-      if (pmf <= 0.0) pmf = 1e-20;
-      return -log((1.0 - pi_val) * pmf);
-    } else {
-      double v1 = xi * 1.0 / sigma;
-      double t1 = 1.0 + v1;
-      if (t1 <= 0.0) return 1e20;
-      double F1 = 1.0 - R_pow(t1, -1.0 / xi);
-      double u1 = sc * F1 + c;
-      double G1 = (R::pbeta(u1, kappa, kappa, 1, 0) - Bmin) / denom;
-      return -log(pi_val + (1.0 - pi_val) * G1);
-    }
-  };
-
+  // Fully analytic gradient + Hessian for ZIDEGPD model 6 (truncated-beta G), using
+  // tb_Gtheta (kappa via adaptive Gauss-Kronrod quadrature). Same assembly as model 5.
   for (int j = 0; j < nobs; j++) {
     double y = yvec[j];
-    double params[4] = {lsigmavec[j], lxivec[j], lkappavec[j], logitpivec[j]};
+    double lsigma = lsigmavec[j], lxi = lxivec[j], lkappa = lkappavec[j], logitpi = logitpivec[j];
+    double sigma = exp(lsigma), xi = exp(lxi), kappa = exp(lkappa);
+    double pi_val = 1.0 / (1.0 + exp(-logitpi)), omp = 1.0 - pi_val;
+    TBkappa kk = tb_kappa(kappa);
 
-    // Central difference gradient
-    for (int k = 0; k < 4; k++) {
-      double h = std::max(std::abs(params[k]) * 1e-5, 1e-8);
-      double pp[4] = {params[0], params[1], params[2], params[3]};
-      double pm[4] = {params[0], params[1], params[2], params[3]};
-      pp[k] += h;
-      pm[k] -= h;
-      out(j, k) = (nll_fn(y, pp[0], pp[1], pp[2], pp[3]) - nll_fn(y, pm[0], pm[1], pm[2], pm[3])) / (2.0 * h);
-    }
-
-    // Central difference Hessian (upper triangle, 10 elements)
-    int col = 4;
-    for (int i = 0; i < 4; i++) {
-      for (int k = i; k < 4; k++) {
-        double hi_val = std::max(std::abs(params[i]) * 1e-4, 1e-7);
-        double hk_val = std::max(std::abs(params[k]) * 1e-4, 1e-7);
-        double pp[4], pm_arr[4], mp_arr[4], mm_arr[4];
-        for (int l = 0; l < 4; l++) {
-          pp[l] = pm_arr[l] = mp_arr[l] = mm_arr[l] = params[l];
-        }
-        pp[i] += hi_val; pp[k] += hk_val;
-        pm_arr[i] += hi_val; pm_arr[k] -= hk_val;
-        mp_arr[i] -= hi_val; mp_arr[k] += hk_val;
-        mm_arr[i] -= hi_val; mm_arr[k] -= hk_val;
-        out(j, col) = (nll_fn(y, pp[0], pp[1], pp[2], pp[3])
-                      - nll_fn(y, pm_arr[0], pm_arr[1], pm_arr[2], pm_arr[3])
-                      - nll_fn(y, mp_arr[0], mp_arr[1], mp_arr[2], mp_arr[3])
-                      + nll_fn(y, mm_arr[0], mm_arr[1], mm_arr[2], mm_arr[3]))
-                      / (4.0 * hi_val * hk_val);
-        col++;
-      }
+    if (y > 0) {
+      FDeriv flo = gpd_Fderiv(y, sigma, xi), fhi = gpd_Fderiv(y + 1.0, sigma, xi);
+      if (!flo.ok || !fhi.ok) { for (int c = 0; c < 14; c++) out(j, c) = 0.0; continue; }
+      GTheta glo = tb_Gtheta(flo, kk), ghi = tb_Gtheta(fhi, kk);
+      double P = ghi.G - glo.G; if (P <= 0.0) P = 1e-20;
+      double iP = 1.0 / P, iP2 = iP * iP;
+      double Pls = ghi.ls - glo.ls, Plx = ghi.lx - glo.lx, Plk = ghi.lk - glo.lk;
+      double Pss = ghi.lsls - glo.lsls, Psx = ghi.lslx - glo.lslx, Psk = ghi.lslk - glo.lslk;
+      double Pxx = ghi.lxlx - glo.lxlx, Pxk = ghi.lxlk - glo.lxlk, Pkk = ghi.lklk - glo.lklk;
+      out(j, 0)  = -Pls * iP;
+      out(j, 1)  = -Plx * iP;
+      out(j, 2)  = -Plk * iP;
+      out(j, 3)  = pi_val;
+      out(j, 4)  = -Pss * iP + Pls * Pls * iP2;
+      out(j, 5)  = -Psx * iP + Pls * Plx * iP2;
+      out(j, 6)  = -Psk * iP + Pls * Plk * iP2;
+      out(j, 7)  = 0.0;
+      out(j, 8)  = -Pxx * iP + Plx * Plx * iP2;
+      out(j, 9)  = -Pxk * iP + Plx * Plk * iP2;
+      out(j, 10) = 0.0;
+      out(j, 11) = -Pkk * iP + Plk * Plk * iP2;
+      out(j, 12) = 0.0;
+      out(j, 13) = pi_val * omp;
+    } else {
+      FDeriv f1 = gpd_Fderiv(1.0, sigma, xi);
+      if (!f1.ok) { for (int c = 0; c < 14; c++) out(j, c) = 0.0; continue; }
+      GTheta g1 = tb_Gtheta(f1, kk);
+      double G1 = g1.G; double Q = pi_val + omp * G1; if (Q <= 0.0) Q = 1e-20;
+      double iQ = 1.0 / Q, iQ2 = iQ * iQ;
+      double Qls = omp * g1.ls, Qlx = omp * g1.lx, Qlk = omp * g1.lk;
+      double Qpi = pi_val * omp * (1.0 - G1);
+      double Qss = omp * g1.lsls, Qsx = omp * g1.lslx, Qsk = omp * g1.lslk;
+      double Qxx = omp * g1.lxlx, Qxk = omp * g1.lxlk, Qkk = omp * g1.lklk;
+      double Qspi = -pi_val * omp * g1.ls, Qxpi = -pi_val * omp * g1.lx, Qkpi = -pi_val * omp * g1.lk;
+      double Qpipi = (1.0 - G1) * pi_val * omp * (1.0 - 2.0 * pi_val);
+      out(j, 0)  = -Qls * iQ;
+      out(j, 1)  = -Qlx * iQ;
+      out(j, 2)  = -Qlk * iQ;
+      out(j, 3)  = -Qpi * iQ;
+      out(j, 4)  = -Qss * iQ + Qls * Qls * iQ2;
+      out(j, 5)  = -Qsx * iQ + Qls * Qlx * iQ2;
+      out(j, 6)  = -Qsk * iQ + Qls * Qlk * iQ2;
+      out(j, 7)  = -Qspi * iQ + Qls * Qpi * iQ2;
+      out(j, 8)  = -Qxx * iQ + Qlx * Qlx * iQ2;
+      out(j, 9)  = -Qxk * iQ + Qlx * Qlk * iQ2;
+      out(j, 10) = -Qxpi * iQ + Qlx * Qpi * iQ2;
+      out(j, 11) = -Qkk * iQ + Qlk * Qlk * iQ2;
+      out(j, 12) = -Qkpi * iQ + Qlk * Qpi * iQ2;
+      out(j, 13) = -Qpipi * iQ + Qpi * Qpi * iQ2;
     }
   }
   return out;
