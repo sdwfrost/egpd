@@ -10,3 +10,6 @@ vignettes/*.html
 articles/*.html
 tests/testthat/Rplots.pdf
 inst/models/*/
+
+.venv/
+derive_degpd1_identity.cpp.txt

@@ -45,10 +45,17 @@
     if (is.null(degpd$m))
       degpd$m <- 1
     if (degpd$m == 1) {
-      lik.fns <- .degpd1fns
-      npar <- 3
-      nms <- c("lsigma", "lxi", "lkappa")
-      nms2 <- c('logscale', 'logshape', 'logkappa')
+      if (!is.null(degpd$link) && identical(degpd$link, "identity")) {
+        lik.fns <- .degpd1idfns                       # identity link on xi (xi may be < 0)
+        npar <- 3
+        nms <- c("lsigma", "xi", "lkappa")
+        nms2 <- c('logscale', 'shape', 'logkappa')
+      } else {
+        lik.fns <- .degpd1fns
+        npar <- 3
+        nms <- c("lsigma", "lxi", "lkappa")
+        nms2 <- c('logscale', 'logshape', 'logkappa')
+      }
       attr(family, "type") <- 1
     } else if (degpd$m == 2) {
       lik.fns <- .degpd2fns

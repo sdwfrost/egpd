@@ -49,6 +49,14 @@ degpd6d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max) {
     .Call(`_egpd_degpd6d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max)
 }
 
+degpd1id0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max) {
+    .Call(`_egpd_degpd1id0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max)
+}
+
+degpd1id12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max) {
+    .Call(`_egpd_degpd1id12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max)
+}
+
 egpd1d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
     .Call(`_egpd_egpd1d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
 }
