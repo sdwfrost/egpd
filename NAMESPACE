@@ -238,3 +238,5 @@ importFrom(Deriv, Deriv)
 
 # gamlss.dist imports
 importFrom(gamlss.dist, checklink)
+export(fit_degpd_pot)
+export(degpd_pot_stability)

@@ -245,6 +245,44 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// degpd1id0
+double degpd1id0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max);
+RcppExport SEXP _egpd_degpd1id0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X3(X3SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    Rcpp::traits::input_parameter< double >::type xi_max(xi_maxSEXP);
+    rcpp_result_gen = Rcpp::wrap(degpd1id0(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max));
+    return rcpp_result_gen;
+END_RCPP
+}
+// degpd1id12
+arma::mat degpd1id12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max);
+RcppExport SEXP _egpd_degpd1id12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X3(X3SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    Rcpp::traits::input_parameter< double >::type xi_max(xi_maxSEXP);
+    rcpp_result_gen = Rcpp::wrap(degpd1id12(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max));
+    return rcpp_result_gen;
+END_RCPP
+}
 // egpd1d0
 double egpd1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
 RcppExport SEXP _egpd_egpd1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
@@ -925,6 +963,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_egpd_degpd5d12", (DL_FUNC) &_egpd_degpd5d12, 9},
     {"_egpd_degpd6d0", (DL_FUNC) &_egpd_degpd6d0, 9},
     {"_egpd_degpd6d12", (DL_FUNC) &_egpd_degpd6d12, 9},
+    {"_egpd_degpd1id0", (DL_FUNC) &_egpd_degpd1id0, 9},
+    {"_egpd_degpd1id12", (DL_FUNC) &_egpd_degpd1id12, 9},
     {"_egpd_egpd1d0", (DL_FUNC) &_egpd_egpd1d0, 8},
     {"_egpd_egpd1d12", (DL_FUNC) &_egpd_egpd1d12, 8},
     {"_egpd_egpd1d34", (DL_FUNC) &_egpd_egpd1d34, 8},

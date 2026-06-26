@@ -52,6 +52,18 @@
 
 .degpd1fns <- list(d0=.degpd1.d0, d120=.degpd1.d12, d340=NULL, m=1, iG=.iG1_degpd)
 
+## model 1, identity link on xi (unconstrained shape; xi may be < 0, bounded tail).
+## Parameter 2 IS xi (not log xi), so NO .bounded_xi_chain conversion is applied.
+.degpd1id.d0 <- function(pars, likdata) {
+  if (likdata$censored)
+    stop("Censored likelihoods not currently available for extended GPDs.")
+  degpd1id0(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, Inf)
+}
+.degpd1id.d12 <- function(pars, likdata) {
+  degpd1id12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, Inf)
+}
+.degpd1idfns <- list(d0=.degpd1id.d0, d120=.degpd1id.d12, d340=NULL, m=1, iG=.iG1_degpd, identity.xi=TRUE)
+
 ## model 2 ##
 
 .G2_degpd <- function(v, kappa1, kappa2, p) {
