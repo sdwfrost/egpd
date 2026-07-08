@@ -7,8 +7,8 @@
 fitegpd(
   x,
   type = 1,
-  family = c("egpd", "degpd", "ziegpd", "zidegpd", "cpegpd", "cpdegpd", "begpd",
-    "bdegpd", "bzidegpd", "mdgpd", "zimdgpd"),
+  family = c("egpd", "degpd", "ziegpd", "zidegpd", "cpegpd", "cpdegpd", "pig",
+    "zipig", "begpd", "bdegpd", "bzidegpd", "mdgpd", "zimdgpd"),
   method = c("mle", "bernstein", "neuralbayes"),
   start = NULL,
   fix.arg = NULL,
@@ -30,7 +30,8 @@ d >= 2 for MDGPD).}
 \item{type}{integer 1-6 specifying the G-transformation type (univariate only).}
 
 \item{family}{character: "egpd", "degpd", "ziegpd", "zidegpd", "cpegpd",
-"cpdegpd", "begpd" (bivariate EGPD), "bdegpd" (\[Experimental\] bivariate
+"cpdegpd", "pig" (Poisson-inverse Gaussian; \code{type} ignored), "zipig"
+(zero-inflated PIG), "begpd" (bivariate EGPD), "bdegpd" (\[Experimental\] bivariate
 discrete EGPD), "bzidegpd" (\[Experimental\] zero-inflated bivariate
 discrete EGPD), "mdgpd" (\[Experimental\] multivariate MDGPD via
 Aka-Kratz-Naveau construction, d >= 2), or "zimdgpd" (\[Experimental\]

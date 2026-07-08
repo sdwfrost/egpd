@@ -153,6 +153,22 @@ armaginv <- function(x, tol) {
     .Call(`_egpd_gH6`, gh, X1, X2, X3, X4, X5, X6, dupid, dcate, sand, deriv)
 }
 
+pig1d0 <- function(pars, X1, X2, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_pig1d0`, pars, X1, X2, yvec, dupid, dcate, offsets)
+}
+
+pig1d12 <- function(pars, X1, X2, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_pig1d12`, pars, X1, X2, yvec, dupid, dcate, offsets)
+}
+
+zipig1d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_zipig1d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
+}
+
+zipig1d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_zipig1d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
+}
+
 zidegpd1d0 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets) {
     .Call(`_egpd_zidegpd1d0`, pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets)
 }

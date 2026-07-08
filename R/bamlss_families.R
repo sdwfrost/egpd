@@ -484,3 +484,75 @@ zidegpd_bamlss <- function(m = 1, ...) {
   class(rval) <- "family.bamlss"
   rval
 }
+
+
+#' bamlss family for the Poisson-inverse Gaussian distribution
+#'
+#' Creates a \code{family.bamlss} object for fitting Poisson-inverse Gaussian
+#' (PIG) count models with \code{bamlss()}. PIG is a mixed-Poisson distribution
+#' (\code{mu} = mean, \code{sigma} = dispersion; Var = mu + sigma * mu^2). The
+#' distribution functions are taken from \code{gamlss.dist}.
+#'
+#' @param ... arguments passed to link specification
+#' @return An object of class \code{family.bamlss}
+#' @export
+pig_bamlss <- function(...) {
+  rval <- list(
+    "family" = "pig",
+    "names"  = c("mu", "sigma"),
+    "links"  = .parse_links(c(mu = "log", sigma = "log"),
+                            c(mu = "log", sigma = "log"), ...),
+    "d" = function(y, par, log = FALSE)
+      gamlss.dist::dPIG(y, mu = par$mu, sigma = par$sigma, log = log),
+    "p" = function(y, par, ...)
+      gamlss.dist::pPIG(y, mu = par$mu, sigma = par$sigma),
+    "q" = function(p, par, ...)
+      gamlss.dist::qPIG(p, mu = par$mu, sigma = par$sigma),
+    "r" = function(n, par)
+      gamlss.dist::rPIG(n, mu = par$mu, sigma = par$sigma)
+  )
+  rval$initialize <- list(
+    mu    = function(y, ...) rep(max(mean(y), 1e-3), length(y)),
+    sigma = function(y, ...)
+      rep(min(max((stats::var(y) - mean(y)) / max(mean(y)^2, 1e-8), 0.1), 10), length(y))
+  )
+  class(rval) <- "family.bamlss"
+  rval
+}
+
+
+#' bamlss family for the zero-inflated Poisson-inverse Gaussian distribution
+#'
+#' Creates a \code{family.bamlss} object for fitting zero-inflated
+#' Poisson-inverse Gaussian (ZIPIG) count models with \code{bamlss()}. Adds a
+#' logit-link zero-inflation probability \code{pi} to \code{\link{pig_bamlss}}.
+#' The distribution functions are taken from \code{gamlss.dist} (whose ZIPIG
+#' zero-inflation argument is named \code{nu}).
+#'
+#' @param ... arguments passed to link specification
+#' @return An object of class \code{family.bamlss}
+#' @export
+zipig_bamlss <- function(...) {
+  rval <- list(
+    "family" = "zipig",
+    "names"  = c("mu", "sigma", "pi"),
+    "links"  = .parse_links(c(mu = "log", sigma = "log", pi = "logit"),
+                            c(mu = "log", sigma = "log", pi = "logit"), ...),
+    "d" = function(y, par, log = FALSE)
+      gamlss.dist::dZIPIG(y, mu = par$mu, sigma = par$sigma, nu = par$pi, log = log),
+    "p" = function(y, par, ...)
+      gamlss.dist::pZIPIG(y, mu = par$mu, sigma = par$sigma, nu = par$pi),
+    "q" = function(p, par, ...)
+      gamlss.dist::qZIPIG(p, mu = par$mu, sigma = par$sigma, nu = par$pi),
+    "r" = function(n, par)
+      gamlss.dist::rZIPIG(n, mu = par$mu, sigma = par$sigma, nu = par$pi)
+  )
+  rval$initialize <- list(
+    mu    = function(y, ...) rep(max(mean(y), 1e-3), length(y)),
+    sigma = function(y, ...)
+      rep(min(max((stats::var(y) - mean(y)) / max(mean(y)^2, 1e-8), 0.1), 10), length(y)),
+    pi    = function(y, ...) rep(min(max(mean(y == 0), 0.01), 0.5), length(y))
+  )
+  class(rval) <- "family.bamlss"
+  rval
+}

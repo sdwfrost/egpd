@@ -132,6 +132,21 @@
     } else {
       stop("zidegpd$m must be 1, 2, 3, 4, 5, or 6.")
     }
+  } else if (family == "pig") {
+    ## Poisson-inverse Gaussian (mixed-Poisson count model; not an EGPD).
+    ## mu = mean (log link), sigma = dispersion (log link).
+    lik.fns <- .pig1fns
+    npar <- 2
+    nms <- c("lmu", "lsigma")
+    nms2 <- c('logmu', 'logsigma')
+    attr(family, "type") <- 1
+  } else if (family == "zipig") {
+    ## Zero-inflated PIG: adds a logit-link zero-inflation probability pi.
+    lik.fns <- .zipig1fns
+    npar <- 3
+    nms <- c("lmu", "lsigma", "logitpi")
+    nms2 <- c('logmu', 'logsigma', 'logitpi')
+    attr(family, "type") <- 1
   } else if (family == "comppareto") {
     comp.info <- .comppareto_family_setup(comppareto)
     lik.fns <- comp.info$lik.fns

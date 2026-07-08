@@ -314,6 +314,17 @@ if (is.null(inits)) {
       inits[1:2] <- c(log(mean(likdata$y[,1])), .05)
       if (attr(family, "type") == 6)
         inits <- c(inits[1:2], 0, 0, 0, 0)
+    } else if (family %in% c("pig", "zipig")) {
+      ## PIG/ZIPIG: seed log(mu) at the log mean and log(sigma) at a moment
+      ## estimate of the dispersion (var = mu + sigma*mu^2). zipig's logitpi
+      ## is seeded near the observed zero proportion.
+      y1 <- likdata$y[, 1]
+      inits <- numeric(npar)
+      inits[1] <- log(max(mean(y1), 1e-3))
+      s0 <- (stats::var(y1) - mean(y1)) / max(mean(y1)^2, 1e-8)
+      inits[2] <- log(min(max(s0, 0.1), 10))
+      if (family == "zipig")
+        inits[3] <- stats::qlogis(min(max(mean(y1 == 0), 1e-3), 0.5))
     } else {
       inits <- numeric(npar)
     }

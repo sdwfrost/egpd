@@ -261,14 +261,16 @@ plot.fitegpd <- function(x, ...) {
   dat <- obj$data
   n <- obj$n
   est <- as.list(c(obj$estimate, unlist(obj$fix.arg)))
-  is_discrete <- obj$family %in% c("degpd", "zidegpd", "cpdegpd")
+  is_discrete <- obj$family %in% c("degpd", "zidegpd", "cpdegpd", "pig", "zipig")
   is_zi <- obj$family %in% c("ziegpd", "zidegpd")
+  is_pig <- obj$family %in% c("pig", "zipig")
   is_cpegpd <- obj$family == "cpegpd"
   is_cpdegpd <- obj$family == "cpdegpd"
   is_bernstein <- obj$method == "bernstein"
 
   ## Build parameter list for distribution functions
   sigma  <- est[["sigma"]]
+  mu     <- if ("mu" %in% names(est)) est[["mu"]] else NA
   xi     <- est[["xi"]]
   kappa  <- if ("kappa" %in% names(est)) est[["kappa"]] else NA
   delta  <- if ("delta" %in% names(est)) est[["delta"]] else NA
@@ -277,7 +279,17 @@ plot.fitegpd <- function(x, ...) {
   lambda <- if ("lambda" %in% names(est)) est[["lambda"]] else NA
 
   ## Density, CDF, and quantile wrappers
-  if (is_cpdegpd) {
+  if (is_pig) {
+    dfun <- function(xv) if (obj$family == "pig")
+      gamlss.dist::dPIG(xv, mu = mu, sigma = sigma)
+      else gamlss.dist::dZIPIG(xv, mu = mu, sigma = sigma, nu = pi_val)
+    pfun <- function(qv) if (obj$family == "pig")
+      gamlss.dist::pPIG(qv, mu = mu, sigma = sigma)
+      else gamlss.dist::pZIPIG(qv, mu = mu, sigma = sigma, nu = pi_val)
+    qfun <- function(pv) if (obj$family == "pig")
+      gamlss.dist::qPIG(pv, mu = mu, sigma = sigma)
+      else gamlss.dist::qZIPIG(pv, mu = mu, sigma = sigma, nu = pi_val)
+  } else if (is_cpdegpd) {
     dfun <- function(xv) dcpdegpd(xv, lambda = lambda, prob = prob, kappa = kappa,
                                     delta = delta, sigma = sigma, xi = xi,
                                     type = obj$type)
