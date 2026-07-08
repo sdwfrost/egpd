@@ -468,7 +468,7 @@ plot.distfit <- function(x, ...) {
 ## The fit object's class was renamed from "fitegpd" to "distfit". New fits carry
 ## class "distfit"; these shims keep S3 dispatch working for objects saved by
 ## older versions (class "fitegpd") by relabelling and re-dispatching. The
-## fitegpd() function itself (see R/fitegpd.R) emits the deprecation message.
+## fitegpd() function itself (see R/distfit.R) emits the deprecation message.
 
 #' @export
 print.fitegpd <- function(x, ...) { class(x) <- "distfit"; print(x, ...) }
