@@ -262,10 +262,11 @@ plot.fitegpd <- function(x, ...) {
   n <- obj$n
   est <- as.list(c(obj$estimate, unlist(obj$fix.arg)))
   is_discrete <- obj$family %in% c("degpd", "zidegpd", "cpdegpd", "pig", "zipig",
-                                   "gpig", "zigpig")
+                                   "gpig", "zigpig", "bell", "zibell")
   is_zi <- obj$family %in% c("ziegpd", "zidegpd")
   is_pig <- obj$family %in% c("pig", "zipig")
   is_gpig <- obj$family %in% c("gpig", "zigpig")
+  is_bell <- obj$family %in% c("bell", "zibell")
   is_cpegpd <- obj$family == "cpegpd"
   is_cpdegpd <- obj$family == "cpdegpd"
   is_bernstein <- obj$method == "bernstein"
@@ -282,6 +283,7 @@ plot.fitegpd <- function(x, ...) {
   a_gp   <- if ("a" %in% names(est)) est[["a"]] else NA
   b_gp   <- if ("b" %in% names(est)) est[["b"]] else NA
   c_gp   <- if ("c" %in% names(est)) est[["c"]] else NA
+  theta_bell <- if ("theta" %in% names(est)) est[["theta"]] else NA
 
   ## Density, CDF, and quantile wrappers
   if (is_pig) {
@@ -304,6 +306,16 @@ plot.fitegpd <- function(x, ...) {
     qfun <- function(pv) if (obj$family == "gpig")
       qgpig(pv, a = a_gp, b = b_gp, c = c_gp)
       else qzigpig(pv, a = a_gp, b = b_gp, c = c_gp, pi = pi_val)
+  } else if (is_bell) {
+    dfun <- function(xv) if (obj$family == "bell")
+      dbell(xv, theta = theta_bell)
+      else dzibell(xv, theta = theta_bell, pi = pi_val)
+    pfun <- function(qv) if (obj$family == "bell")
+      pbell(qv, theta = theta_bell)
+      else pzibell(qv, theta = theta_bell, pi = pi_val)
+    qfun <- function(pv) if (obj$family == "bell")
+      qbell(pv, theta = theta_bell)
+      else qzibell(pv, theta = theta_bell, pi = pi_val)
   } else if (is_cpdegpd) {
     dfun <- function(xv) dcpdegpd(xv, lambda = lambda, prob = prob, kappa = kappa,
                                     delta = delta, sigma = sigma, xi = xi,

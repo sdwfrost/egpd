@@ -8,7 +8,8 @@ fitegpd(
   x,
   type = 1,
   family = c("egpd", "degpd", "ziegpd", "zidegpd", "cpegpd", "cpdegpd", "pig", "zipig",
-    "gpig", "zigpig", "begpd", "bdegpd", "bzidegpd", "mdgpd", "zimdgpd"),
+    "gpig", "zigpig", "bell", "zibell", "begpd", "bdegpd", "bzidegpd", "mdgpd",
+    "zimdgpd"),
   method = c("mle", "bernstein", "neuralbayes"),
   start = NULL,
   fix.arg = NULL,
@@ -33,7 +34,9 @@ d >= 2 for MDGPD).}
 "cpdegpd", "pig" (Poisson-inverse Gaussian; \code{type} ignored), "zipig"
 (zero-inflated PIG), "gpig" (generalised Poisson-inverse Gaussian of
 Zhu & Joe 2009, native \code{(a, b, c)} parameterisation; \code{type}
-ignored), "zigpig" (zero-inflated GPIG), "begpd" (bivariate EGPD),
+ignored), "zigpig" (zero-inflated GPIG), "bell" (Bell distribution of
+Castellares et al. 2018, native \code{theta} parameterisation; \code{type}
+ignored), "zibell" (zero-inflated Bell), "begpd" (bivariate EGPD),
 "bdegpd" (\[Experimental\] bivariate
 discrete EGPD), "bzidegpd" (\[Experimental\] zero-inflated bivariate
 discrete EGPD), "mdgpd" (\[Experimental\] multivariate MDGPD via

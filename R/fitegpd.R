@@ -15,7 +15,9 @@
 #'   "cpdegpd", "pig" (Poisson-inverse Gaussian; \code{type} ignored), "zipig"
 #'   (zero-inflated PIG), "gpig" (generalised Poisson-inverse Gaussian of
 #'   Zhu & Joe 2009, native \code{(a, b, c)} parameterisation; \code{type}
-#'   ignored), "zigpig" (zero-inflated GPIG), "begpd" (bivariate EGPD),
+#'   ignored), "zigpig" (zero-inflated GPIG), "bell" (Bell distribution of
+#'   Castellares et al. 2018, native \code{theta} parameterisation; \code{type}
+#'   ignored), "zibell" (zero-inflated Bell), "begpd" (bivariate EGPD),
 #'   "bdegpd" (\[Experimental\] bivariate
 #'   discrete EGPD), "bzidegpd" (\[Experimental\] zero-inflated bivariate
 #'   discrete EGPD), "mdgpd" (\[Experimental\] multivariate MDGPD via
@@ -88,7 +90,7 @@
 fitegpd <- function(x, type = 1,
                     family = c("egpd", "degpd", "ziegpd", "zidegpd",
                                "cpegpd", "cpdegpd", "pig", "zipig",
-                               "gpig", "zigpig", "begpd",
+                               "gpig", "zigpig", "bell", "zibell", "begpd",
                                "bdegpd", "bzidegpd",
                                "mdgpd", "zimdgpd"),
                     method = c("mle", "bernstein", "neuralbayes"),
@@ -127,9 +129,9 @@ fitegpd <- function(x, type = 1,
     stop("'type' must be an integer from 1 to 6")
   if (method == "bernstein" && family != "egpd")
     stop("Bernstein method is only available for family='egpd'")
-  if (family %in% c("degpd", "zidegpd", "cpdegpd", "pig", "zipig", "gpig", "zigpig") && any(x != floor(x) | x < 0))
+  if (family %in% c("degpd", "zidegpd", "cpdegpd", "pig", "zipig", "gpig", "zigpig", "bell", "zibell") && any(x != floor(x) | x < 0))
     warning("Discrete family expects non-negative integer data")
-  if (family %in% c("ziegpd", "zidegpd", "zipig", "zigpig") && !any(x == 0))
+  if (family %in% c("ziegpd", "zidegpd", "zipig", "zigpig", "zibell") && !any(x == 0))
     warning("Zero-inflated family but no zeros observed in data")
   if (family == "cpegpd" && any(x < 0))
     warning("cpegpd family expects non-negative data")
@@ -171,11 +173,15 @@ fitegpd <- function(x, type = 1,
   start_par <- unlist(start_vals)
   theta0 <- .par_to_theta(start_par, free_spec)
 
-  ## Optimize
+  ## Optimize. Nelder-Mead (the default) is unreliable and noisy for a single
+  ## free parameter (e.g. the one-parameter Bell family), so fall back to BFGS
+  ## in that case unless the user has explicitly chosen a method.
+  opt_method <- if (length(theta0) == 1L && optim.method == "Nelder-Mead")
+    "BFGS" else optim.method
   opt <- optim(theta0, fn = .fitegpd_nll, x = x, type = type, family = family,
                fix.arg = fix.arg, spec = free_spec,
                h = if (family == "cpegpd") cpegpd.h else NULL,
-               method = optim.method, hessian = hessian, ...)
+               method = opt_method, hessian = hessian, ...)
 
   ## Back-transform estimates
   estimate <- .theta_to_par(opt$par, free_spec)
@@ -247,6 +253,16 @@ fitegpd <- function(x, type = 1,
     spec <- list(a = list(transform = "logit"), b = list(transform = "log"),
                  c = list(transform = "logit"))
     if (family == "zigpig")
+      spec <- c(spec, list(pi = list(transform = "logit")))
+    return(spec)
+  }
+
+  ## Bell / ZIBell (Castellares et al. 2018), native theta parameterisation:
+  ## theta > 0 (log); ZIBell adds pi (logit). The G-transformation `type` does
+  ## not apply.
+  if (family %in% c("bell", "zibell")) {
+    spec <- list(theta = list(transform = "log"))
+    if (family == "zibell")
       spec <- c(spec, list(pi = list(transform = "logit")))
     return(spec)
   }
@@ -370,6 +386,16 @@ fitegpd <- function(x, type = 1,
     b0 <- max(xm, 0.1) * (1 - cc)^(1 - a0) / (a0 * cc)
     start <- list(a = a0, b = max(b0, 0.1), c = cc)
     if (family == "zigpig")
+      start$pi <- max(min(mean(x == 0), 0.99), 0.01)
+    return(start[names(spec)])
+  }
+
+  ## Bell / ZIBell: seed the native theta at the MLE theta.hat = W0(ybar).
+  if (family %in% c("bell", "zibell")) {
+    xm <- mean(xclean)
+    if (!is.finite(xm) || xm <= 0) xm <- 1
+    start <- list(theta = max(bell_W0_cpp(xm), 0.05))
+    if (family == "zibell")
       start$pi <- max(min(mean(x == 0), 0.99), 0.01)
     return(start[names(spec)])
   }
@@ -509,6 +535,20 @@ fitegpd <- function(x, type = 1,
       } else {
         -sum(dzigpig(x, a = all_par[["a"]], b = all_par[["b"]], c = all_par[["c"]],
                      pi = all_par[["pi"]], log = TRUE))
+      }
+    }, error = function(e) Inf)
+    if (!is.finite(nll)) return(1e20)
+    return(nll)
+  }
+
+  ## Bell / ZIBell (native theta) via the closed-form pmf.
+  if (family %in% c("bell", "zibell")) {
+    nll <- tryCatch({
+      if (family == "bell") {
+        -sum(dbell(x, theta = all_par[["theta"]], log = TRUE))
+      } else {
+        -sum(dzibell(x, theta = all_par[["theta"]], pi = all_par[["pi"]],
+                     log = TRUE))
       }
     }, error = function(e) Inf)
     if (!is.finite(nll)) return(1e20)

@@ -163,6 +163,32 @@ export(pZIGPIG)
 export(qZIGPIG)
 export(rZIGPIG)
 
+# Bell (Castellares et al. 2018) native (theta) d/p/q/r
+export(dbell)
+export(pbell)
+export(qbell)
+export(rbell)
+export(dzibell)
+export(pzibell)
+export(qzibell)
+export(rzibell)
+
+# Bell gamlss family + mean-parameterisation d/p/q/r
+export(BELL)
+export(ZIBELL)
+export(dBELL)
+export(pBELL)
+export(qBELL)
+export(rBELL)
+export(dZIBELL)
+export(pZIBELL)
+export(qZIBELL)
+export(rZIBELL)
+
+# Bell bamlss family constructors
+export(bell_bamlss)
+export(zibell_bamlss)
+
 # gamlss family constructors
 export(EGPD1)
 export(EGPD3)
@@ -264,6 +290,8 @@ export(qZIDEGPD6)
 export(rZIDEGPD6)
 
 # gamlss internal helpers (used by gamlss family function bodies)
+export(.egpd_nd1)
+export(.egpd_nd2)
 export(.egpd_nd3)
 export(.egpd_nd4)
 export(.egpd_ad3)

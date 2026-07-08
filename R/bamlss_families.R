@@ -628,3 +628,70 @@ zigpig_bamlss <- function(...) {
   class(rval) <- "family.bamlss"
   rval
 }
+
+
+#' bamlss family for the Bell distribution
+#'
+#' Creates a \code{family.bamlss} object for fitting the Bell distribution of
+#' Castellares, Ferrari & Lemonte (2018) with \code{bamlss()}, in the mean
+#' parameterisation \code{mu} = mean (log link; internally \eqn{\theta =
+#' W_0(\mu)}). Bell is a one-parameter family, so \code{mu} is the only
+#' parameter. The distribution functions use the package closed form (there is
+#' no \code{gamlss.dist} Bell).
+#'
+#' @param ... arguments passed to link specification
+#' @return An object of class \code{family.bamlss}
+#' @export
+bell_bamlss <- function(...) {
+  rval <- list(
+    "family" = "bell",
+    "names"  = c("mu"),
+    "links"  = .parse_links(c(mu = "log"), c(mu = "log"), ...),
+    "d" = function(y, par, log = FALSE)
+      dBELL(y, mu = par$mu, log = log),
+    "p" = function(y, par, ...)
+      pBELL(y, mu = par$mu),
+    "q" = function(p, par, ...)
+      qBELL(p, mu = par$mu),
+    "r" = function(n, par)
+      rBELL(n, mu = par$mu)
+  )
+  rval$initialize <- list(
+    mu = function(y, ...) rep(max(mean(y), 1e-3), length(y))
+  )
+  class(rval) <- "family.bamlss"
+  rval
+}
+
+
+#' bamlss family for the zero-inflated Bell distribution
+#'
+#' Adds a logit-link zero-inflation probability \code{pi} to
+#' \code{\link{bell_bamlss}} (mapped to the \code{sigma} argument of the
+#' underlying ZIBELL functions).
+#'
+#' @param ... arguments passed to link specification
+#' @return An object of class \code{family.bamlss}
+#' @export
+zibell_bamlss <- function(...) {
+  rval <- list(
+    "family" = "zibell",
+    "names"  = c("mu", "pi"),
+    "links"  = .parse_links(c(mu = "log", pi = "logit"),
+                            c(mu = "log", pi = "logit"), ...),
+    "d" = function(y, par, log = FALSE)
+      dZIBELL(y, mu = par$mu, sigma = par$pi, log = log),
+    "p" = function(y, par, ...)
+      pZIBELL(y, mu = par$mu, sigma = par$pi),
+    "q" = function(p, par, ...)
+      qZIBELL(p, mu = par$mu, sigma = par$pi),
+    "r" = function(n, par)
+      rZIBELL(n, mu = par$mu, sigma = par$pi)
+  )
+  rval$initialize <- list(
+    mu = function(y, ...) rep(max(mean(y), 1e-3), length(y)),
+    pi = function(y, ...) rep(min(max(mean(y == 0), 0.01), 0.5), length(y))
+  )
+  class(rval) <- "family.bamlss"
+  rval
+}

@@ -11,6 +11,161 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// bell1d0
+double bell1d0(const Rcpp::List& pars, const arma::mat& X1, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_bell1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(bell1d0(pars, X1, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// bell1d12
+arma::mat bell1d12(const Rcpp::List& pars, arma::mat X1, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_bell1d12(SEXP parsSEXP, SEXP X1SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(bell1d12(pars, X1, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// bellnat1d0
+double bellnat1d0(const Rcpp::List& pars, const arma::mat& X1, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_bellnat1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(bellnat1d0(pars, X1, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// bellnat1d12
+arma::mat bellnat1d12(const Rcpp::List& pars, arma::mat X1, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_bellnat1d12(SEXP parsSEXP, SEXP X1SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(bellnat1d12(pars, X1, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// zibell1d0
+double zibell1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_zibell1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(zibell1d0(pars, X1, X2, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// zibell1d12
+arma::mat zibell1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_zibell1d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(zibell1d12(pars, X1, X2, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// zibellnat1d0
+double zibellnat1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_zibellnat1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(zibellnat1d0(pars, X1, X2, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// zibellnat1d12
+arma::mat zibellnat1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_zibellnat1d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(zibellnat1d12(pars, X1, X2, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// bell_pmf_cpp
+Rcpp::NumericVector bell_pmf_cpp(int n, double theta);
+RcppExport SEXP _egpd_bell_pmf_cpp(SEXP nSEXP, SEXP thetaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< double >::type theta(thetaSEXP);
+    rcpp_result_gen = Rcpp::wrap(bell_pmf_cpp(n, theta));
+    return rcpp_result_gen;
+END_RCPP
+}
+// bell_W0_cpp
+Rcpp::NumericVector bell_W0_cpp(Rcpp::NumericVector x);
+RcppExport SEXP _egpd_bell_W0_cpp(SEXP xSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type x(xSEXP);
+    rcpp_result_gen = Rcpp::wrap(bell_W0_cpp(x));
+    return rcpp_result_gen;
+END_RCPP
+}
 // degpd1d0
 double degpd1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max);
 RcppExport SEXP _egpd_degpd1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP) {
@@ -1183,6 +1338,16 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_egpd_bell1d0", (DL_FUNC) &_egpd_bell1d0, 6},
+    {"_egpd_bell1d12", (DL_FUNC) &_egpd_bell1d12, 6},
+    {"_egpd_bellnat1d0", (DL_FUNC) &_egpd_bellnat1d0, 6},
+    {"_egpd_bellnat1d12", (DL_FUNC) &_egpd_bellnat1d12, 6},
+    {"_egpd_zibell1d0", (DL_FUNC) &_egpd_zibell1d0, 7},
+    {"_egpd_zibell1d12", (DL_FUNC) &_egpd_zibell1d12, 7},
+    {"_egpd_zibellnat1d0", (DL_FUNC) &_egpd_zibellnat1d0, 7},
+    {"_egpd_zibellnat1d12", (DL_FUNC) &_egpd_zibellnat1d12, 7},
+    {"_egpd_bell_pmf_cpp", (DL_FUNC) &_egpd_bell_pmf_cpp, 2},
+    {"_egpd_bell_W0_cpp", (DL_FUNC) &_egpd_bell_W0_cpp, 1},
     {"_egpd_degpd1d0", (DL_FUNC) &_egpd_degpd1d0, 9},
     {"_egpd_degpd1d12", (DL_FUNC) &_egpd_degpd1d12, 9},
     {"_egpd_degpd2d0", (DL_FUNC) &_egpd_degpd2d0, 11},
