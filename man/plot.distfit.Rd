@@ -2,12 +2,12 @@
 % Please edit documentation in R/fitegpd_methods.R
 \name{plot.distfit}
 \alias{plot.distfit}
-\title{Plot diagnostics for a fitegpd object}
+\title{Plot diagnostics for a distfit object}
 \usage{
 \method{plot}{distfit}(x, ...)
 }
 \arguments{
-\item{x}{a \code{fitegpd} object}
+\item{x}{a \code{distfit} object}
 
 \item{...}{additional graphical parameters}
 }
