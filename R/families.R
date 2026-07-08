@@ -147,6 +147,36 @@
     nms <- c("lmu", "lsigma", "logitpi")
     nms2 <- c('logmu', 'logsigma', 'logitpi')
     attr(family, "type") <- 1
+  } else if (family == "gpig") {
+    ## Generalised PIG (Zhu & Joe 2009), mean parameterisation:
+    ## mu = mean (log link), a = tail exponent (logit), c = down-weight (logit).
+    lik.fns <- .gpig1fns
+    npar <- 3
+    nms <- c("lmu", "logita", "logitc")
+    nms2 <- c('logmu', 'logita', 'logitc')
+    attr(family, "type") <- 1
+  } else if (family == "gpignat") {
+    ## Generalised PIG, native (a, b, c) parameterisation (paper-faithful):
+    ## a (logit), b = level (log), c = down-weight (logit).
+    lik.fns <- .gpignat1fns
+    npar <- 3
+    nms <- c("logita", "lb", "logitc")
+    nms2 <- c('logita', 'logb', 'logitc')
+    attr(family, "type") <- 1
+  } else if (family == "zigpig") {
+    ## Zero-inflated GPIG, mean parameterisation: adds logit-link pi.
+    lik.fns <- .zigpig1fns
+    npar <- 4
+    nms <- c("lmu", "logita", "logitc", "logitpi")
+    nms2 <- c('logmu', 'logita', 'logitc', 'logitpi')
+    attr(family, "type") <- 1
+  } else if (family == "zigpignat") {
+    ## Zero-inflated GPIG, native parameterisation: adds logit-link pi.
+    lik.fns <- .zigpignat1fns
+    npar <- 4
+    nms <- c("logita", "lb", "logitc", "logitpi")
+    nms2 <- c('logita', 'logb', 'logitc', 'logitpi')
+    attr(family, "type") <- 1
   } else if (family == "comppareto") {
     comp.info <- .comppareto_family_setup(comppareto)
     lik.fns <- comp.info$lik.fns

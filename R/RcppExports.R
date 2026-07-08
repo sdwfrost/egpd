@@ -129,6 +129,42 @@ armaginv <- function(x, tol) {
     .Call(`_egpd_armaginv`, x, tol)
 }
 
+gpig1d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_gpig1d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
+}
+
+gpig1d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_gpig1d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
+}
+
+gpignat1d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_gpignat1d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
+}
+
+gpignat1d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_gpignat1d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
+}
+
+zigpig1d0 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_zigpig1d0`, pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets)
+}
+
+zigpig1d12 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_zigpig1d12`, pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets)
+}
+
+zigpignat1d0 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_zigpignat1d0`, pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets)
+}
+
+zigpignat1d12 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_zigpignat1d12`, pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets)
+}
+
+gpig_pmf_cpp <- function(n, a, b, c) {
+    .Call(`_egpd_gpig_pmf_cpp`, n, a, b, c)
+}
+
 .gH1 <- function(gh, X1, dupid, dcate, sand, deriv) {
     .Call(`_egpd_gH1`, gh, X1, dupid, dcate, sand, deriv)
 }

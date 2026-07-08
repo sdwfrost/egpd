@@ -325,6 +325,29 @@ if (is.null(inits)) {
       inits[2] <- log(min(max(s0, 0.1), 10))
       if (family == "zipig")
         inits[3] <- stats::qlogis(min(max(mean(y1 == 0), 1e-3), 0.5))
+    } else if (family %in% c("gpig", "gpignat", "zigpig", "zigpignat")) {
+      ## GPIG/ZIGPIG (Zhu & Joe 2009). Seed a = 1/2 (the PIG special case),
+      ## derive c from the empirical dispersion index D via D-1=(1-a)c/(1-c),
+      ## and mu (or the implied b) from the sample mean.
+      y1 <- likdata$y[, 1]
+      ybar <- max(mean(y1), 1e-3)
+      vv <- stats::var(y1)
+      D <- if (is.finite(vv) && ybar > 0) max(vv / ybar, 1.05) else 2
+      a0 <- 0.5
+      cc <- min(max((D - 1) / ((1 - a0) + (D - 1)), 0.05), 0.95)
+      inits <- numeric(npar)
+      if (family %in% c("gpig", "zigpig")) {        # mean: logmu, logita, logitc
+        inits[1] <- log(ybar)
+        inits[2] <- stats::qlogis(a0)
+        inits[3] <- stats::qlogis(cc)
+      } else {                                      # native: logita, logb, logitc
+        b0 <- ybar * (1 - cc)^(1 - a0) / (a0 * cc)
+        inits[1] <- stats::qlogis(a0)
+        inits[2] <- log(max(b0, 1e-3))
+        inits[3] <- stats::qlogis(cc)
+      }
+      if (family %in% c("zigpig", "zigpignat"))
+        inits[4] <- stats::qlogis(min(max(mean(y1 == 0), 1e-3), 0.5))
     } else {
       inits <- numeric(npar)
     }
