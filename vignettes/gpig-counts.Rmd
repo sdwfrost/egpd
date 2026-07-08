@@ -1,0 +1,157 @@
+---
+title: "Generalised Poisson-Inverse Gaussian Models for Heavy-Tailed Counts"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Generalised Poisson-Inverse Gaussian Models for Heavy-Tailed Counts}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 6,
+  fig.height = 4
+)
+```
+
+The generalised Poisson-inverse Gaussian (GPIG) distribution of Zhu and Joe
+(2009) is a three-parameter count family with probability generating function
+$G(s) = \exp\{b[(1-c)^a - (1-cs)^a]\}$, for $0 < a \le 1$, $b > 0$ and
+$0 \le c \le 1$. It nests several familiar models:
+
+* $a = 1$ gives the **Poisson** (mean $bc$),
+* $a = 1/2$ gives the **Poisson-inverse Gaussian** (see
+  `vignette("pig-counts")`),
+* $c = 1$ gives the **discrete-stable** distribution.
+
+The tail exponent $a$ controls how heavy the right tail is: smaller $a$ means a
+heavier tail than the PIG can produce. `egpd` offers two parameterisations. The
+**mean** parameterisation (used by `family = "gpig"`) models $\mathbb{E}(Y) =
+\mu$ directly with `mu` (log link), `a` (logit link) and `c` (logit link); the
+**native** $(a, b, c)$ parameterisation (`family = "gpignat"`) is faithful to
+the paper. This vignette fits GPIG to a strongly heavy-tailed count and
+compares it with the Poisson and PIG.
+
+## Data
+
+```{r data}
+library(egpd)
+data(ny_complaints)
+y <- ny_complaints$upheld
+cat("n =", length(y), "  mean =", round(mean(y), 2),
+    "  var =", round(var(y), 1), "  max =", max(y), "\n")
+cat("proportion of zeros:", round(mean(y == 0), 3),
+    "  dispersion (var/mean):", round(var(y) / mean(y), 1), "\n")
+```
+
+```{r eda}
+plot(table(y[y <= 40]), main = "Upheld insurance complaints (NY)",
+     xlab = "Number of upheld complaints", ylab = "Frequency")
+```
+
+The dispersion index exceeds 40 and the counts reach the hundreds: a very heavy
+tail that the negative binomial or PIG struggle with.
+
+## Fitting GPIG and ZIGPIG
+
+```{r fits}
+df <- data.frame(y = y)
+
+fit_gpig  <- egpd(list(lmu = y ~ 1, logita = ~ 1, logitc = ~ 1),
+                  data = df, family = "gpig")
+fit_zig   <- egpd(list(lmu = y ~ 1, logita = ~ 1, logitc = ~ 1, logitpi = ~ 1),
+                  data = df, family = "zigpig")
+
+p_gpig <- predict(fit_gpig, type = "response")[1, ]
+p_zig  <- predict(fit_zig,  type = "response")[1, ]
+p_gpig
+```
+
+The GPIG places the heaviness of the tail in two parameters: the tail exponent
+`a` and the down-weighting `c`. Here `c` is pushed close to $1$ (the
+discrete-stable regime, which is where the GPIG's heaviest tails live) while
+`a` sits near the PIG value of $1/2$.
+
+```{r ahat}
+cat("fitted a (tail exponent):", round(p_gpig$a, 3),
+    "  fitted c (down-weighting):", round(p_gpig$c, 3),
+    "\n  [PIG corresponds to a = 0.5; c -> 1 gives the discrete-stable tail]\n")
+```
+
+## Model comparison
+
+```{r compare}
+fit_pois <- glm(y ~ 1, family = poisson)
+fit_pig  <- egpd(list(lmu = y ~ 1, lsigma = ~ 1), data = df, family = "pig")
+
+comparison <- data.frame(
+  model  = c("Poisson", "PIG", "GPIG", "ZIGPIG"),
+  npar   = c(1, 2, 3, 4),
+  logLik = c(as.numeric(logLik(fit_pois)), as.numeric(logLik(fit_pig)),
+             as.numeric(logLik(fit_gpig)), as.numeric(logLik(fit_zig))),
+  AIC    = c(AIC(fit_pois), AIC(fit_pig), AIC(fit_gpig), AIC(fit_zig))
+)
+comparison
+```
+
+Both mixed-Poisson families dwarf the Poisson. The extra tail flexibility of
+the GPIG gives a further improvement over the PIG, and zero-inflation adds a
+little more again.
+
+## Fitted versus empirical PMF
+
+```{r pmf, fig.width = 7, fig.height = 5}
+xv <- 0:40
+emp <- tabulate(y + 1, nbins = max(y) + 1)[seq_along(xv)] / length(y)
+
+pmf_gpig <- dGPIG(xv, mu = p_gpig$mu, sigma = p_gpig$a, nu = p_gpig$c)
+pmf_zig  <- dZIGPIG(xv, mu = p_zig$mu, sigma = p_zig$a, nu = p_zig$c,
+                    tau = p_zig$pi)
+
+plot(xv, emp, type = "h", lwd = 3, col = "grey70",
+     main = "Empirical vs fitted PMF", xlab = "Upheld complaints",
+     ylab = "Probability")
+lines(xv + 0.15, pmf_gpig, type = "h", lwd = 2, col = "steelblue")
+lines(xv + 0.30, pmf_zig,  type = "h", lwd = 2, col = "firebrick")
+legend("topright", c("Empirical", "GPIG", "ZIGPIG"), lwd = 2,
+       col = c("grey70", "steelblue", "firebrick"))
+```
+
+## Randomized quantile residuals
+
+```{r rqr, fig.width = 7, fig.height = 4}
+rqr <- function(y, pfun) {
+  Fup <- pfun(y); Flo <- pfun(y - 1); Flo[y == 0] <- 0
+  qnorm(runif(length(y), Flo, Fup))
+}
+
+set.seed(1)
+r_gpig <- rqr(y, function(q) pGPIG(q, mu = p_gpig$mu, sigma = p_gpig$a,
+                                   nu = p_gpig$c))
+r_zig  <- rqr(y, function(q) pZIGPIG(q, mu = p_zig$mu, sigma = p_zig$a,
+                                     nu = p_zig$c, tau = p_zig$pi))
+
+par(mfrow = c(1, 2))
+qqnorm(r_gpig, main = "GPIG", pch = 20, col = "grey50"); qqline(r_gpig, col = "red")
+qqnorm(r_zig,  main = "ZIGPIG", pch = 20, col = "grey50"); qqline(r_zig, col = "red")
+par(mfrow = c(1, 1))
+```
+
+## Native parameterisation and other interfaces
+
+`family = "gpignat"` fits the paper's native $(a, b, c)$ parameterisation; it
+describes the same fitted distribution as `"gpig"` (identical log-likelihood)
+but reports $b$ instead of $\mu$. The univariate fitter `fitegpd()` uses the
+native parameterisation directly:
+
+```{r other}
+fit_uni <- fitegpd(y, family = "gpig")
+round(fit_uni$estimate, 3)
+```
+
+`GPIG()` / `ZIGPIG()` (`gamlss`) and `gpig_bamlss()` / `zigpig_bamlss()`
+(`bamlss`) expose the family for distributional regression, and `dgpig`,
+`pgpig`, `qgpig`, `rgpig` (plus the `zigpig` variants) give the density,
+distribution, quantile and simulation functions.

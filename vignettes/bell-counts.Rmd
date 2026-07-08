@@ -1,0 +1,157 @@
+---
+title: "Bell Distribution Models for Overdispersed Counts"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Bell Distribution Models for Overdispersed Counts}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 6,
+  fig.height = 4
+)
+```
+
+The Bell distribution of Castellares, Ferrari and Lemonte (2018) is a
+*one-parameter* count family,
+
+$$\Pr(Y = y) = \frac{\theta^{y}\,e^{1 - e^{\theta}}\,B_y}{y!},
+  \qquad y = 0, 1, 2, \ldots,$$
+
+where $B_y$ are the Bell numbers. It has mean $\theta e^{\theta}$ and variance
+$\theta(1+\theta)e^{\theta}$, so its index of dispersion is $1 + \theta > 1$:
+the Bell is always overdispersed relative to the Poisson, making it a natural
+one-parameter alternative when the Poisson's equidispersion is too restrictive.
+Because there is a single parameter, that overdispersion is tied to the mean
+(the dispersion index is $1 + W_0(\mu)$ at mean $\mu$); data with very strong
+overdispersion need a heavier model such as the PIG or GPIG.
+
+`egpd` provides two parameterisations: the **mean** parameterisation
+(`family = "bell"`) with `mu` (log link) the mean, and the **native**
+parameterisation (`family = "bellnat"`) with the paper's `theta` (log link).
+The zero-inflated Bell (`"zibell"`) adds a point mass at zero.
+
+## Data
+
+```{r data}
+library(egpd)
+data(nsw_offenses)
+y <- nsw_offenses$offenses
+cat("n =", length(y), "  mean =", round(mean(y), 2),
+    "  var =", round(var(y), 1), "\n")
+cat("proportion of zeros:", round(mean(y == 0), 3),
+    "  dispersion (var/mean):", round(var(y) / mean(y), 1), "\n")
+```
+
+```{r eda}
+plot(table(y), main = "Gaming and betting offenses (NSW)",
+     xlab = "Number of offenses", ylab = "Frequency")
+```
+
+## Fitting Bell
+
+```{r fits}
+df <- data.frame(y = y)
+
+fit_bell  <- egpd(list(lmu = y ~ 1), data = df, family = "bell")
+fit_zib   <- egpd(list(lmu = y ~ 1, logitpi = ~ 1), data = df, family = "zibell")
+
+## drop = FALSE keeps a one-row data frame even for the single-parameter Bell
+p_bell <- predict(fit_bell, type = "response")[1, , drop = FALSE]
+p_zib  <- predict(fit_zib,  type = "response")[1, , drop = FALSE]
+p_bell
+```
+
+The Bell parameter and the implied dispersion index follow from the fitted
+mean:
+
+```{r theta}
+theta_hat <- as.numeric(egpd:::bell_W0_cpp(p_bell$mu))   # theta = W0(mu)
+cat("fitted mu =", round(p_bell$mu, 2),
+    "  theta =", round(theta_hat, 3),
+    "  Bell dispersion index (1 + theta) =", round(1 + theta_hat, 2), "\n")
+cat("empirical dispersion (var/mean)     =", round(var(y) / mean(y), 2), "\n")
+```
+
+The Bell captures the overdispersion that the Poisson cannot, but its
+dispersion index is bounded by the mean, so it explains only part of the excess
+variance here.
+
+## Model comparison
+
+```{r compare}
+fit_pois <- glm(y ~ 1, family = poisson)
+fit_pig  <- egpd(list(lmu = y ~ 1, lsigma = ~ 1), data = df, family = "pig")
+
+comparison <- data.frame(
+  model  = c("Poisson", "Bell", "ZIBell", "PIG"),
+  npar   = c(1, 1, 2, 2),
+  logLik = c(as.numeric(logLik(fit_pois)), as.numeric(logLik(fit_bell)),
+             as.numeric(logLik(fit_zib)),  as.numeric(logLik(fit_pig))),
+  AIC    = c(AIC(fit_pois), AIC(fit_bell), AIC(fit_zib), AIC(fit_pig))
+)
+comparison
+```
+
+The single-parameter Bell already improves substantially on the Poisson; the
+two-parameter PIG, which decouples dispersion from the mean, fits the strong
+overdispersion better still.
+
+## Fitted versus empirical PMF
+
+```{r pmf, fig.width = 7, fig.height = 5}
+xv <- 0:max(y)
+emp <- tabulate(y + 1, nbins = max(y) + 1) / length(y)
+
+pmf_bell <- dBELL(xv, mu = p_bell$mu)
+pmf_pois <- dpois(xv, mean(y))
+
+plot(xv, emp, type = "h", lwd = 2, col = "grey70",
+     main = "Empirical vs fitted PMF", xlab = "Offenses", ylab = "Probability")
+lines(xv + 0.2, pmf_bell, type = "h", lwd = 2, col = "steelblue")
+lines(xv + 0.4, pmf_pois, type = "h", lwd = 2, col = "darkorange")
+legend("topright", c("Empirical", "Bell", "Poisson"), lwd = 2,
+       col = c("grey70", "steelblue", "darkorange"))
+```
+
+The Bell spreads mass into the tail where the Poisson cannot.
+
+## Randomized quantile residuals
+
+```{r rqr, fig.width = 7, fig.height = 4}
+rqr <- function(y, pfun) {
+  Fup <- pfun(y); Flo <- pfun(y - 1); Flo[y == 0] <- 0
+  qnorm(runif(length(y), Flo, Fup))
+}
+
+set.seed(1)
+r_bell <- rqr(y, function(q) pBELL(q, mu = p_bell$mu))
+r_zib  <- rqr(y, function(q) pZIBELL(q, mu = p_zib$mu, sigma = p_zib$pi))
+
+par(mfrow = c(1, 2))
+qqnorm(r_bell, main = "Bell", pch = 20, col = "grey50"); qqline(r_bell, col = "red")
+qqnorm(r_zib,  main = "ZIBell", pch = 20, col = "grey50"); qqline(r_zib, col = "red")
+par(mfrow = c(1, 1))
+```
+
+## Other fitting interfaces
+
+The univariate maximum-likelihood fitter `fitegpd()` uses the native `theta`
+parameterisation, and reaches the closed-form estimate
+$\hat{\theta} = W_0(\bar{y})$:
+
+```{r other}
+fit_uni <- fitegpd(y, family = "bell")
+cat("fitegpd theta =", round(unname(fit_uni$estimate["theta"]), 4),
+    "  W0(ybar) =", round(as.numeric(egpd:::bell_W0_cpp(mean(y))), 4), "\n")
+```
+
+`BELL()` / `ZIBELL()` (`gamlss`) and `bell_bamlss()` / `zibell_bamlss()`
+(`bamlss`) expose the Bell for distributional regression, and `dbell`, `pbell`,
+`qbell`, `rbell` (plus the `zibell` variants) give the density, distribution,
+quantile and simulation functions. For heavier tails than the Bell can reach,
+see `vignette("pig-counts")` and `vignette("gpig-counts")`.
