@@ -121,17 +121,33 @@ static inline double gpig_p(int y, double a, double b, double c)
   return p[y];
 }
 
+// Boundary guard. The tail exponent a and down-weighting c enter the
+// likelihood through terms like (1-c)^a and, in the mean parameterisation,
+// b = mu(1-c)^(1-a)/(a c). As a -> 0 this b diverges (O(1/a)); at astronomically
+// large b the pmf recursion overflows and returns a spurious (too-low) NLL,
+// which the optimiser then chases to the degenerate corner a ~ 0. Clamping a
+// and c to a safe interior keeps b finite and the recursion accurate. The
+// bounds are wide enough not to bind on any well-identified fit: a = 1e-3 is
+// already an extremely heavy tail (the a -> 0 limit is a proper distribution
+// whose pmf differs from a = 1e-3 only in the ~4th decimal), and c = 1 - 1e-6
+// is indistinguishable from the discrete-stable boundary.
+static const double GPIG_A_LO = 1e-3, GPIG_A_HI = 1.0 - 1e-6;
+static const double GPIG_C_LO = 1e-6, GPIG_C_HI = 1.0 - 1e-6;
+static inline double clamp01(double x, double lo, double hi) {
+  return x < lo ? lo : (x > hi ? hi : x);
+}
+
 static inline void eta_to_abc(int param, double e1, double e2, double e3,
                               double& a, double& b, double& c)
 {
   if (param == 0) {                          // native (logit a, log b, logit c)
-    a = 1.0 / (1.0 + std::exp(-e1));
+    a = clamp01(1.0 / (1.0 + std::exp(-e1)), GPIG_A_LO, GPIG_A_HI);
     b = std::exp(e2);
-    c = 1.0 / (1.0 + std::exp(-e3));
+    c = clamp01(1.0 / (1.0 + std::exp(-e3)), GPIG_C_LO, GPIG_C_HI);
   } else {                                   // mean (log mu, logit a, logit c)
     double mu = std::exp(e1);
-    a = 1.0 / (1.0 + std::exp(-e2));
-    c = 1.0 / (1.0 + std::exp(-e3));
+    a = clamp01(1.0 / (1.0 + std::exp(-e2)), GPIG_A_LO, GPIG_A_HI);
+    c = clamp01(1.0 / (1.0 + std::exp(-e3)), GPIG_C_LO, GPIG_C_HI);
     b = mu * std::pow(1.0 - c, 1.0 - a) / (a * c);
   }
 }
