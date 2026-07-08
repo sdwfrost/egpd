@@ -120,7 +120,7 @@ distfit <- function(x, type = 1,
   ## Dispatch to neural Bayes fitting for bivariate families
   if (method == "neuralbayes") {
     estimator <- match.arg(estimator)
-    return(.fitegpd_neuralbayes(x, family = family,
+    return(.distfit_neuralbayes(x, family = family,
                                  model.path = model.path,
                                  estimator = estimator,
                                  nsamples = as.integer(nsamples),
@@ -144,13 +144,13 @@ distfit <- function(x, type = 1,
   ## Dispatch to Bernstein fitting
 
   if (method == "bernstein") {
-    return(.fitegpd_bernstein(x, type = type, start = start, fix.arg = fix.arg,
+    return(.distfit_bernstein(x, type = type, start = start, fix.arg = fix.arg,
                               m = bernstein.m, optim.method = optim.method,
                               hessian = hessian, call = cl, ...))
   }
 
   ## Parameter specification
-  spec <- .fitegpd_parspec(type, family)
+  spec <- .distfit_parspec(type, family)
 
   ## Remove fixed args from spec
   free_spec <- spec
@@ -165,12 +165,12 @@ distfit <- function(x, type = 1,
 
   ## Starting values
   if (is.null(start)) {
-    start_vals <- .fitegpd_start(x, type, family, free_spec)
+    start_vals <- .distfit_start(x, type, family, free_spec)
   } else {
     bad <- setdiff(names(start), names(free_spec))
     if (length(bad) > 0)
       stop("Start values for fixed or unknown parameters: ", paste(bad, collapse = ", "))
-    start_vals <- .fitegpd_start(x, type, family, free_spec)
+    start_vals <- .distfit_start(x, type, family, free_spec)
     for (nm in names(start)) start_vals[[nm]] <- start[[nm]]
   }
 
@@ -183,7 +183,7 @@ distfit <- function(x, type = 1,
   ## in that case unless the user has explicitly chosen a method.
   opt_method <- if (length(theta0) == 1L && optim.method == "Nelder-Mead")
     "BFGS" else optim.method
-  opt <- optim(theta0, fn = .fitegpd_nll, x = x, type = type, family = family,
+  opt <- optim(theta0, fn = .distfit_nll, x = x, type = type, family = family,
                fix.arg = fix.arg, spec = free_spec,
                h = if (family == "cpegpd") cpegpd.h else NULL,
                method = opt_method, hessian = hessian, ...)
@@ -199,7 +199,7 @@ distfit <- function(x, type = 1,
   if (hessian && !is.null(opt$hessian)) {
     V_theta <- tryCatch(solve(opt$hessian), error = function(e) NULL)
     if (!is.null(V_theta)) {
-      jac <- .fitegpd_jacobian(opt$par, free_spec)
+      jac <- .distfit_jacobian(opt$par, free_spec)
       J <- diag(jac, nrow = length(jac))
       V_par <- J %*% V_theta %*% t(J)
       rownames(V_par) <- colnames(V_par) <- names(estimate)
@@ -263,7 +263,7 @@ fitegpd <- function(x, type = 1,
 
 #' Parameter specification for each type and family
 #' @noRd
-.fitegpd_parspec <- function(type, family) {
+.distfit_parspec <- function(type, family) {
   ## PIG / ZIPIG are mixed-Poisson count models (not EGPDs): mu (mean, log),
   ## sigma (dispersion, log), and for ZIPIG pi (zero inflation, logit).
   ## The G-transformation `type` does not apply.
@@ -364,7 +364,7 @@ fitegpd <- function(x, type = 1,
 
 #' Jacobian diagonal of back-transformation (for delta method)
 #' @noRd
-.fitegpd_jacobian <- function(theta, spec) {
+.distfit_jacobian <- function(theta, spec) {
   jac <- numeric(length(theta))
   names(jac) <- names(theta)
   for (nm in names(theta)) {
@@ -383,7 +383,7 @@ fitegpd <- function(x, type = 1,
 
 #' Automatic starting values
 #' @noRd
-.fitegpd_start <- function(x, type, family, spec) {
+.distfit_start <- function(x, type, family, spec) {
   ## Remove non-finite values for moment estimation
   xclean <- x[is.finite(x)]
   if (length(xclean) < 2) xclean <- c(0.1, 0.2)
@@ -532,7 +532,7 @@ fitegpd <- function(x, type = 1,
 
 #' Negative log-likelihood for fitegpd
 #' @noRd
-.fitegpd_nll <- function(theta, x, type, family, fix.arg, spec, h = NULL) {
+.distfit_nll <- function(theta, x, type, family, fix.arg, spec, h = NULL) {
   ## Back-transform to natural scale
   par <- .theta_to_par(theta, spec)
 

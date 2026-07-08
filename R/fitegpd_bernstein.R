@@ -174,7 +174,7 @@
 #' @param ... extra args to optim
 #' @return fitegpd object
 #' @noRd
-.fitegpd_bernstein <- function(x, type, start, fix.arg, m,
+.distfit_bernstein <- function(x, type, start, fix.arg, m,
                                 optim.method, hessian, call, ...) {
   n <- length(x)
 
