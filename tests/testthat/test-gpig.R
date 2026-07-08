@@ -183,11 +183,9 @@ test_that("boundary guard keeps the ZIGPIG fit off the degenerate a ~ 0 corner",
   fit <- egpd(list(lmu = y ~ 1, logita = ~ 1, logitc = ~ 1, logitpi = ~ 1),
               data = data.frame(y = y), family = "zigpig", trace = 0)
   p <- predict(fit, type = "response")[1, ]
-  ## a sits at the internal clamp (~1e-3), not the old ~1e-18 collapse. predict()
-  ## reconstructs a from eta via the plain inverse link, so it may report a value
-  ## marginally below the clamp (the likelihood is flat there), but orders of
-  ## magnitude above the degenerate corner.
-  expect_gt(p$a, 1e-4)
+  ## a is clamped to the guard bound (1e-3), not the old ~1e-18 collapse; predict()
+  ## applies the same clamp as the likelihood, so the reported value respects it.
+  expect_gte(p$a, 1e-3)
   expect_true(is.finite(as.numeric(logLik(fit))))
   ## the log-likelihood is the correct (finite) value, not the spurious one, and
   ## the residuals are all finite (the CDF no longer collapses to 1).

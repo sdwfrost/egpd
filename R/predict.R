@@ -143,6 +143,17 @@ if (type %in% c("response", "quantile")) {
   if (se.fit & type == "response")
     names(std.err) <- nms
 
+  ## Match the boundary guard applied inside the likelihood (src/gpig.cpp,
+  ## eta_to_abc): the GPIG/ZIGPIG tail exponent a and down-weighting c are
+  ## clamped to the same safe interior. In the likelihood a flat region beyond
+  ## the clamp lets the optimiser leave eta unbounded, so the plain inverse link
+  ## above can reconstruct an a/c marginally outside the bound; clamping here
+  ## makes predict() (and the quantiles below) agree with the fitted model.
+  if (family %in% c("gpig", "gpignat", "zigpig", "zigpignat")) {
+    if ("a" %in% names(out)) out[["a"]] <- pmin(pmax(out[["a"]], 1e-3), 1 - 1e-6)
+    if ("c" %in% names(out)) out[["c"]] <- pmin(pmax(out[["c"]], 1e-6), 1 - 1e-6)
+  }
+
   ## issue #2: report the *bounded* tail index for DEGPD model 1 fitted with a
   ## finite xi.max, matching the link used in the likelihood. The unlink above
   ## produced exp(eta); map it through xi = xi.max*(1 - exp(-exp(eta)/xi.max)).
