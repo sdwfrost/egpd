@@ -30,8 +30,10 @@ rqresid(object, \dots)
   standard normal. The generic \code{rqresid} dispatches to the
   \code{rqresid.egpd} method for objects of class \code{"egpd"}.
 
-  The method supports all EGPD families (\code{"egpd"}, \code{"degpd"},
-  \code{"zidegpd"}) and all model types (1--6).
+  The method supports the EGPD families (\code{"egpd"}, \code{"degpd"},
+  \code{"zidegpd"}) and all model types (1--6), the composite-Pareto family
+  (\code{"comppareto"}), and the count families \code{"pig"}, \code{"zipig"},
+  \code{"gpig"}, \code{"zigpig"}, \code{"bell"} and \code{"zibell"}.
 }
 \references{
 Dunn, P. K. and Smyth, G. K. (1996).

@@ -122,16 +122,8 @@ legend("topright", c("Empirical", "GPIG", "ZIGPIG"), lwd = 2,
 ## Randomized quantile residuals
 
 ```{r rqr, fig.width = 7, fig.height = 4}
-rqr <- function(y, pfun) {
-  Fup <- pfun(y); Flo <- pfun(y - 1); Flo[y == 0] <- 0
-  qnorm(runif(length(y), Flo, Fup))
-}
-
-set.seed(1)
-r_gpig <- rqr(y, function(q) pGPIG(q, mu = p_gpig$mu, sigma = p_gpig$a,
-                                   nu = p_gpig$c))
-r_zig  <- rqr(y, function(q) pZIGPIG(q, mu = p_zig$mu, sigma = p_zig$a,
-                                     nu = p_zig$c, tau = p_zig$pi))
+r_gpig <- rqresid(fit_gpig, seed = 1)
+r_zig  <- rqresid(fit_zig,  seed = 1)
 
 par(mfrow = c(1, 2))
 qqnorm(r_gpig, main = "GPIG", pch = 20, col = "grey50"); qqline(r_gpig, col = "red")

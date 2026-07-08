@@ -323,6 +323,28 @@ rqresid.egpd <- function(object, seed = NULL, ...) {
 
   ## predicted parameters on response scale
   pars <- predict(object, type = "response")
+
+  ## Count families (PIG/GPIG/Bell and their zero-inflated variants) use their
+  ## own mean-convention CDFs rather than the EGPD sigma/xi/kappa structure.
+  ## Randomized quantile residual: u ~ Unif(F(y-1), F(y)), r = qnorm(u).
+  count_fams <- c("pig", "zipig", "gpig", "zigpig", "bell", "zibell")
+  if (family %in% count_fams) {
+    cdf <- switch(family,
+      pig    = function(q) ppig(q, mu = pars$mu, sigma = pars$sigma),
+      zipig  = function(q) pzipig(q, mu = pars$mu, sigma = pars$sigma, pi = pars$pi),
+      gpig   = function(q) pGPIG(q, mu = pars$mu, sigma = pars$a, nu = pars$c),
+      zigpig = function(q) pZIGPIG(q, mu = pars$mu, sigma = pars$a, nu = pars$c,
+                                   tau = pars$pi),
+      bell   = function(q) pBELL(q, mu = pars$mu),
+      zibell = function(q) pZIBELL(q, mu = pars$mu, sigma = pars$pi))
+    p_upper <- cdf(y)
+    p_lower <- cdf(y - 1)
+    p_lower[y == 0] <- 0
+    r <- qnorm(runif(n, p_lower, p_upper))
+    r[is.infinite(r)] <- NA
+    return(r)
+  }
+
   if (family != "comppareto") {
     sigma <- pars[[1]]
     xi    <- pars[[2]]

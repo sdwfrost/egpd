@@ -123,14 +123,8 @@ The Bell spreads mass into the tail where the Poisson cannot.
 ## Randomized quantile residuals
 
 ```{r rqr, fig.width = 7, fig.height = 4}
-rqr <- function(y, pfun) {
-  Fup <- pfun(y); Flo <- pfun(y - 1); Flo[y == 0] <- 0
-  qnorm(runif(length(y), Flo, Fup))
-}
-
-set.seed(1)
-r_bell <- rqr(y, function(q) pBELL(q, mu = p_bell$mu))
-r_zib  <- rqr(y, function(q) pZIBELL(q, mu = p_zib$mu, sigma = p_zib$pi))
+r_bell <- rqresid(fit_bell, seed = 1)
+r_zib  <- rqresid(fit_zib,  seed = 1)
 
 par(mfrow = c(1, 2))
 qqnorm(r_bell, main = "Bell", pch = 20, col = "grey50"); qqline(r_bell, col = "red")

@@ -114,20 +114,13 @@ legend("topright", c("Empirical", "PIG", "ZIPIG"), lwd = 2,
 
 ## Randomized quantile residuals
 
-For a discrete model a randomized quantile residual draws
-$u \sim \mathrm{Unif}(F(y-1), F(y))$ and returns $\Phi^{-1}(u)$; if the model
-is correct these are standard normal.
+`rqresid()` returns randomized quantile residuals: for a discrete model it
+draws $u \sim \mathrm{Unif}(F(y-1), F(y))$ and returns $\Phi^{-1}(u)$, which are
+standard normal if the model is correct.
 
 ```{r rqr, fig.width = 7, fig.height = 4}
-rqr <- function(y, pfun) {
-  Fup <- pfun(y); Flo <- pfun(y - 1); Flo[y == 0] <- 0
-  qnorm(runif(length(y), Flo, Fup))
-}
-
-set.seed(1)
-r_pig <- rqr(y, function(q) ppig(q, mu = p_pig$mu, sigma = p_pig$sigma))
-r_zip <- rqr(y, function(q) pzipig(q, mu = p_zip$mu, sigma = p_zip$sigma,
-                                   pi = p_zip$pi))
+r_pig <- rqresid(fit_pig, seed = 1)
+r_zip <- rqresid(fit_zip, seed = 1)
 
 par(mfrow = c(1, 2))
 qqnorm(r_pig, main = "PIG", pch = 20, col = "grey50"); qqline(r_pig, col = "red")
