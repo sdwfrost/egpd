@@ -12,7 +12,8 @@
 #'   d >= 2 for MDGPD).
 #' @param type integer 1-6 specifying the G-transformation type (univariate only).
 #' @param family character: "egpd", "degpd", "ziegpd", "zidegpd", "cpegpd",
-#'   "cpdegpd", "begpd" (bivariate EGPD), "bdegpd" (\[Experimental\] bivariate
+#'   "cpdegpd", "pig" (Poisson-inverse Gaussian; \code{type} ignored), "zipig"
+#'   (zero-inflated PIG), "begpd" (bivariate EGPD), "bdegpd" (\[Experimental\] bivariate
 #'   discrete EGPD), "bzidegpd" (\[Experimental\] zero-inflated bivariate
 #'   discrete EGPD), "mdgpd" (\[Experimental\] multivariate MDGPD via
 #'   Aka-Kratz-Naveau construction, d >= 2), or "zimdgpd" (\[Experimental\]
@@ -83,7 +84,7 @@
 #' @export
 fitegpd <- function(x, type = 1,
                     family = c("egpd", "degpd", "ziegpd", "zidegpd",
-                               "cpegpd", "cpdegpd", "begpd",
+                               "cpegpd", "cpdegpd", "pig", "zipig", "begpd",
                                "bdegpd", "bzidegpd",
                                "mdgpd", "zimdgpd"),
                     method = c("mle", "bernstein", "neuralbayes"),
@@ -122,9 +123,9 @@ fitegpd <- function(x, type = 1,
     stop("'type' must be an integer from 1 to 6")
   if (method == "bernstein" && family != "egpd")
     stop("Bernstein method is only available for family='egpd'")
-  if (family %in% c("degpd", "zidegpd", "cpdegpd") && any(x != floor(x) | x < 0))
+  if (family %in% c("degpd", "zidegpd", "cpdegpd", "pig", "zipig") && any(x != floor(x) | x < 0))
     warning("Discrete family expects non-negative integer data")
-  if (family %in% c("ziegpd", "zidegpd") && !any(x == 0))
+  if (family %in% c("ziegpd", "zidegpd", "zipig") && !any(x == 0))
     warning("Zero-inflated family but no zeros observed in data")
   if (family == "cpegpd" && any(x < 0))
     warning("cpegpd family expects non-negative data")
@@ -225,6 +226,16 @@ fitegpd <- function(x, type = 1,
 #' Parameter specification for each type and family
 #' @noRd
 .fitegpd_parspec <- function(type, family) {
+  ## PIG / ZIPIG are mixed-Poisson count models (not EGPDs): mu (mean, log),
+  ## sigma (dispersion, log), and for ZIPIG pi (zero inflation, logit).
+  ## The G-transformation `type` does not apply.
+  if (family %in% c("pig", "zipig")) {
+    spec <- list(mu = list(transform = "log"), sigma = list(transform = "log"))
+    if (family == "zipig")
+      spec <- c(spec, list(pi = list(transform = "logit")))
+    return(spec)
+  }
+
   ## Base GPD parameters
   spec <- list(
     sigma = list(transform = "log"),
@@ -317,6 +328,20 @@ fitegpd <- function(x, type = 1,
   ## Remove non-finite values for moment estimation
   xclean <- x[is.finite(x)]
   if (length(xclean) < 2) xclean <- c(0.1, 0.2)
+
+  ## PIG / ZIPIG: method-of-moments seeds (var = mu + sigma*mu^2).
+  if (family %in% c("pig", "zipig")) {
+    xm <- mean(xclean); v <- stats::var(xclean)
+    if (!is.finite(xm) || xm <= 0) xm <- 1
+    if (!is.finite(v)) v <- xm
+    start <- list(
+      mu    = max(xm, 0.1),
+      sigma = min(max((v - xm) / max(xm^2, 1e-8), 0.1), 10)
+    )
+    if (family == "zipig")
+      start$pi <- max(min(mean(x == 0), 0.99), 0.01)
+    return(start[names(spec)])
+  }
 
   ## Use positive data for GPD moment estimation
   if (family %in% c("degpd", "zidegpd", "cpdegpd")) {
@@ -428,6 +453,21 @@ fitegpd <- function(x, type = 1,
 
   ## Merge with fixed args
   all_par <- as.list(c(par, unlist(fix.arg)))
+
+  ## PIG / ZIPIG mixed-Poisson count models (delegate to gamlss.dist).
+  if (family %in% c("pig", "zipig")) {
+    nll <- tryCatch({
+      if (family == "pig") {
+        -sum(gamlss.dist::dPIG(x, mu = all_par[["mu"]], sigma = all_par[["sigma"]],
+                               log = TRUE))
+      } else {
+        -sum(gamlss.dist::dZIPIG(x, mu = all_par[["mu"]], sigma = all_par[["sigma"]],
+                                 nu = all_par[["pi"]], log = TRUE))
+      }
+    }, error = function(e) Inf)
+    if (!is.finite(nll)) return(1e20)
+    return(nll)
+  }
 
   sigma  <- all_par[["sigma"]]
   xi     <- all_par[["xi"]]
