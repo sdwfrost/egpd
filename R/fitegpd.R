@@ -1,11 +1,14 @@
 ## Univariate distribution fitting for EGPD families
 ## MLE and Bernstein polynomial fitting
 
-#' Fit EGPD distribution to data
+#' Fit a distribution to data by maximum likelihood
 #'
-#' Maximum likelihood, Bernstein polynomial, or neural Bayes fitting of EGPD,
-#' discrete EGPD, zero-inflated EGPD, zero-inflated discrete EGPD, or
-#' bivariate multivariate EGPD distributions.
+#' Maximum likelihood, Bernstein polynomial, or neural Bayes fitting of the
+#' distribution families supported by the package: (discrete, zero-inflated)
+#' EGPD, the composite-Pareto model, the mixed-Poisson count families
+#' (Poisson-inverse Gaussian and generalised PIG), the Bell distribution, and
+#' the bivariate/multivariate EGPD families. Formerly named \code{fitegpd};
+#' that name is retained as a deprecated alias.
 #'
 #' @param x numeric vector of observations (univariate families), or an
 #'   n-by-d numeric matrix/data.frame (multivariate families; d=2 for BEGPD,
@@ -41,7 +44,7 @@
 #'   (method="neuralbayes" with estimator="npe" only).
 #' @param ... additional arguments passed to \code{\link{optim}}
 #'
-#' @return An object of class \code{"fitegpd"} with components:
+#' @return An object of class \code{"distfit"} with components:
 #' \describe{
 #'   \item{estimate}{named vector of parameter estimates}
 #'   \item{sd}{named vector of standard errors (NA if Hessian not computed)}
@@ -75,19 +78,21 @@
 #' \dontrun{
 #' # Univariate fitting
 #' x <- regpd(500, sigma = 2, xi = 0.1, kappa = 1.5, type = 1)
-#' fit <- fitegpd(x, type = 1)
+#' fit <- distfit(x, type = 1)
 #' summary(fit)
 #' plot(fit)
 #'
 #' # Bivariate BEGPD (requires Julia)
 #' Y <- rbegpd(1000, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0.2)
-#' fit_biv <- fitegpd(Y, family = "begpd", method = "neuralbayes")
+#' fit_biv <- distfit(Y, family = "begpd", method = "neuralbayes")
 #' summary(fit_biv)
 #' plot(fit_biv)
 #' }
 #'
+#' @name distfit
+#' @aliases fitegpd
 #' @export
-fitegpd <- function(x, type = 1,
+distfit <- function(x, type = 1,
                     family = c("egpd", "degpd", "ziegpd", "zidegpd",
                                "cpegpd", "cpdegpd", "pig", "zipig",
                                "gpig", "zigpig", "bell", "zibell", "begpd",
@@ -227,7 +232,30 @@ fitegpd <- function(x, type = 1,
     bernstein.m       = NULL,
     bernstein.weights = NULL,
     cpegpd.h  = if (family == "cpegpd") cpegpd.h else NULL
-  ), class = "fitegpd")
+  ), class = "distfit")
+}
+
+
+#' @rdname distfit
+#' @export
+fitegpd <- function(x, type = 1,
+                    family = c("egpd", "degpd", "ziegpd", "zidegpd",
+                               "cpegpd", "cpdegpd", "pig", "zipig",
+                               "gpig", "zigpig", "bell", "zibell", "begpd",
+                               "bdegpd", "bzidegpd",
+                               "mdgpd", "zimdgpd"),
+                    method = c("mle", "bernstein", "neuralbayes"),
+                    start = NULL, fix.arg = NULL,
+                    optim.method = "Nelder-Mead", hessian = TRUE,
+                    bernstein.m = 8, cpegpd.h = 0.2,
+                    model.path = NULL, estimator = c("npe", "nbe"),
+                    nsamples = 1000L, ...) {
+  .Deprecated("distfit", package = "egpd",
+              msg = paste("'fitegpd' has been renamed to 'distfit' and is",
+                          "deprecated; it will be removed in a future release."))
+  cl <- match.call()
+  cl[[1L]] <- quote(distfit)
+  eval.parent(cl)
 }
 
 

@@ -147,16 +147,16 @@ test_that("native GAM fit matches the direct optim MLE (both parameterisations)"
   expect_equal(as.numeric(logLik(fn)) + k, -o$objective, tolerance = 1e-2)
 })
 
-test_that("fitegpd recovers Bell / ZIBell parameters", {
+test_that("distfit recovers Bell / ZIBell parameters", {
   skip_on_cran()
   set.seed(3)
   y <- egpd:::rbell(3000, theta = 0.9)
-  f <- fitegpd(y, family = "bell")
+  f <- distfit(y, family = "bell")
   expect_equal(unname(f$estimate["theta"]), 0.9, tolerance = 0.08)
 
   set.seed(5)
   yz <- egpd:::rzibell(3000, theta = 0.9, pi = 0.3)
-  fz <- fitegpd(yz, family = "zibell")
+  fz <- distfit(yz, family = "zibell")
   expect_equal(unname(fz$estimate["theta"]), 0.9, tolerance = 0.12)
   expect_equal(unname(fz$estimate["pi"]),    0.3, tolerance = 0.08)
 })

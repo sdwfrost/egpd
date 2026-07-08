@@ -135,11 +135,11 @@ par(mfrow = c(1, 1))
 
 `family = "gpignat"` fits the paper's native $(a, b, c)$ parameterisation; it
 describes the same fitted distribution as `"gpig"` (identical log-likelihood)
-but reports $b$ instead of $\mu$. The univariate fitter `fitegpd()` uses the
+but reports $b$ instead of $\mu$. The univariate fitter `distfit()` uses the
 native parameterisation directly:
 
 ```{r other}
-fit_uni <- fitegpd(y, family = "gpig")
+fit_uni <- distfit(y, family = "gpig")
 round(fit_uni$estimate, 3)
 ```
 

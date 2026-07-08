@@ -21,7 +21,7 @@ has_julia_support <- requireNamespace("JuliaConnectoR", quietly = TRUE) &&
 
 The `egpd` package supports Bivariate Extended Generalized Pareto
 Distribution (BEGPD) models, fitted via neural Bayes estimation.
-Unlike the univariate `fitegpd()` methods that use maximum likelihood, the
+Unlike the univariate `distfit()` methods that use maximum likelihood, the
 bivariate BEGPD uses pre-trained neural networks to perform amortized
 inference -- either posterior sampling (NPE) or point estimation (NBE).
 
@@ -30,7 +30,7 @@ This vignette covers:
 1. **The BEGPD model** -- construction and parameters
 2. **Simulating bivariate data** -- `rbegpd()` (pure R, no Julia needed)
 3. **Illustrative scenarios** -- how parameters shape the dependence structure
-4. **Neural Bayes estimation** -- fitting via `fitegpd(family = "begpd")`
+4. **Neural Bayes estimation** -- fitting via `distfit(family = "begpd")`
 5. **Diagnostics and inference** -- S3 methods, posterior summaries, and plots
 6. **Training custom models** -- `train_begpd()`
 
@@ -290,7 +290,7 @@ Y <- rbegpd(2000, kappa = 2, sigma = 1, xi = 0.1,
             thL = 5, thU = 5, thw = 0.2)
 
 # Fit using Neural Posterior Estimation
-fit_npe <- fitegpd(Y, family = "begpd", method = "neuralbayes",
+fit_npe <- distfit(Y, family = "begpd", method = "neuralbayes",
                    estimator = "npe", nsamples = 2000)
 ```
 
@@ -314,7 +314,7 @@ The NBE is faster but only provides point estimates (no uncertainty
 quantification):
 
 ```{r fit-nbe, eval = has_julia_support}
-fit_nbe <- fitegpd(Y, family = "begpd", method = "neuralbayes",
+fit_nbe <- distfit(Y, family = "begpd", method = "neuralbayes",
                    estimator = "nbe")
 summary(fit_nbe)
 ```
@@ -423,7 +423,7 @@ With Julia available, these datasets can be estimated:
 # Estimate a subset of datasets (full study would use all K)
 K_est <- min(K, 10)
 estimates <- sapply(datasets[seq_len(K_est)], function(Y) {
-  fit <- fitegpd(Y, family = "begpd", method = "neuralbayes",
+  fit <- distfit(Y, family = "begpd", method = "neuralbayes",
                  estimator = "npe", nsamples = 1000)
   coef(fit)
 })
@@ -460,7 +460,7 @@ paths <- train_begpd(
 #> Training complete.
 
 # Use the custom-trained model
-fit_custom <- fitegpd(Y, family = "begpd", method = "neuralbayes",
+fit_custom <- distfit(Y, family = "begpd", method = "neuralbayes",
                       model.path = paths$npe, estimator = "npe")
 ```
 

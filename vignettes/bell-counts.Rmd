@@ -134,13 +134,13 @@ par(mfrow = c(1, 1))
 
 ## Other fitting interfaces
 
-The univariate maximum-likelihood fitter `fitegpd()` uses the native `theta`
+The univariate maximum-likelihood fitter `distfit()` uses the native `theta`
 parameterisation, and reaches the closed-form estimate
 $\hat{\theta} = W_0(\bar{y})$:
 
 ```{r other}
-fit_uni <- fitegpd(y, family = "bell")
-cat("fitegpd theta =", round(unname(fit_uni$estimate["theta"]), 4),
+fit_uni <- distfit(y, family = "bell")
+cat("distfit theta =", round(unname(fit_uni$estimate["theta"]), 4),
     "  W0(ybar) =", round(as.numeric(egpd:::bell_W0_cpp(mean(y))), 4), "\n")
 ```
 

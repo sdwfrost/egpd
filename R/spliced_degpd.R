@@ -136,7 +136,7 @@
   }
 
   init_fit <- tryCatch(
-    fitegpd(y, type = 1, family = "degpd", fix.arg = fix.arg, hessian = FALSE, optim.method = "BFGS"),
+    distfit(y, type = 1, family = "degpd", fix.arg = fix.arg, hessian = FALSE, optim.method = "BFGS"),
     error = function(e) NULL
   )
 

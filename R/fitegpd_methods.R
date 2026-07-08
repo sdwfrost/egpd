@@ -18,7 +18,7 @@
 }
 
 #' @export
-print.fitegpd <- function(x, ...) {
+print.distfit <- function(x, ...) {
   if (.is_bivariate(x$family)) {
     est_label <- if (x$estimator_type == "npe") "npe" else "nbe"
     dd <- if (is.matrix(x$data)) ncol(x$data) else 2L
@@ -41,7 +41,7 @@ print.fitegpd <- function(x, ...) {
 }
 
 #' @export
-summary.fitegpd <- function(object, ...) {
+summary.distfit <- function(object, ...) {
   if (.is_bivariate(object$family)) {
     est <- object$estimate
 
@@ -75,7 +75,7 @@ summary.fitegpd <- function(object, ...) {
       estimator_type = object$estimator_type,
       nsamples    = object$nsamples,
       data_dim    = dd
-    ), class = "summary.fitegpd"))
+    ), class = "summary.distfit"))
   }
 
   est <- object$estimate
@@ -106,11 +106,11 @@ summary.fitegpd <- function(object, ...) {
     convergence = object$convergence,
     bernstein.m = object$bernstein.m,
     cpegpd.h = object$cpegpd.h
-  ), class = "summary.fitegpd")
+  ), class = "summary.distfit")
 }
 
 #' @export
-print.summary.fitegpd <- function(x, digits = 4, ...) {
+print.summary.distfit <- function(x, digits = 4, ...) {
   if (.is_bivariate(x$family)) {
     est_label <- if (x$estimator_type == "npe") "npe" else "nbe"
     cat("Fitting of ", .family_label(x$family, x$data_dim), "\n", sep = "")
@@ -155,12 +155,12 @@ print.summary.fitegpd <- function(x, digits = 4, ...) {
 }
 
 #' @export
-coef.fitegpd <- function(object, ...) {
+coef.distfit <- function(object, ...) {
   object$estimate
 }
 
 #' @export
-vcov.fitegpd <- function(object, ...) {
+vcov.distfit <- function(object, ...) {
   if (.is_bivariate(object$family)) {
     if (object$estimator_type == "npe" && !is.null(object$posterior_samples)) {
       V <- cov(t(object$posterior_samples))
@@ -176,7 +176,7 @@ vcov.fitegpd <- function(object, ...) {
 }
 
 #' @export
-logLik.fitegpd <- function(object, ...) {
+logLik.distfit <- function(object, ...) {
   if (.is_bivariate(object$family)) {
     warning("Log-likelihood is not available for neural Bayes estimation",
             call. = FALSE)
@@ -194,12 +194,12 @@ logLik.fitegpd <- function(object, ...) {
 }
 
 #' @export
-nobs.fitegpd <- function(object, ...) {
+nobs.distfit <- function(object, ...) {
   object$n
 }
 
 #' @export
-confint.fitegpd <- function(object, parm, level = 0.95, ...) {
+confint.distfit <- function(object, parm, level = 0.95, ...) {
   if (.is_bivariate(object$family)) {
     if (object$estimator_type == "npe" && !is.null(object$posterior_samples)) {
       ## Credible intervals from posterior quantiles
@@ -245,7 +245,7 @@ confint.fitegpd <- function(object, parm, level = 0.95, ...) {
 #' @param ... additional graphical parameters
 #'
 #' @export
-plot.fitegpd <- function(x, ...) {
+plot.distfit <- function(x, ...) {
   ## Dispatch to bivariate-specific plots
   if (x$family == "begpd") {
     return(.plot_begpd(x, ...))
@@ -463,3 +463,28 @@ plot.fitegpd <- function(x, ...) {
 
   invisible(obj)
 }
+
+## ---- deprecated S3 shims -----------------------------------------------------
+## The fit object's class was renamed from "fitegpd" to "distfit". New fits carry
+## class "distfit"; these shims keep S3 dispatch working for objects saved by
+## older versions (class "fitegpd") by relabelling and re-dispatching. The
+## fitegpd() function itself (see R/fitegpd.R) emits the deprecation message.
+
+#' @export
+print.fitegpd <- function(x, ...) { class(x) <- "distfit"; print(x, ...) }
+#' @export
+summary.fitegpd <- function(object, ...) { class(object) <- "distfit"; summary(object, ...) }
+#' @export
+print.summary.fitegpd <- function(x, ...) { class(x) <- "summary.distfit"; print(x, ...) }
+#' @export
+coef.fitegpd <- function(object, ...) { class(object) <- "distfit"; coef(object, ...) }
+#' @export
+vcov.fitegpd <- function(object, ...) { class(object) <- "distfit"; vcov(object, ...) }
+#' @export
+logLik.fitegpd <- function(object, ...) { class(object) <- "distfit"; logLik(object, ...) }
+#' @export
+nobs.fitegpd <- function(object, ...) { class(object) <- "distfit"; nobs(object, ...) }
+#' @export
+confint.fitegpd <- function(object, ...) { class(object) <- "distfit"; confint(object, ...) }
+#' @export
+plot.fitegpd <- function(x, ...) { class(x) <- "distfit"; plot(x, ...) }

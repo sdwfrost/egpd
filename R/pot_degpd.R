@@ -42,7 +42,7 @@ fit_degpd_pot <- function(x, threshold, type = 1, fix.kappa = TRUE,
   if (length(exc) < 10)
     warning(sprintf("only %d exceedances over threshold %s", length(exc), threshold))
   fix.arg <- if (fix.kappa) list(kappa = 1) else NULL
-  fit <- fitegpd(exc, type = type, family = "degpd",
+  fit <- distfit(exc, type = type, family = "degpd",
                  fix.arg = fix.arg, hessian = hessian, ...)
   xi  <- unname(fit$estimate["xi"]); sig <- unname(fit$estimate["sigma"])
   se  <- if (!is.null(fit$sd)) unname(fit$sd["xi"]) else NA_real_

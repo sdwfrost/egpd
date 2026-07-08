@@ -17,7 +17,8 @@ import(utils)
 export(egpd)
 
 # Univariate fitting
-export(fitegpd)
+export(distfit)
+export(fitegpd)   # deprecated alias for distfit
 export(fit_aggregate_egpd)
 export(fit_spliced_degpd)
 
@@ -49,7 +50,17 @@ S3method(confint, egpd)
 S3method(vcov, egpd)
 S3method(rqresid, egpd)
 
-# S3 methods for fitegpd (univariate fits)
+# S3 methods for distfit (univariate/multivariate fits)
+S3method(print, distfit)
+S3method(summary, distfit)
+S3method(print, summary.distfit)
+S3method(plot, distfit)
+S3method(coef, distfit)
+S3method(vcov, distfit)
+S3method(logLik, distfit)
+S3method(nobs, distfit)
+S3method(confint, distfit)
+# deprecated shims for the former "fitegpd" class (legacy saved objects)
 S3method(print, fitegpd)
 S3method(summary, fitegpd)
 S3method(print, summary.fitegpd)

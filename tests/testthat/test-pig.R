@@ -1,5 +1,5 @@
 ## Tests for the Poisson-inverse Gaussian (PIG) and zero-inflated PIG (ZIPIG)
-## families across the native GAM fitter (egpd()), the fitegpd() MLE frontend,
+## families across the native GAM fitter (egpd()), the distfit() MLE frontend,
 ## the re-exported gamlss families, and the bamlss constructors.
 ##
 ## The native GAM d12 supplies the exact score AND the exact observed Hessian
@@ -97,12 +97,12 @@ test_that("native egpd() ZIPIG recovers parameters", {
   expect_equal(plogis(cz[[3]]), 0.3, tolerance = 0.06)
 })
 
-test_that("fitegpd() PIG MLE matches gamlss.dist and yields working methods", {
+test_that("distfit() PIG MLE matches gamlss.dist and yields working methods", {
   skip_on_cran()
   set.seed(7)
   y <- gamlss.dist::rPIG(3000, mu = 3, sigma = 0.9)
-  f <- fitegpd(y, family = "pig")
-  expect_s3_class(f, "fitegpd")
+  f <- distfit(y, family = "pig")
+  expect_s3_class(f, "distfit")
   expect_named(f$estimate, c("mu", "sigma"))
   o <- optim(c(log(mean(y)), 0),
              function(t) -sum(gamlss.dist::dPIG(y, exp(t[1]), exp(t[2]), log = TRUE)))
@@ -111,11 +111,11 @@ test_that("fitegpd() PIG MLE matches gamlss.dist and yields working methods", {
   expect_equal(AIC(f), -2 * f$loglik + 2 * 2, tolerance = 1e-6)
 })
 
-test_that("fitegpd() ZIPIG MLE recovers the zero-inflation probability", {
+test_that("distfit() ZIPIG MLE recovers the zero-inflation probability", {
   skip_on_cran()
   set.seed(3)
   yz <- gamlss.dist::rZIPIG(3000, mu = 3.5, sigma = 0.8, nu = 0.25)
-  fz <- fitegpd(yz, family = "zipig")
+  fz <- distfit(yz, family = "zipig")
   expect_named(fz$estimate, c("mu", "sigma", "pi"))
   expect_equal(fz$estimate[["pi"]], 0.25, tolerance = 0.06)
 })

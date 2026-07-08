@@ -34,7 +34,7 @@ This vignette covers:
 3. **Exploring parameters and dependence** -- the role of $\rho$, $\lambda$,
    $\sigma$, and $\xi$
 4. **Higher dimensions** -- trivariate and beyond
-5. **Neural Bayes estimation** -- fitting via `fitegpd()`
+5. **Neural Bayes estimation** -- fitting via `distfit()`
 6. **Training custom models** -- `train_mdgpd()`
 
 ## 1. The MDGPD construction
@@ -346,7 +346,7 @@ instead, via pre-trained neural networks.
 set.seed(42)
 
 Y <- rmdgpd(1000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5)
-fit <- fitegpd(Y, family = "mdgpd", method = "neuralbayes",
+fit <- distfit(Y, family = "mdgpd", method = "neuralbayes",
                estimator = "npe", nsamples = 2000)
 summary(fit)
 ```
@@ -362,7 +362,7 @@ set.seed(42)
 
 Y_zi <- rzimdgpd(1000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5,
                   pi0 = 0.3)
-fit_zi <- fitegpd(Y_zi, family = "zimdgpd", method = "neuralbayes",
+fit_zi <- distfit(Y_zi, family = "zimdgpd", method = "neuralbayes",
                    estimator = "npe")
 summary(fit_zi)
 ```
@@ -387,7 +387,7 @@ dimension. Use `train_mdgpd()` with the `data_dim` parameter:
 Y3_fit <- rmdgpd(1000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5, d = 3)
 
 model_3d_path <- system.file("models", "MDGPD_3D_NPE.bson", package = "egpd")
-fit_3d <- fitegpd(Y3_fit, family = "mdgpd", method = "neuralbayes",
+fit_3d <- distfit(Y3_fit, family = "mdgpd", method = "neuralbayes",
                    model.path = model_3d_path, estimator = "npe")
 summary(fit_3d)
 ```

@@ -180,7 +180,7 @@
 
   ## Stage 1: initial parametric MLE for GPD parameters
   init_fit <- tryCatch(
-    fitegpd(x, type = type, family = "egpd", method = "mle",
+    distfit(x, type = type, family = "egpd", method = "mle",
             start = start, fix.arg = fix.arg, hessian = FALSE),
     error = function(e) NULL
   )
@@ -279,5 +279,5 @@
     call      = call,
     bernstein.m       = m,
     bernstein.weights = weights
-  ), class = "fitegpd")
+  ), class = "distfit")
 }

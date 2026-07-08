@@ -131,10 +131,10 @@ par(mfrow = c(1, 1))
 ## Other fitting interfaces
 
 The same distribution is available through the univariate maximum-likelihood
-fitter `fitegpd()`, and as `gamlss` / `bamlss` families:
+fitter `distfit()`, and as `gamlss` / `bamlss` families:
 
 ```{r other}
-fit_uni <- fitegpd(y, family = "pig")
+fit_uni <- distfit(y, family = "pig")
 fit_uni$estimate
 
 ## PIG()/ZIPIG() (gamlss.dist) and pig_bamlss()/zipig_bamlss() provide the

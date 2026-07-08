@@ -141,18 +141,18 @@ test_that("native GAM fit matches the direct optim MLE (both parameterisations)"
   expect_equal(as.numeric(logLik(fm)) + k, -o$value, tolerance = 1e-2)
 })
 
-test_that("fitegpd recovers GPIG / ZIGPIG parameters and detects the PIG case", {
+test_that("distfit recovers GPIG / ZIGPIG parameters and detects the PIG case", {
   skip_on_cran()
   set.seed(3)
   y <- egpd:::rgpig(3000, a = 0.45, b = 2.2, c = 0.8)
-  f <- fitegpd(y, family = "gpig")
+  f <- distfit(y, family = "gpig")
   expect_equal(unname(f$estimate["a"]), 0.45, tolerance = 0.1)
   expect_equal(unname(f$estimate["c"]), 0.8,  tolerance = 0.1)
 
   skip_if_not_installed("gamlss.dist")
   set.seed(5)
   yp <- gamlss.dist::rPIG(3000, mu = 3, sigma = 0.8)
-  fp <- fitegpd(yp, family = "gpig")
+  fp <- distfit(yp, family = "gpig")
   expect_equal(unname(fp$estimate["a"]), 0.5, tolerance = 0.08)  # a = 1/2 <=> PIG
 })
 

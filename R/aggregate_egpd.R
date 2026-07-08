@@ -153,7 +153,7 @@
 .aggregate_auto_start <- function(prep, family, p, q, cpegpd.h = 0.2) {
   dur_fits <- lapply(prep$full_samples, function(x) {
     tryCatch(
-      fitegpd(x, type = 1, family = family, hessian = FALSE,
+      distfit(x, type = 1, family = family, hessian = FALSE,
               cpegpd.h = cpegpd.h, optim.method = "Nelder-Mead"),
       error = function(e) NULL
     )

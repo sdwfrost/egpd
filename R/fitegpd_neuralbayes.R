@@ -350,7 +350,7 @@
     model.path        = model.path,
     posterior_samples  = posterior_samples,
     nsamples          = if (estimator == "npe") nsamples else NULL
-  ), class = "fitegpd")
+  ), class = "distfit")
 }
 
 

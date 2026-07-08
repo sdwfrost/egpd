@@ -84,13 +84,13 @@ library(egpd)
 Y <- rbegpd(1000, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0.2)
 
 # Fit using neural posterior estimation (requires Julia)
-fit <- fitegpd(Y, family = "begpd", method = "neuralbayes", estimator = "npe")
+fit <- distfit(Y, family = "begpd", method = "neuralbayes", estimator = "npe")
 summary(fit)
 plot(fit)
 
 # Train your own model (optional)
 paths <- train_begpd(savepath = "my_models", quick = TRUE)
-fit2 <- fitegpd(Y, family = "begpd", method = "neuralbayes",
+fit2 <- distfit(Y, family = "begpd", method = "neuralbayes",
                 model.path = paths$npe, estimator = "npe")
 ```
 
@@ -104,12 +104,12 @@ continuous BEGPD samples. These use the same neural Bayes estimation framework:
 ```r
 # Simulate and fit bivariate discrete EGPD
 Y <- rbdegpd(1000, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0.2)
-fit <- fitegpd(Y, family = "bdegpd", method = "neuralbayes", estimator = "npe")
+fit <- distfit(Y, family = "bdegpd", method = "neuralbayes", estimator = "npe")
 
 # Zero-inflated version
 Y_zi <- rbzidegpd(1000, kappa = 2, sigma = 1, xi = 0.1,
                    thL = 5, thU = 5, thw = 0.2, pi0 = 0.3)
-fit_zi <- fitegpd(Y_zi, family = "bzidegpd", method = "neuralbayes", estimator = "npe")
+fit_zi <- distfit(Y_zi, family = "bzidegpd", method = "neuralbayes", estimator = "npe")
 ```
 
 ### MDGPD: Multivariate Discrete GPD (Experimental)
@@ -122,7 +122,7 @@ construction uses a bivariate Poisson generator and geometric maximum:
 ```r
 # Simulate bivariate MDGPD
 Y <- rmdgpd(1000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5)
-fit <- fitegpd(Y, family = "mdgpd", method = "neuralbayes", estimator = "npe")
+fit <- distfit(Y, family = "mdgpd", method = "neuralbayes", estimator = "npe")
 ```
 
 For details, see Aka, Kratz & Naveau (2025),
@@ -137,8 +137,8 @@ For details on the BEGPD, see Alotaibi, Sainsbury-Dale, Naveau, Gaetan & Huser (
 - [Zero-Inflated Discrete EGPD Models for Doctor Visit Counts](articles/doctor-visits.md)
 - [Threshold Exceedance Modeling with DEGPD](articles/gaming-offenses.md)
 - [Continuous EGPD Models for Temperature Extremes](articles/temperature-extremes.md)
-- [Fitting Continuous Distributions with fitegpd](articles/fitegpd-continuous.md)
-- [Fitting Discrete Distributions with fitegpd](articles/fitegpd-discrete.md)
+- [Fitting Continuous Distributions with distfit](articles/distfit-continuous.md)
+- [Fitting Discrete Distributions with distfit](articles/distfit-discrete.md)
 - [Bivariate BEGPD via Neural Bayes Estimation](articles/multivariate-egpd.md)
 - [Bivariate Discrete EGPD via Neural Bayes Estimation](articles/bivariate-discrete-egpd.md)
 - [Multivariate Discrete GPD (MDGPD) via Neural Bayes Estimation](articles/mdgpd.md)

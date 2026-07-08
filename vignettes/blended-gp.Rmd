@@ -34,7 +34,7 @@ utilities:
 - `qbgpd()` for quantiles,
 - `rbgpd()` for simulation.
 
-Rather than forcing the bGP into a single parametric `fitegpd()` family, the
+Rather than forcing the bGP into a single parametric `distfit()` family, the
 package treats it as a generic bulk-plus-tail construction: you supply a bulk
 CDF/density/quantile triple on `[0, 1]`, and `egpd` handles the blend and the
 derived GP bridge automatically.
