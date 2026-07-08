@@ -604,6 +604,168 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// gpig1d0
+double gpig1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_gpig1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X3(X3SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(gpig1d0(pars, X1, X2, X3, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// gpig1d12
+arma::mat gpig1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_gpig1d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X3(X3SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(gpig1d12(pars, X1, X2, X3, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// gpignat1d0
+double gpignat1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_gpignat1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X3(X3SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(gpignat1d0(pars, X1, X2, X3, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// gpignat1d12
+arma::mat gpignat1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_gpignat1d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X3(X3SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(gpignat1d12(pars, X1, X2, X3, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// zigpig1d0
+double zigpig1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, const arma::mat& X4, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_zigpig1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP X4SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X3(X3SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X4(X4SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(zigpig1d0(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// zigpig1d12
+arma::mat zigpig1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::mat X4, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_zigpig1d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP X4SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X3(X3SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X4(X4SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(zigpig1d12(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// zigpignat1d0
+double zigpignat1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, const arma::mat& X4, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_zigpignat1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP X4SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X3(X3SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X4(X4SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(zigpignat1d0(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// zigpignat1d12
+arma::mat zigpignat1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::mat X4, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_zigpignat1d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP X4SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X3(X3SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X4(X4SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(zigpignat1d12(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// gpig_pmf_cpp
+Rcpp::NumericVector gpig_pmf_cpp(int n, double a, double b, double c);
+RcppExport SEXP _egpd_gpig_pmf_cpp(SEXP nSEXP, SEXP aSEXP, SEXP bSEXP, SEXP cSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< double >::type a(aSEXP);
+    Rcpp::traits::input_parameter< double >::type b(bSEXP);
+    Rcpp::traits::input_parameter< double >::type c(cSEXP);
+    rcpp_result_gen = Rcpp::wrap(gpig_pmf_cpp(n, a, b, c));
+    return rcpp_result_gen;
+END_RCPP
+}
 // gH1
 Rcpp::List gH1(arma::mat gh, arma::mat X1, const arma::uvec dupid, int dcate, int sand, int deriv);
 RcppExport SEXP _egpd_gH1(SEXP ghSEXP, SEXP X1SEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP sandSEXP, SEXP derivSEXP) {
@@ -1053,6 +1215,15 @@ static const R_CallMethodDef CallEntries[] = {
     {"_egpd_egpd6d12", (DL_FUNC) &_egpd_egpd6d12, 8},
     {"_egpd_armapinv", (DL_FUNC) &_egpd_armapinv, 2},
     {"_egpd_armaginv", (DL_FUNC) &_egpd_armaginv, 2},
+    {"_egpd_gpig1d0", (DL_FUNC) &_egpd_gpig1d0, 8},
+    {"_egpd_gpig1d12", (DL_FUNC) &_egpd_gpig1d12, 8},
+    {"_egpd_gpignat1d0", (DL_FUNC) &_egpd_gpignat1d0, 8},
+    {"_egpd_gpignat1d12", (DL_FUNC) &_egpd_gpignat1d12, 8},
+    {"_egpd_zigpig1d0", (DL_FUNC) &_egpd_zigpig1d0, 9},
+    {"_egpd_zigpig1d12", (DL_FUNC) &_egpd_zigpig1d12, 9},
+    {"_egpd_zigpignat1d0", (DL_FUNC) &_egpd_zigpignat1d0, 9},
+    {"_egpd_zigpignat1d12", (DL_FUNC) &_egpd_zigpignat1d12, 9},
+    {"_egpd_gpig_pmf_cpp", (DL_FUNC) &_egpd_gpig_pmf_cpp, 4},
     {"_egpd_gH1", (DL_FUNC) &_egpd_gH1, 6},
     {"_egpd_gH2", (DL_FUNC) &_egpd_gH2, 7},
     {"_egpd_gH3", (DL_FUNC) &_egpd_gH3, 8},

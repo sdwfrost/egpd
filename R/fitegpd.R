@@ -13,7 +13,10 @@
 #' @param type integer 1-6 specifying the G-transformation type (univariate only).
 #' @param family character: "egpd", "degpd", "ziegpd", "zidegpd", "cpegpd",
 #'   "cpdegpd", "pig" (Poisson-inverse Gaussian; \code{type} ignored), "zipig"
-#'   (zero-inflated PIG), "begpd" (bivariate EGPD), "bdegpd" (\[Experimental\] bivariate
+#'   (zero-inflated PIG), "gpig" (generalised Poisson-inverse Gaussian of
+#'   Zhu & Joe 2009, native \code{(a, b, c)} parameterisation; \code{type}
+#'   ignored), "zigpig" (zero-inflated GPIG), "begpd" (bivariate EGPD),
+#'   "bdegpd" (\[Experimental\] bivariate
 #'   discrete EGPD), "bzidegpd" (\[Experimental\] zero-inflated bivariate
 #'   discrete EGPD), "mdgpd" (\[Experimental\] multivariate MDGPD via
 #'   Aka-Kratz-Naveau construction, d >= 2), or "zimdgpd" (\[Experimental\]
@@ -84,7 +87,8 @@
 #' @export
 fitegpd <- function(x, type = 1,
                     family = c("egpd", "degpd", "ziegpd", "zidegpd",
-                               "cpegpd", "cpdegpd", "pig", "zipig", "begpd",
+                               "cpegpd", "cpdegpd", "pig", "zipig",
+                               "gpig", "zigpig", "begpd",
                                "bdegpd", "bzidegpd",
                                "mdgpd", "zimdgpd"),
                     method = c("mle", "bernstein", "neuralbayes"),
@@ -123,9 +127,9 @@ fitegpd <- function(x, type = 1,
     stop("'type' must be an integer from 1 to 6")
   if (method == "bernstein" && family != "egpd")
     stop("Bernstein method is only available for family='egpd'")
-  if (family %in% c("degpd", "zidegpd", "cpdegpd", "pig", "zipig") && any(x != floor(x) | x < 0))
+  if (family %in% c("degpd", "zidegpd", "cpdegpd", "pig", "zipig", "gpig", "zigpig") && any(x != floor(x) | x < 0))
     warning("Discrete family expects non-negative integer data")
-  if (family %in% c("ziegpd", "zidegpd", "zipig") && !any(x == 0))
+  if (family %in% c("ziegpd", "zidegpd", "zipig", "zigpig") && !any(x == 0))
     warning("Zero-inflated family but no zeros observed in data")
   if (family == "cpegpd" && any(x < 0))
     warning("cpegpd family expects non-negative data")
@@ -236,6 +240,17 @@ fitegpd <- function(x, type = 1,
     return(spec)
   }
 
+  ## GPIG / ZIGPIG (Zhu & Joe 2009), native (a, b, c) parameterisation: a in
+  ## (0,1) tail exponent (logit), b > 0 level (log), c in (0,1) down-weight
+  ## (logit); ZIGPIG adds pi (logit). The G-transformation `type` does not apply.
+  if (family %in% c("gpig", "zigpig")) {
+    spec <- list(a = list(transform = "logit"), b = list(transform = "log"),
+                 c = list(transform = "logit"))
+    if (family == "zigpig")
+      spec <- c(spec, list(pi = list(transform = "logit")))
+    return(spec)
+  }
+
   ## Base GPD parameters
   spec <- list(
     sigma = list(transform = "log"),
@@ -339,6 +354,22 @@ fitegpd <- function(x, type = 1,
       sigma = min(max((v - xm) / max(xm^2, 1e-8), 0.1), 10)
     )
     if (family == "zipig")
+      start$pi <- max(min(mean(x == 0), 0.99), 0.01)
+    return(start[names(spec)])
+  }
+
+  ## GPIG / ZIGPIG: seed a = 1/2 (PIG case), c from the empirical dispersion
+  ## index D via D-1 = (1-a)c/(1-c), and b from the sample mean.
+  if (family %in% c("gpig", "zigpig")) {
+    xm <- mean(xclean); v <- stats::var(xclean)
+    if (!is.finite(xm) || xm <= 0) xm <- 1
+    if (!is.finite(v)) v <- xm
+    D <- if (xm > 0) max(v / xm, 1.05) else 2
+    a0 <- 0.5
+    cc <- min(max((D - 1) / ((1 - a0) + (D - 1)), 0.05), 0.95)
+    b0 <- max(xm, 0.1) * (1 - cc)^(1 - a0) / (a0 * cc)
+    start <- list(a = a0, b = max(b0, 0.1), c = cc)
+    if (family == "zigpig")
       start$pi <- max(min(mean(x == 0), 0.99), 0.01)
     return(start[names(spec)])
   }
@@ -463,6 +494,21 @@ fitegpd <- function(x, type = 1,
       } else {
         -sum(gamlss.dist::dZIPIG(x, mu = all_par[["mu"]], sigma = all_par[["sigma"]],
                                  nu = all_par[["pi"]], log = TRUE))
+      }
+    }, error = function(e) Inf)
+    if (!is.finite(nll)) return(1e20)
+    return(nll)
+  }
+
+  ## GPIG / ZIGPIG (native a, b, c) via the package recursion.
+  if (family %in% c("gpig", "zigpig")) {
+    nll <- tryCatch({
+      if (family == "gpig") {
+        -sum(dgpig(x, a = all_par[["a"]], b = all_par[["b"]], c = all_par[["c"]],
+                   log = TRUE))
+      } else {
+        -sum(dzigpig(x, a = all_par[["a"]], b = all_par[["b"]], c = all_par[["c"]],
+                     pi = all_par[["pi"]], log = TRUE))
       }
     }, error = function(e) Inf)
     if (!is.finite(nll)) return(1e20)

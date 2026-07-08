@@ -556,3 +556,75 @@ zipig_bamlss <- function(...) {
   class(rval) <- "family.bamlss"
   rval
 }
+
+
+#' bamlss family for the generalised Poisson-inverse Gaussian distribution
+#'
+#' Creates a \code{family.bamlss} object for fitting the generalised
+#' Poisson-inverse Gaussian distribution of Zhu & Joe (2009) with
+#' \code{bamlss()}, in the mean parameterisation \code{mu} = mean (log link),
+#' \code{sigma} = tail exponent \eqn{a\in(0,1)} (logit link) and \code{nu} =
+#' down-weighting \eqn{c\in(0,1)} (logit link). The distribution functions use
+#' the package recursion (there is no \code{gamlss.dist} GPIG).
+#'
+#' @param ... arguments passed to link specification
+#' @return An object of class \code{family.bamlss}
+#' @export
+gpig_bamlss <- function(...) {
+  rval <- list(
+    "family" = "gpig",
+    "names"  = c("mu", "sigma", "nu"),
+    "links"  = .parse_links(c(mu = "log", sigma = "logit", nu = "logit"),
+                            c(mu = "log", sigma = "logit", nu = "logit"), ...),
+    "d" = function(y, par, log = FALSE)
+      dGPIG(y, mu = par$mu, sigma = par$sigma, nu = par$nu, log = log),
+    "p" = function(y, par, ...)
+      pGPIG(y, mu = par$mu, sigma = par$sigma, nu = par$nu),
+    "q" = function(p, par, ...)
+      qGPIG(p, mu = par$mu, sigma = par$sigma, nu = par$nu),
+    "r" = function(n, par)
+      rGPIG(n, mu = par$mu, sigma = par$sigma, nu = par$nu)
+  )
+  rval$initialize <- list(
+    mu    = function(y, ...) rep(max(mean(y), 1e-3), length(y)),
+    sigma = function(y, ...) rep(0.5, length(y)),
+    nu    = function(y, ...) rep(0.7, length(y))
+  )
+  class(rval) <- "family.bamlss"
+  rval
+}
+
+
+#' bamlss family for the zero-inflated generalised Poisson-inverse Gaussian
+#'
+#' Adds a logit-link zero-inflation probability \code{pi} to
+#' \code{\link{gpig_bamlss}} (mapped to the \code{tau} argument of the
+#' underlying ZIGPIG functions).
+#'
+#' @param ... arguments passed to link specification
+#' @return An object of class \code{family.bamlss}
+#' @export
+zigpig_bamlss <- function(...) {
+  rval <- list(
+    "family" = "zigpig",
+    "names"  = c("mu", "sigma", "nu", "pi"),
+    "links"  = .parse_links(c(mu = "log", sigma = "logit", nu = "logit", pi = "logit"),
+                            c(mu = "log", sigma = "logit", nu = "logit", pi = "logit"), ...),
+    "d" = function(y, par, log = FALSE)
+      dZIGPIG(y, mu = par$mu, sigma = par$sigma, nu = par$nu, tau = par$pi, log = log),
+    "p" = function(y, par, ...)
+      pZIGPIG(y, mu = par$mu, sigma = par$sigma, nu = par$nu, tau = par$pi),
+    "q" = function(p, par, ...)
+      qZIGPIG(p, mu = par$mu, sigma = par$sigma, nu = par$nu, tau = par$pi),
+    "r" = function(n, par)
+      rZIGPIG(n, mu = par$mu, sigma = par$sigma, nu = par$nu, tau = par$pi)
+  )
+  rval$initialize <- list(
+    mu    = function(y, ...) rep(max(mean(y), 1e-3), length(y)),
+    sigma = function(y, ...) rep(0.5, length(y)),
+    nu    = function(y, ...) rep(0.7, length(y)),
+    pi    = function(y, ...) rep(min(max(mean(y == 0), 0.01), 0.5), length(y))
+  )
+  class(rval) <- "family.bamlss"
+  rval
+}
