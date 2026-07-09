@@ -356,6 +356,25 @@ if (is.null(inits)) {
       }
       if (family %in% c("zigpig", "zigpignat"))
         inits[4] <- stats::qlogis(min(max(mean(y1 == 0), 1e-3), 0.5))
+    } else if (family == "gpois") {
+      ## Generalized Poisson: Var/mean = 1/(1-lambda)^2, so lambda = 1 - sqrt(mean/var).
+      y1 <- likdata$y[, 1]
+      ybar <- max(mean(y1), 1e-3); vv <- stats::var(y1)
+      lam0 <- if (is.finite(vv) && vv > ybar) 1 - sqrt(ybar / vv) else 0.1
+      lam0 <- min(max(lam0, 0.01), 0.98)
+      inits <- c(log(ybar), stats::qlogis(lam0))
+    } else if (family == "gwaring") {
+      ## Generalized Waring: seed the mean at ybar, k = 1 (the Waring special case), and
+      ## rho = 2.5, just inside the finite-variance region rho > 2.
+      y1 <- likdata$y[, 1]
+      inits <- c(log(max(mean(y1), 1e-3)), 0, log(2.5))
+    } else if (family == "plnorm") {
+      ## Poisson-lognormal: matching the first two moments gives
+      ## sigma^2 = log(1 + (var - mean)/mean^2).
+      y1 <- likdata$y[, 1]
+      ybar <- max(mean(y1), 1e-3); vv <- stats::var(y1)
+      s2 <- if (is.finite(vv) && vv > ybar) log(1 + (vv - ybar) / ybar^2) else 0.25
+      inits <- c(log(ybar), 0.5 * log(min(max(s2, 1e-4), 25)))
     } else if (family %in% c("bell", "bellnat", "zibell", "zibellnat")) {
       ## Bell/ZIBell (Castellares et al. 2018). Native theta is seeded at the
       ## MLE theta.hat = W0(ybar); the mean parameterisation at log(ybar).

@@ -166,6 +166,163 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// gpois1d0
+double gpois1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_gpois1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(gpois1d0(pars, X1, X2, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// gpois1d12
+arma::mat gpois1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_gpois1d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(gpois1d12(pars, X1, X2, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// gwaring1d0
+double gwaring1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_gwaring1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X3(X3SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(gwaring1d0(pars, X1, X2, X3, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// gwaring1d12
+arma::mat gwaring1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_gwaring1d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X3(X3SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(gwaring1d12(pars, X1, X2, X3, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// plnorm1d0
+double plnorm1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_plnorm1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(plnorm1d0(pars, X1, X2, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// plnorm1d12
+arma::mat plnorm1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_plnorm1d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(plnorm1d12(pars, X1, X2, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// gpois_logpmf_cpp
+Rcpp::NumericVector gpois_logpmf_cpp(Rcpp::NumericVector y, double mu, double lambda);
+RcppExport SEXP _egpd_gpois_logpmf_cpp(SEXP ySEXP, SEXP muSEXP, SEXP lambdaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type y(ySEXP);
+    Rcpp::traits::input_parameter< double >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
+    rcpp_result_gen = Rcpp::wrap(gpois_logpmf_cpp(y, mu, lambda));
+    return rcpp_result_gen;
+END_RCPP
+}
+// gwaring_logpmf_cpp
+Rcpp::NumericVector gwaring_logpmf_cpp(Rcpp::NumericVector y, double mu, double k, double rho);
+RcppExport SEXP _egpd_gwaring_logpmf_cpp(SEXP ySEXP, SEXP muSEXP, SEXP kSEXP, SEXP rhoSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type y(ySEXP);
+    Rcpp::traits::input_parameter< double >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< double >::type k(kSEXP);
+    Rcpp::traits::input_parameter< double >::type rho(rhoSEXP);
+    rcpp_result_gen = Rcpp::wrap(gwaring_logpmf_cpp(y, mu, k, rho));
+    return rcpp_result_gen;
+END_RCPP
+}
+// plnorm_logpmf_cpp
+Rcpp::NumericVector plnorm_logpmf_cpp(Rcpp::NumericVector y, double mu, double sigma);
+RcppExport SEXP _egpd_plnorm_logpmf_cpp(SEXP ySEXP, SEXP muSEXP, SEXP sigmaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type y(ySEXP);
+    Rcpp::traits::input_parameter< double >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< double >::type sigma(sigmaSEXP);
+    rcpp_result_gen = Rcpp::wrap(plnorm_logpmf_cpp(y, mu, sigma));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cf_grad_cpp
+Rcpp::NumericVector cf_grad_cpp(std::string fam, double y, Rcpp::NumericVector eta);
+RcppExport SEXP _egpd_cf_grad_cpp(SEXP famSEXP, SEXP ySEXP, SEXP etaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< std::string >::type fam(famSEXP);
+    Rcpp::traits::input_parameter< double >::type y(ySEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type eta(etaSEXP);
+    rcpp_result_gen = Rcpp::wrap(cf_grad_cpp(fam, y, eta));
+    return rcpp_result_gen;
+END_RCPP
+}
 // degpd1d0
 double degpd1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max);
 RcppExport SEXP _egpd_degpd1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP) {
@@ -1402,6 +1559,16 @@ static const R_CallMethodDef CallEntries[] = {
     {"_egpd_zibellnat1d12", (DL_FUNC) &_egpd_zibellnat1d12, 7},
     {"_egpd_bell_pmf_cpp", (DL_FUNC) &_egpd_bell_pmf_cpp, 2},
     {"_egpd_bell_W0_cpp", (DL_FUNC) &_egpd_bell_W0_cpp, 1},
+    {"_egpd_gpois1d0", (DL_FUNC) &_egpd_gpois1d0, 7},
+    {"_egpd_gpois1d12", (DL_FUNC) &_egpd_gpois1d12, 7},
+    {"_egpd_gwaring1d0", (DL_FUNC) &_egpd_gwaring1d0, 8},
+    {"_egpd_gwaring1d12", (DL_FUNC) &_egpd_gwaring1d12, 8},
+    {"_egpd_plnorm1d0", (DL_FUNC) &_egpd_plnorm1d0, 7},
+    {"_egpd_plnorm1d12", (DL_FUNC) &_egpd_plnorm1d12, 7},
+    {"_egpd_gpois_logpmf_cpp", (DL_FUNC) &_egpd_gpois_logpmf_cpp, 3},
+    {"_egpd_gwaring_logpmf_cpp", (DL_FUNC) &_egpd_gwaring_logpmf_cpp, 4},
+    {"_egpd_plnorm_logpmf_cpp", (DL_FUNC) &_egpd_plnorm_logpmf_cpp, 3},
+    {"_egpd_cf_grad_cpp", (DL_FUNC) &_egpd_cf_grad_cpp, 3},
     {"_egpd_degpd1d0", (DL_FUNC) &_egpd_degpd1d0, 9},
     {"_egpd_degpd1d12", (DL_FUNC) &_egpd_degpd1d12, 9},
     {"_egpd_degpd2d0", (DL_FUNC) &_egpd_degpd2d0, 11},

@@ -22,6 +22,18 @@ export(fitegpd)   # deprecated alias for distfit
 export(fit_aggregate_egpd)
 export(fit_spliced_degpd)
 export(gpig_control)
+export(dgpois)
+export(pgpois)
+export(qgpois)
+export(rgpois)
+export(dgwaring)
+export(pgwaring)
+export(qgwaring)
+export(rgwaring)
+export(dpoislnorm)
+export(ppoislnorm)
+export(qpoislnorm)
+export(rpoislnorm)
 
 # Bivariate EGPD
 export(rbegpd)

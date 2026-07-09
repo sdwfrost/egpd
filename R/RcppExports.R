@@ -41,6 +41,46 @@ bell_W0_cpp <- function(x) {
     .Call(`_egpd_bell_W0_cpp`, x)
 }
 
+gpois1d0 <- function(pars, X1, X2, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_gpois1d0`, pars, X1, X2, yvec, dupid, dcate, offsets)
+}
+
+gpois1d12 <- function(pars, X1, X2, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_gpois1d12`, pars, X1, X2, yvec, dupid, dcate, offsets)
+}
+
+gwaring1d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_gwaring1d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
+}
+
+gwaring1d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_gwaring1d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
+}
+
+plnorm1d0 <- function(pars, X1, X2, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_plnorm1d0`, pars, X1, X2, yvec, dupid, dcate, offsets)
+}
+
+plnorm1d12 <- function(pars, X1, X2, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_plnorm1d12`, pars, X1, X2, yvec, dupid, dcate, offsets)
+}
+
+gpois_logpmf_cpp <- function(y, mu, lambda) {
+    .Call(`_egpd_gpois_logpmf_cpp`, y, mu, lambda)
+}
+
+gwaring_logpmf_cpp <- function(y, mu, k, rho) {
+    .Call(`_egpd_gwaring_logpmf_cpp`, y, mu, k, rho)
+}
+
+plnorm_logpmf_cpp <- function(y, mu, sigma) {
+    .Call(`_egpd_plnorm_logpmf_cpp`, y, mu, sigma)
+}
+
+cf_grad_cpp <- function(fam, y, eta) {
+    .Call(`_egpd_cf_grad_cpp`, fam, y, eta)
+}
+
 degpd1d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max) {
     .Call(`_egpd_degpd1d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max)
 }

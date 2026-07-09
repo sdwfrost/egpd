@@ -206,6 +206,30 @@
     nms <- c("ltheta", "logitpi")
     nms2 <- c('logtheta', 'logitpi')
     attr(family, "type") <- 1
+  } else if (family == "gpois") {
+    ## Generalized Poisson (Consul & Jain), mean parameterisation:
+    ## mu = mean (log link), lambda = dispersion (logit); Var = mu/(1-lambda)^2.
+    lik.fns <- .gpois1fns
+    npar <- 2
+    nms <- c("lmu", "logitlambda")
+    nms2 <- c('logmu', 'logitlambda')
+    attr(family, "type") <- 1
+  } else if (family == "gwaring") {
+    ## Generalized Waring, mean parameterisation: mu = mean (log), k (log), rho (log).
+    ## a = mu(rho-1)/k. Tail P(Y=y) ~ y^-(rho+1): the only heavy-tailed member here.
+    lik.fns <- .gwaring1fns
+    npar <- 3
+    nms <- c("lmu", "lk", "lrho")
+    nms2 <- c('logmu', 'logk', 'logrho')
+    attr(family, "type") <- 1
+  } else if (family == "plnorm") {
+    ## Poisson-lognormal, mean parameterisation: mu = mean (log), sigma (log).
+    ## muz = log(mu) - sigma^2/2; pmf by adaptive Gauss-Hermite quadrature.
+    lik.fns <- .plnorm1fns
+    npar <- 2
+    nms <- c("lmu", "lsigma")
+    nms2 <- c('logmu', 'logsigma')
+    attr(family, "type") <- 1
   } else if (family == "comppareto") {
     comp.info <- .comppareto_family_setup(comppareto)
     lik.fns <- comp.info$lik.fns
@@ -224,7 +248,7 @@
       }
       nms2 <- nms
     } else {
-      stop(paste("Family '", family, "' not supported. Use 'egpd', 'degpd', 'zidegpd', or 'comppareto'.", sep=""))
+      stop(paste("Family '", family, "' not supported. Use 'egpd', 'degpd', 'zidegpd', 'pig', 'gpig', 'bell', 'gpois', 'gwaring', 'plnorm', or 'comppareto'.", sep=""))
     }
   }
   out <- list(npar=npar, npar2=npar, lik.fns=lik.fns, nms=nms, family=family, nms2 = nms2)
