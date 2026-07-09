@@ -348,6 +348,20 @@ if (is.null(inits)) {
       }
       if (family %in% c("zigpig", "zigpignat"))
         inits[4] <- stats::qlogis(min(max(mean(y1 == 0), 1e-3), 0.5))
+    } else if (family %in% c("bell", "bellnat", "zibell", "zibellnat")) {
+      ## Bell/ZIBell (Castellares et al. 2018). Native theta is seeded at the
+      ## MLE theta.hat = W0(ybar); the mean parameterisation at log(ybar).
+      ## ZI variants seed logitpi near the observed zero proportion.
+      y1 <- likdata$y[, 1]
+      ybar <- max(mean(y1), 1e-3)
+      inits <- numeric(npar)
+      if (family %in% c("bell", "zibell")) {          # mean: log mu
+        inits[1] <- log(ybar)
+      } else {                                        # native: log theta
+        inits[1] <- log(max(bell_W0_cpp(ybar), 1e-3))
+      }
+      if (family %in% c("zibell", "zibellnat"))
+        inits[2] <- stats::qlogis(min(max(mean(y1 == 0), 1e-3), 0.5))
     } else {
       inits <- numeric(npar)
     }

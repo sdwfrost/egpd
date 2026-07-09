@@ -209,7 +209,7 @@
 #' @param nsamples number of posterior samples (NPE only)
 #' @param call the matched call from fitegpd()
 #' @noRd
-.fitegpd_neuralbayes <- function(x, family = "begpd",
+.distfit_neuralbayes <- function(x, family = "begpd",
                                   model.path = NULL,
                                   estimator = c("npe", "nbe"),
                                   nsamples = 1000L,
@@ -350,7 +350,7 @@
     model.path        = model.path,
     posterior_samples  = posterior_samples,
     nsamples          = if (estimator == "npe") nsamples else NULL
-  ), class = "fitegpd")
+  ), class = "distfit")
 }
 
 

@@ -511,6 +511,30 @@ rZIDEGPD3 <- function(n, mu = 1, sigma = 0.5, nu = 1, tau = 0.1) {
   dl
 }
 
+## One- and two-parameter variants (used by the Bell / ZIBell gamlss families).
+.egpd_nd1 <- function(y, mu, dfn, h_scale = 1e-4) {
+  h <- pmax(abs(mu) * h_scale, 1e-8)
+  ld_p <- dfn(y, mu = mu + h, log = TRUE)
+  ld_m <- dfn(y, mu = mu - h, log = TRUE)
+  dl <- (ld_p - ld_m) / (2 * h)
+  dl[!is.finite(dl)] <- 0
+  dl
+}
+
+.egpd_nd2 <- function(y, mu, sigma, dfn, idx, h_scale = 1e-4) {
+  params <- list(mu, sigma)
+  par_val <- params[[idx]]
+  h <- pmax(abs(par_val) * h_scale, 1e-8)
+  params_p <- params_m <- params
+  params_p[[idx]] <- par_val + h
+  params_m[[idx]] <- par_val - h
+  ld_p <- dfn(y, mu = params_p[[1]], sigma = params_p[[2]], log = TRUE)
+  ld_m <- dfn(y, mu = params_m[[1]], sigma = params_m[[2]], log = TRUE)
+  dl <- (ld_p - ld_m) / (2 * h)
+  dl[!is.finite(dl)] <- 0
+  dl
+}
+
 ## Internal factory for building gamlss.family objects.
 ##
 ## gamlss extracts function bodies via body() and evaluates them as expressions

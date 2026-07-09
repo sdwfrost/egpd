@@ -177,6 +177,35 @@
     nms <- c("logita", "lb", "logitc", "logitpi")
     nms2 <- c('logita', 'logb', 'logitc', 'logitpi')
     attr(family, "type") <- 1
+  } else if (family == "bell") {
+    ## Bell (Castellares et al. 2018), mean parameterisation:
+    ## mu = mean (log link); internally theta = W0(mu).
+    lik.fns <- .bell1fns
+    npar <- 1
+    nms <- c("lmu")
+    nms2 <- c('logmu')
+    attr(family, "type") <- 1
+  } else if (family == "bellnat") {
+    ## Bell, native theta parameterisation (paper Definition 1): theta (log link).
+    lik.fns <- .bellnat1fns
+    npar <- 1
+    nms <- c("ltheta")
+    nms2 <- c('logtheta')
+    attr(family, "type") <- 1
+  } else if (family == "zibell") {
+    ## Zero-inflated Bell, mean parameterisation: adds logit-link pi.
+    lik.fns <- .zibell1fns
+    npar <- 2
+    nms <- c("lmu", "logitpi")
+    nms2 <- c('logmu', 'logitpi')
+    attr(family, "type") <- 1
+  } else if (family == "zibellnat") {
+    ## Zero-inflated Bell, native parameterisation: adds logit-link pi.
+    lik.fns <- .zibellnat1fns
+    npar <- 2
+    nms <- c("ltheta", "logitpi")
+    nms2 <- c('logtheta', 'logitpi')
+    attr(family, "type") <- 1
   } else if (family == "comppareto") {
     comp.info <- .comppareto_family_setup(comppareto)
     lik.fns <- comp.info$lik.fns

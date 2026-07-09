@@ -31,7 +31,7 @@ This vignette covers:
 2. **Simulating bivariate discrete data** -- `rbdegpd()` and `rbzidegpd()`
 3. **Exploring the parameter space** -- how parameters affect the
    discrete bivariate distribution
-4. **Neural Bayes estimation** -- fitting via `fitegpd()`
+4. **Neural Bayes estimation** -- fitting via `distfit()`
 5. **Training custom models** -- `train_bdegpd()`
 
 ## 1. The BDEGPD model
@@ -268,7 +268,7 @@ set.seed(42)
 Y <- rbdegpd(2000, kappa = 2, sigma = 1, xi = 0.1,
              thL = 5, thU = 5, thw = 0.2)
 
-fit <- fitegpd(Y, family = "bdegpd", method = "neuralbayes",
+fit <- distfit(Y, family = "bdegpd", method = "neuralbayes",
                estimator = "npe", nsamples = 2000)
 summary(fit)
 ```
@@ -284,7 +284,7 @@ set.seed(42)
 Y_zi <- rbzidegpd(2000, kappa = 2, sigma = 1, xi = 0.1,
                    thL = 5, thU = 5, thw = 0.2, pi0 = 0.3)
 
-fit_zi <- fitegpd(Y_zi, family = "bzidegpd", method = "neuralbayes",
+fit_zi <- distfit(Y_zi, family = "bzidegpd", method = "neuralbayes",
                    estimator = "npe", nsamples = 2000)
 summary(fit_zi)
 ```
@@ -377,7 +377,7 @@ paths <- train_bdegpd(
 )
 
 # Use the custom-trained model
-fit_custom <- fitegpd(Y, family = "bdegpd", method = "neuralbayes",
+fit_custom <- distfit(Y, family = "bdegpd", method = "neuralbayes",
                       model.path = paths$npe, estimator = "npe")
 
 # Train BZIDEGPD model

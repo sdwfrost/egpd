@@ -39,14 +39,14 @@ test_that("qcpegpd inverts pcpegpd", {
   expect_true(all(diff(q) >= 0))
 })
 
-test_that("fitegpd with family='cpegpd' type 1 converges on simulated data", {
+test_that("distfit with family='cpegpd' type 1 converges on simulated data", {
   set.seed(42)
   true_sigma <- 2; true_xi <- 0.1; true_kappa <- 1.5; true_lambda <- 2
   x <- rcpegpd(500, sigma = true_sigma, xi = true_xi, kappa = true_kappa,
                 lambda = true_lambda, type = 1)
-  fit <- fitegpd(x, type = 1, family = "cpegpd")
+  fit <- distfit(x, type = 1, family = "cpegpd")
 
-  expect_s3_class(fit, "fitegpd")
+  expect_s3_class(fit, "distfit")
   expect_equal(fit$convergence, 0)
   expect_equal(fit$family, "cpegpd")
   expect_equal(fit$type, 1)
@@ -55,22 +55,22 @@ test_that("fitegpd with family='cpegpd' type 1 converges on simulated data", {
   expect_true(!is.null(fit$cpegpd.h))
 })
 
-test_that("fitegpd cpegpd parameter recovery", {
+test_that("distfit cpegpd parameter recovery", {
   set.seed(123)
   true_sigma <- 2; true_xi <- 0.1; true_kappa <- 1.5; true_lambda <- 2
   x <- rcpegpd(800, sigma = true_sigma, xi = true_xi, kappa = true_kappa,
                 lambda = true_lambda, type = 1)
-  fit <- fitegpd(x, type = 1, family = "cpegpd")
+  fit <- distfit(x, type = 1, family = "cpegpd")
 
   expect_true(fit$estimate["sigma"] > 0.5 && fit$estimate["sigma"] < 5)
   expect_true(fit$estimate["kappa"] > 0.3 && fit$estimate["kappa"] < 5)
   expect_true(fit$estimate["lambda"] > 0.5 && fit$estimate["lambda"] < 5)
 })
 
-test_that("fitegpd cpegpd with fix.arg works", {
+test_that("distfit cpegpd with fix.arg works", {
   set.seed(42)
   x <- rcpegpd(300, sigma = 2, xi = 0.1, kappa = 1.5, lambda = 2, type = 1)
-  fit <- fitegpd(x, type = 1, family = "cpegpd", fix.arg = list(xi = 0.1))
+  fit <- distfit(x, type = 1, family = "cpegpd", fix.arg = list(xi = 0.1))
 
   expect_equal(fit$convergence, 0)
   expect_false("xi" %in% names(fit$estimate))
@@ -78,14 +78,14 @@ test_that("fitegpd cpegpd with fix.arg works", {
   expect_equal(fit$fix.arg, list(xi = 0.1))
 })
 
-test_that("fitegpd cpegpd S3 methods work", {
+test_that("distfit cpegpd S3 methods work", {
   set.seed(42)
   x <- rcpegpd(300, sigma = 2, xi = 0.1, kappa = 1.5, lambda = 2, type = 1)
-  fit <- fitegpd(x, type = 1, family = "cpegpd")
+  fit <- distfit(x, type = 1, family = "cpegpd")
 
   ## summary
   s <- summary(fit)
-  expect_s3_class(s, "summary.fitegpd")
+  expect_s3_class(s, "summary.distfit")
   expect_true(!is.null(s$cpegpd.h))
 
   ## print (should not error)
@@ -101,10 +101,10 @@ test_that("fitegpd cpegpd S3 methods work", {
   expect_equal(nrow(ci), 4)
 })
 
-test_that("fitegpd cpegpd plot does not error", {
+test_that("distfit cpegpd plot does not error", {
   set.seed(42)
   x <- rcpegpd(300, sigma = 2, xi = 0.1, kappa = 1.5, lambda = 2, type = 1)
-  fit <- fitegpd(x, type = 1, family = "cpegpd")
+  fit <- distfit(x, type = 1, family = "cpegpd")
 
   expect_no_error(plot(fit))
 })

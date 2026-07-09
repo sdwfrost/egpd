@@ -87,22 +87,22 @@ test_that("rbzidegpd is reproducible with set.seed", {
   expect_identical(Y1, Y2)
 })
 
-test_that("fitegpd rejects bdegpd with method='mle'", {
+test_that("distfit rejects bdegpd with method='mle'", {
   Y <- matrix(as.integer(rpois(200, 5)), ncol = 2)
-  expect_error(fitegpd(Y, family = "bdegpd", method = "mle"),
+  expect_error(distfit(Y, family = "bdegpd", method = "mle"),
                "family='bdegpd' requires method='neuralbayes'")
 })
 
-test_that("fitegpd rejects bzidegpd with method='mle'", {
+test_that("distfit rejects bzidegpd with method='mle'", {
   Y <- matrix(as.integer(rpois(200, 5)), ncol = 2)
-  expect_error(fitegpd(Y, family = "bzidegpd", method = "mle"),
+  expect_error(distfit(Y, family = "bzidegpd", method = "mle"),
                "family='bzidegpd' requires method='neuralbayes'")
 })
 
 
 ## ---- Julia-dependent tests ----
 
-test_that("NPE inference for bdegpd produces valid fitegpd object", {
+test_that("NPE inference for bdegpd produces valid distfit object", {
   skip_if_not_installed("JuliaConnectoR")
   skip_if_not_installed("NeuralEstimators")
   skip_if(system.file("models", "BDEGPD_NPE.bson", package = "egpd") == "",
@@ -110,9 +110,9 @@ test_that("NPE inference for bdegpd produces valid fitegpd object", {
 
   set.seed(42)
   Y <- rbdegpd(500, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0.2)
-  fit <- fitegpd(Y, family = "bdegpd", method = "neuralbayes", estimator = "npe")
+  fit <- distfit(Y, family = "bdegpd", method = "neuralbayes", estimator = "npe")
 
-  expect_s3_class(fit, "fitegpd")
+  expect_s3_class(fit, "distfit")
   expect_equal(fit$family, "bdegpd")
   expect_equal(fit$method, "neuralbayes")
   expect_equal(fit$estimator_type, "npe")
@@ -132,16 +132,16 @@ test_that("NBE inference for bdegpd works", {
 
   set.seed(42)
   Y <- rbdegpd(500, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0.2)
-  fit <- fitegpd(Y, family = "bdegpd", method = "neuralbayes", estimator = "nbe")
+  fit <- distfit(Y, family = "bdegpd", method = "neuralbayes", estimator = "nbe")
 
-  expect_s3_class(fit, "fitegpd")
+  expect_s3_class(fit, "distfit")
   expect_equal(fit$estimator_type, "nbe")
   expect_null(fit$posterior_samples)
   expect_equal(length(fit$estimate), 6)
   expect_true(all(fit$estimate > 0))
 })
 
-test_that("NPE inference for bzidegpd produces valid fitegpd object with 7 params", {
+test_that("NPE inference for bzidegpd produces valid distfit object with 7 params", {
   skip_if_not_installed("JuliaConnectoR")
   skip_if_not_installed("NeuralEstimators")
   skip_if(system.file("models", "BZIDEGPD_NPE.bson", package = "egpd") == "",
@@ -150,9 +150,9 @@ test_that("NPE inference for bzidegpd produces valid fitegpd object with 7 param
   set.seed(42)
   Y <- rbzidegpd(500, kappa = 2, sigma = 1, xi = 0.1,
                   thL = 5, thU = 5, thw = 0.2, pi0 = 0.3)
-  fit <- fitegpd(Y, family = "bzidegpd", method = "neuralbayes", estimator = "npe")
+  fit <- distfit(Y, family = "bzidegpd", method = "neuralbayes", estimator = "npe")
 
-  expect_s3_class(fit, "fitegpd")
+  expect_s3_class(fit, "distfit")
   expect_equal(fit$family, "bzidegpd")
   expect_equal(fit$npar, 7)
   expect_equal(length(fit$estimate), 7)
@@ -170,14 +170,14 @@ test_that("S3 methods work for bdegpd NPE fit", {
 
   set.seed(42)
   Y <- rbdegpd(500, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0.2)
-  fit <- fitegpd(Y, family = "bdegpd", method = "neuralbayes", estimator = "npe")
+  fit <- distfit(Y, family = "bdegpd", method = "neuralbayes", estimator = "npe")
 
   ## print
   expect_output(print(fit), "Experimental")
 
   ## summary
   s <- summary(fit)
-  expect_s3_class(s, "summary.fitegpd")
+  expect_s3_class(s, "summary.distfit")
   expect_output(print(s), "Posterior summary")
 
   ## coef

@@ -143,6 +143,17 @@ if (type %in% c("response", "quantile")) {
   if (se.fit & type == "response")
     names(std.err) <- nms
 
+  ## Match the boundary guard applied inside the likelihood (src/gpig.cpp,
+  ## eta_to_abc): the GPIG/ZIGPIG tail exponent a and down-weighting c are
+  ## clamped to the same safe interior. In the likelihood a flat region beyond
+  ## the clamp lets the optimiser leave eta unbounded, so the plain inverse link
+  ## above can reconstruct an a/c marginally outside the bound; clamping here
+  ## makes predict() (and the quantiles below) agree with the fitted model.
+  if (family %in% c("gpig", "gpignat", "zigpig", "zigpignat")) {
+    if ("a" %in% names(out)) out[["a"]] <- pmin(pmax(out[["a"]], 1e-3), 1 - 1e-6)
+    if ("c" %in% names(out)) out[["c"]] <- pmin(pmax(out[["c"]], 1e-6), 1 - 1e-6)
+  }
+
   ## issue #2: report the *bounded* tail index for DEGPD model 1 fitted with a
   ## finite xi.max, matching the link used in the likelihood. The unlink above
   ## produced exp(eta); map it through xi = xi.max*(1 - exp(-exp(eta)/xi.max)).
@@ -323,6 +334,28 @@ rqresid.egpd <- function(object, seed = NULL, ...) {
 
   ## predicted parameters on response scale
   pars <- predict(object, type = "response")
+
+  ## Count families (PIG/GPIG/Bell and their zero-inflated variants) use their
+  ## own mean-convention CDFs rather than the EGPD sigma/xi/kappa structure.
+  ## Randomized quantile residual: u ~ Unif(F(y-1), F(y)), r = qnorm(u).
+  count_fams <- c("pig", "zipig", "gpig", "zigpig", "bell", "zibell")
+  if (family %in% count_fams) {
+    cdf <- switch(family,
+      pig    = function(q) ppig(q, mu = pars$mu, sigma = pars$sigma),
+      zipig  = function(q) pzipig(q, mu = pars$mu, sigma = pars$sigma, pi = pars$pi),
+      gpig   = function(q) pGPIG(q, mu = pars$mu, sigma = pars$a, nu = pars$c),
+      zigpig = function(q) pZIGPIG(q, mu = pars$mu, sigma = pars$a, nu = pars$c,
+                                   tau = pars$pi),
+      bell   = function(q) pBELL(q, mu = pars$mu),
+      zibell = function(q) pZIBELL(q, mu = pars$mu, sigma = pars$pi))
+    p_upper <- cdf(y)
+    p_lower <- cdf(y - 1)
+    p_lower[y == 0] <- 0
+    r <- qnorm(runif(n, p_lower, p_upper))
+    r[is.infinite(r)] <- NA
+    return(r)
+  }
+
   if (family != "comppareto") {
     sigma <- pars[[1]]
     xi    <- pars[[2]]

@@ -141,18 +141,18 @@ test_that("native GAM fit matches the direct optim MLE (both parameterisations)"
   expect_equal(as.numeric(logLik(fm)) + k, -o$value, tolerance = 1e-2)
 })
 
-test_that("fitegpd recovers GPIG / ZIGPIG parameters and detects the PIG case", {
+test_that("distfit recovers GPIG / ZIGPIG parameters and detects the PIG case", {
   skip_on_cran()
   set.seed(3)
   y <- egpd:::rgpig(3000, a = 0.45, b = 2.2, c = 0.8)
-  f <- fitegpd(y, family = "gpig")
+  f <- distfit(y, family = "gpig")
   expect_equal(unname(f$estimate["a"]), 0.45, tolerance = 0.1)
   expect_equal(unname(f$estimate["c"]), 0.8,  tolerance = 0.1)
 
   skip_if_not_installed("gamlss.dist")
   set.seed(5)
   yp <- gamlss.dist::rPIG(3000, mu = 3, sigma = 0.8)
-  fp <- fitegpd(yp, family = "gpig")
+  fp <- distfit(yp, family = "gpig")
   expect_equal(unname(fp$estimate["a"]), 0.5, tolerance = 0.08)  # a = 1/2 <=> PIG
 })
 
@@ -170,4 +170,25 @@ test_that("gamlss and bamlss GPIG family constructors are well-formed", {
   b <- 3 * (1 - 0.8)^(1 - 0.45) / (0.45 * 0.8)
   expect_equal(gb$d(3, list(mu = 3, sigma = 0.45, nu = 0.8)),
                egpd::dgpig(3, a = 0.45, b = b, c = 0.8))
+})
+
+test_that("boundary guard keeps the ZIGPIG fit off the degenerate a ~ 0 corner", {
+  skip_on_cran()
+  ## This data (small mean, heavy zeros) previously drove the mean-parameterised
+  ## ZIGPIG fit to a ~ 1e-18, where the exploding b = mu(1-c)^(1-a)/(a c)
+  ## overflowed the pmf recursion, gave a spuriously low NLL and produced a
+  ## collapsed (all-mass-at-0) fitted CDF that broke the residuals.
+  set.seed(201)
+  y <- egpd:::rzigpig(1500, a = 0.5, b = 2, c = 0.7, pi = 0.2)
+  fit <- egpd(list(lmu = y ~ 1, logita = ~ 1, logitc = ~ 1, logitpi = ~ 1),
+              data = data.frame(y = y), family = "zigpig", trace = 0)
+  p <- predict(fit, type = "response")[1, ]
+  ## a is clamped to the guard bound (1e-3), not the old ~1e-18 collapse; predict()
+  ## applies the same clamp as the likelihood, so the reported value respects it.
+  expect_gte(p$a, 1e-3)
+  expect_true(is.finite(as.numeric(logLik(fit))))
+  ## the log-likelihood is the correct (finite) value, not the spurious one, and
+  ## the residuals are all finite (the CDF no longer collapses to 1).
+  r <- rqresid(fit, seed = 1)
+  expect_true(all(is.finite(r)))
 })

@@ -1,8 +1,8 @@
 ---
-title: "Fitting Discrete Distributions with fitegpd"
+title: "Fitting Discrete Distributions with distfit"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Fitting Discrete Distributions with fitegpd}
+  %\VignetteIndexEntry{Fitting Discrete Distributions with distfit}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-The `fitegpd()` function supports two discrete distribution families for
+The `distfit()` function supports two discrete distribution families for
 fitting non-negative integer (count) data:
 
 1. **Discrete EGPD** (`family = "degpd"`) --- for counts without excess
@@ -68,7 +68,7 @@ barplot(table(x) / length(x), main = "Simulated DEGPD data",
 ```
 
 ```{r degpd-fit}
-fit_degpd <- fitegpd(x, type = 1, family = "degpd")
+fit_degpd <- distfit(x, type = 1, family = "degpd")
 summary(fit_degpd)
 ```
 
@@ -104,9 +104,9 @@ AIC to select among them:
 aic_table <- data.frame(
   type = c(1, 4, 5),
   AIC = c(
-    AIC(fitegpd(x, type = 1, family = "degpd")),
-    AIC(fitegpd(x, type = 4, family = "degpd")),
-    AIC(fitegpd(x, type = 5, family = "degpd"))
+    AIC(distfit(x, type = 1, family = "degpd")),
+    AIC(distfit(x, type = 4, family = "degpd")),
+    AIC(distfit(x, type = 5, family = "degpd"))
   )
 )
 aic_table
@@ -123,7 +123,7 @@ confint(fit_degpd)
 As with continuous fits, individual parameters can be fixed at known values:
 
 ```{r degpd-fix}
-fit_fix <- fitegpd(x, type = 1, family = "degpd",
+fit_fix <- distfit(x, type = 1, family = "degpd",
                     fix.arg = list(xi = 0.1))
 summary(fit_fix)
 ```
@@ -175,7 +175,7 @@ barplot(table(y) / length(y), main = "Simulated ZIDEGPD data",
 ```
 
 ```{r zidegpd-fit}
-fit_zi <- fitegpd(y, type = 1, family = "zidegpd")
+fit_zi <- distfit(y, type = 1, family = "zidegpd")
 summary(fit_zi)
 ```
 
@@ -211,7 +211,7 @@ the zeros adequately. We can compare the two models by AIC.
 ### Fitting both models to zero-inflated data
 
 ```{r compare-zi}
-fit_no_zi <- fitegpd(y, type = 1, family = "degpd")
+fit_no_zi <- distfit(y, type = 1, family = "degpd")
 fit_with_zi <- fit_zi  # already fitted above
 
 cat("DEGPD AIC:   ", AIC(fit_no_zi), "\n")
@@ -228,7 +228,7 @@ should not help:
 
 ```{r compare-no-zi}
 fit_degpd_on_x <- fit_degpd  # fitted to non-inflated x above
-fit_zi_on_x <- fitegpd(x, type = 1, family = "zidegpd")
+fit_zi_on_x <- distfit(x, type = 1, family = "zidegpd")
 
 cat("DEGPD AIC:   ", AIC(fit_degpd_on_x), "\n")
 cat("ZIDEGPD AIC: ", AIC(fit_zi_on_x), "\n")
@@ -248,7 +248,7 @@ $\kappa$ parameters; Type 6 adds a mixing probability $p$.
 set.seed(99)
 x5 <- rdiscegpd(1000, sigma = 2, xi = 0.1, delta = 1.2,
                  kappa = 1.8, type = 5)
-fit5 <- fitegpd(x5, type = 5, family = "degpd")
+fit5 <- distfit(x5, type = 5, family = "degpd")
 summary(fit5)
 ```
 
@@ -297,7 +297,7 @@ barplot(table(z) / length(z), main = "Simulated CPDEGPD data",
 ```
 
 ```{r cpdegpd-fit}
-fit_cpdegpd <- fitegpd(z, type = 1, family = "cpdegpd")
+fit_cpdegpd <- distfit(z, type = 1, family = "cpdegpd")
 summary(fit_cpdegpd)
 ```
 
@@ -326,7 +326,7 @@ Since `cpdegpd` is a compound sum model while `degpd` is a single-event
 model, we can compare their AIC on the same data to see which fits better:
 
 ```{r cpdegpd-compare}
-fit_degpd_on_z <- fitegpd(z, type = 1, family = "degpd")
+fit_degpd_on_z <- distfit(z, type = 1, family = "degpd")
 
 cat("DEGPD AIC:   ", AIC(fit_degpd_on_z), "\n")
 cat("CPDEGPD AIC: ", AIC(fit_cpdegpd), "\n")
@@ -364,7 +364,7 @@ via `start = list(sigma = ..., xi = ...)`.
 
 All families:
 
-- Return S3 objects of class `"fitegpd"` with the same interface
+- Return S3 objects of class `"distfit"` with the same interface
   (`summary`, `plot`, `AIC`, `confint`, `coef`, `vcov`, `logLik`)
 - Support `fix.arg` for fixing parameters at known values
 - Estimate standard errors via the delta method on the Hessian

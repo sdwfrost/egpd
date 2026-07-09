@@ -18,7 +18,7 @@ knitr::opts_chunk$set(
 
 The `egpd` package includes compound Poisson EGPD models for a **single**
 aggregation scale through `dcpegpd()`, `dcpdegpd()`, and
-`fitegpd(..., family = "cpegpd"/"cpdegpd")`. The
+`distfit(..., family = "cpegpd"/"cpdegpd")`. The
 `fit_aggregate_egpd()` function extends that infrastructure to a
 **multiscale** setting, following the aggregated EGPD framework described by
 Ailliot, Gaetan, and Naveau (2026).
@@ -239,6 +239,6 @@ multiscale framework. In particular:
   optimization to preserve non-crossing behavior across durations.
 
 For single-scale aggregate modeling, or when you need the full single-duration
-density/CDF/quantile utilities directly, continue to use `fitegpd()` together
+density/CDF/quantile utilities directly, continue to use `distfit()` together
 with `dcpegpd()`, `pcpegpd()`, `qcpegpd()`, `dcpdegpd()`, `pcpdegpd()`, and
 `qcpdegpd()`.

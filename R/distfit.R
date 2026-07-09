@@ -1,11 +1,14 @@
 ## Univariate distribution fitting for EGPD families
 ## MLE and Bernstein polynomial fitting
 
-#' Fit EGPD distribution to data
+#' Fit a distribution to data by maximum likelihood
 #'
-#' Maximum likelihood, Bernstein polynomial, or neural Bayes fitting of EGPD,
-#' discrete EGPD, zero-inflated EGPD, zero-inflated discrete EGPD, or
-#' bivariate multivariate EGPD distributions.
+#' Maximum likelihood, Bernstein polynomial, or neural Bayes fitting of the
+#' distribution families supported by the package: (discrete, zero-inflated)
+#' EGPD, the composite-Pareto model, the mixed-Poisson count families
+#' (Poisson-inverse Gaussian and generalised PIG), the Bell distribution, and
+#' the bivariate/multivariate EGPD families. Formerly named \code{fitegpd};
+#' that name is retained as a deprecated alias.
 #'
 #' @param x numeric vector of observations (univariate families), or an
 #'   n-by-d numeric matrix/data.frame (multivariate families; d=2 for BEGPD,
@@ -15,7 +18,9 @@
 #'   "cpdegpd", "pig" (Poisson-inverse Gaussian; \code{type} ignored), "zipig"
 #'   (zero-inflated PIG), "gpig" (generalised Poisson-inverse Gaussian of
 #'   Zhu & Joe 2009, native \code{(a, b, c)} parameterisation; \code{type}
-#'   ignored), "zigpig" (zero-inflated GPIG), "begpd" (bivariate EGPD),
+#'   ignored), "zigpig" (zero-inflated GPIG), "bell" (Bell distribution of
+#'   Castellares et al. 2018, native \code{theta} parameterisation; \code{type}
+#'   ignored), "zibell" (zero-inflated Bell), "begpd" (bivariate EGPD),
 #'   "bdegpd" (\[Experimental\] bivariate
 #'   discrete EGPD), "bzidegpd" (\[Experimental\] zero-inflated bivariate
 #'   discrete EGPD), "mdgpd" (\[Experimental\] multivariate MDGPD via
@@ -39,7 +44,7 @@
 #'   (method="neuralbayes" with estimator="npe" only).
 #' @param ... additional arguments passed to \code{\link{optim}}
 #'
-#' @return An object of class \code{"fitegpd"} with components:
+#' @return An object of class \code{"distfit"} with components:
 #' \describe{
 #'   \item{estimate}{named vector of parameter estimates}
 #'   \item{sd}{named vector of standard errors (NA if Hessian not computed)}
@@ -73,22 +78,24 @@
 #' \dontrun{
 #' # Univariate fitting
 #' x <- regpd(500, sigma = 2, xi = 0.1, kappa = 1.5, type = 1)
-#' fit <- fitegpd(x, type = 1)
+#' fit <- distfit(x, type = 1)
 #' summary(fit)
 #' plot(fit)
 #'
 #' # Bivariate BEGPD (requires Julia)
 #' Y <- rbegpd(1000, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0.2)
-#' fit_biv <- fitegpd(Y, family = "begpd", method = "neuralbayes")
+#' fit_biv <- distfit(Y, family = "begpd", method = "neuralbayes")
 #' summary(fit_biv)
 #' plot(fit_biv)
 #' }
 #'
+#' @name distfit
+#' @aliases fitegpd
 #' @export
-fitegpd <- function(x, type = 1,
+distfit <- function(x, type = 1,
                     family = c("egpd", "degpd", "ziegpd", "zidegpd",
                                "cpegpd", "cpdegpd", "pig", "zipig",
-                               "gpig", "zigpig", "begpd",
+                               "gpig", "zigpig", "bell", "zibell", "begpd",
                                "bdegpd", "bzidegpd",
                                "mdgpd", "zimdgpd"),
                     method = c("mle", "bernstein", "neuralbayes"),
@@ -113,7 +120,7 @@ fitegpd <- function(x, type = 1,
   ## Dispatch to neural Bayes fitting for bivariate families
   if (method == "neuralbayes") {
     estimator <- match.arg(estimator)
-    return(.fitegpd_neuralbayes(x, family = family,
+    return(.distfit_neuralbayes(x, family = family,
                                  model.path = model.path,
                                  estimator = estimator,
                                  nsamples = as.integer(nsamples),
@@ -127,9 +134,9 @@ fitegpd <- function(x, type = 1,
     stop("'type' must be an integer from 1 to 6")
   if (method == "bernstein" && family != "egpd")
     stop("Bernstein method is only available for family='egpd'")
-  if (family %in% c("degpd", "zidegpd", "cpdegpd", "pig", "zipig", "gpig", "zigpig") && any(x != floor(x) | x < 0))
+  if (family %in% c("degpd", "zidegpd", "cpdegpd", "pig", "zipig", "gpig", "zigpig", "bell", "zibell") && any(x != floor(x) | x < 0))
     warning("Discrete family expects non-negative integer data")
-  if (family %in% c("ziegpd", "zidegpd", "zipig", "zigpig") && !any(x == 0))
+  if (family %in% c("ziegpd", "zidegpd", "zipig", "zigpig", "zibell") && !any(x == 0))
     warning("Zero-inflated family but no zeros observed in data")
   if (family == "cpegpd" && any(x < 0))
     warning("cpegpd family expects non-negative data")
@@ -137,13 +144,13 @@ fitegpd <- function(x, type = 1,
   ## Dispatch to Bernstein fitting
 
   if (method == "bernstein") {
-    return(.fitegpd_bernstein(x, type = type, start = start, fix.arg = fix.arg,
+    return(.distfit_bernstein(x, type = type, start = start, fix.arg = fix.arg,
                               m = bernstein.m, optim.method = optim.method,
                               hessian = hessian, call = cl, ...))
   }
 
   ## Parameter specification
-  spec <- .fitegpd_parspec(type, family)
+  spec <- .distfit_parspec(type, family)
 
   ## Remove fixed args from spec
   free_spec <- spec
@@ -158,12 +165,12 @@ fitegpd <- function(x, type = 1,
 
   ## Starting values
   if (is.null(start)) {
-    start_vals <- .fitegpd_start(x, type, family, free_spec)
+    start_vals <- .distfit_start(x, type, family, free_spec)
   } else {
     bad <- setdiff(names(start), names(free_spec))
     if (length(bad) > 0)
       stop("Start values for fixed or unknown parameters: ", paste(bad, collapse = ", "))
-    start_vals <- .fitegpd_start(x, type, family, free_spec)
+    start_vals <- .distfit_start(x, type, family, free_spec)
     for (nm in names(start)) start_vals[[nm]] <- start[[nm]]
   }
 
@@ -171,11 +178,15 @@ fitegpd <- function(x, type = 1,
   start_par <- unlist(start_vals)
   theta0 <- .par_to_theta(start_par, free_spec)
 
-  ## Optimize
-  opt <- optim(theta0, fn = .fitegpd_nll, x = x, type = type, family = family,
+  ## Optimize. Nelder-Mead (the default) is unreliable and noisy for a single
+  ## free parameter (e.g. the one-parameter Bell family), so fall back to BFGS
+  ## in that case unless the user has explicitly chosen a method.
+  opt_method <- if (length(theta0) == 1L && optim.method == "Nelder-Mead")
+    "BFGS" else optim.method
+  opt <- optim(theta0, fn = .distfit_nll, x = x, type = type, family = family,
                fix.arg = fix.arg, spec = free_spec,
                h = if (family == "cpegpd") cpegpd.h else NULL,
-               method = optim.method, hessian = hessian, ...)
+               method = opt_method, hessian = hessian, ...)
 
   ## Back-transform estimates
   estimate <- .theta_to_par(opt$par, free_spec)
@@ -188,7 +199,7 @@ fitegpd <- function(x, type = 1,
   if (hessian && !is.null(opt$hessian)) {
     V_theta <- tryCatch(solve(opt$hessian), error = function(e) NULL)
     if (!is.null(V_theta)) {
-      jac <- .fitegpd_jacobian(opt$par, free_spec)
+      jac <- .distfit_jacobian(opt$par, free_spec)
       J <- diag(jac, nrow = length(jac))
       V_par <- J %*% V_theta %*% t(J)
       rownames(V_par) <- colnames(V_par) <- names(estimate)
@@ -221,7 +232,30 @@ fitegpd <- function(x, type = 1,
     bernstein.m       = NULL,
     bernstein.weights = NULL,
     cpegpd.h  = if (family == "cpegpd") cpegpd.h else NULL
-  ), class = "fitegpd")
+  ), class = "distfit")
+}
+
+
+#' @rdname distfit
+#' @export
+fitegpd <- function(x, type = 1,
+                    family = c("egpd", "degpd", "ziegpd", "zidegpd",
+                               "cpegpd", "cpdegpd", "pig", "zipig",
+                               "gpig", "zigpig", "bell", "zibell", "begpd",
+                               "bdegpd", "bzidegpd",
+                               "mdgpd", "zimdgpd"),
+                    method = c("mle", "bernstein", "neuralbayes"),
+                    start = NULL, fix.arg = NULL,
+                    optim.method = "Nelder-Mead", hessian = TRUE,
+                    bernstein.m = 8, cpegpd.h = 0.2,
+                    model.path = NULL, estimator = c("npe", "nbe"),
+                    nsamples = 1000L, ...) {
+  .Deprecated("distfit", package = "egpd",
+              msg = paste("'fitegpd' has been renamed to 'distfit' and is",
+                          "deprecated; it will be removed in a future release."))
+  cl <- match.call()
+  cl[[1L]] <- quote(distfit)
+  eval.parent(cl)
 }
 
 
@@ -229,7 +263,7 @@ fitegpd <- function(x, type = 1,
 
 #' Parameter specification for each type and family
 #' @noRd
-.fitegpd_parspec <- function(type, family) {
+.distfit_parspec <- function(type, family) {
   ## PIG / ZIPIG are mixed-Poisson count models (not EGPDs): mu (mean, log),
   ## sigma (dispersion, log), and for ZIPIG pi (zero inflation, logit).
   ## The G-transformation `type` does not apply.
@@ -247,6 +281,16 @@ fitegpd <- function(x, type = 1,
     spec <- list(a = list(transform = "logit"), b = list(transform = "log"),
                  c = list(transform = "logit"))
     if (family == "zigpig")
+      spec <- c(spec, list(pi = list(transform = "logit")))
+    return(spec)
+  }
+
+  ## Bell / ZIBell (Castellares et al. 2018), native theta parameterisation:
+  ## theta > 0 (log); ZIBell adds pi (logit). The G-transformation `type` does
+  ## not apply.
+  if (family %in% c("bell", "zibell")) {
+    spec <- list(theta = list(transform = "log"))
+    if (family == "zibell")
       spec <- c(spec, list(pi = list(transform = "logit")))
     return(spec)
   }
@@ -320,7 +364,7 @@ fitegpd <- function(x, type = 1,
 
 #' Jacobian diagonal of back-transformation (for delta method)
 #' @noRd
-.fitegpd_jacobian <- function(theta, spec) {
+.distfit_jacobian <- function(theta, spec) {
   jac <- numeric(length(theta))
   names(jac) <- names(theta)
   for (nm in names(theta)) {
@@ -339,7 +383,7 @@ fitegpd <- function(x, type = 1,
 
 #' Automatic starting values
 #' @noRd
-.fitegpd_start <- function(x, type, family, spec) {
+.distfit_start <- function(x, type, family, spec) {
   ## Remove non-finite values for moment estimation
   xclean <- x[is.finite(x)]
   if (length(xclean) < 2) xclean <- c(0.1, 0.2)
@@ -370,6 +414,16 @@ fitegpd <- function(x, type = 1,
     b0 <- max(xm, 0.1) * (1 - cc)^(1 - a0) / (a0 * cc)
     start <- list(a = a0, b = max(b0, 0.1), c = cc)
     if (family == "zigpig")
+      start$pi <- max(min(mean(x == 0), 0.99), 0.01)
+    return(start[names(spec)])
+  }
+
+  ## Bell / ZIBell: seed the native theta at the MLE theta.hat = W0(ybar).
+  if (family %in% c("bell", "zibell")) {
+    xm <- mean(xclean)
+    if (!is.finite(xm) || xm <= 0) xm <- 1
+    start <- list(theta = max(bell_W0_cpp(xm), 0.05))
+    if (family == "zibell")
       start$pi <- max(min(mean(x == 0), 0.99), 0.01)
     return(start[names(spec)])
   }
@@ -478,7 +532,7 @@ fitegpd <- function(x, type = 1,
 
 #' Negative log-likelihood for fitegpd
 #' @noRd
-.fitegpd_nll <- function(theta, x, type, family, fix.arg, spec, h = NULL) {
+.distfit_nll <- function(theta, x, type, family, fix.arg, spec, h = NULL) {
   ## Back-transform to natural scale
   par <- .theta_to_par(theta, spec)
 
@@ -509,6 +563,20 @@ fitegpd <- function(x, type = 1,
       } else {
         -sum(dzigpig(x, a = all_par[["a"]], b = all_par[["b"]], c = all_par[["c"]],
                      pi = all_par[["pi"]], log = TRUE))
+      }
+    }, error = function(e) Inf)
+    if (!is.finite(nll)) return(1e20)
+    return(nll)
+  }
+
+  ## Bell / ZIBell (native theta) via the closed-form pmf.
+  if (family %in% c("bell", "zibell")) {
+    nll <- tryCatch({
+      if (family == "bell") {
+        -sum(dbell(x, theta = all_par[["theta"]], log = TRUE))
+      } else {
+        -sum(dzibell(x, theta = all_par[["theta"]], pi = all_par[["pi"]],
+                     log = TRUE))
       }
     }, error = function(e) Inf)
     if (!is.finite(nll)) return(1e20)

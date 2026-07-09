@@ -174,13 +174,13 @@
 #' @param ... extra args to optim
 #' @return fitegpd object
 #' @noRd
-.fitegpd_bernstein <- function(x, type, start, fix.arg, m,
+.distfit_bernstein <- function(x, type, start, fix.arg, m,
                                 optim.method, hessian, call, ...) {
   n <- length(x)
 
   ## Stage 1: initial parametric MLE for GPD parameters
   init_fit <- tryCatch(
-    fitegpd(x, type = type, family = "egpd", method = "mle",
+    distfit(x, type = type, family = "egpd", method = "mle",
             start = start, fix.arg = fix.arg, hessian = FALSE),
     error = function(e) NULL
   )
@@ -279,5 +279,5 @@
     call      = call,
     bernstein.m       = m,
     bernstein.weights = weights
-  ), class = "fitegpd")
+  ), class = "distfit")
 }
