@@ -23,6 +23,7 @@ egpd(
   degpd.args = list(),
   zidegpd.args = list(),
   comppareto.args = list(),
+  gpig.args = list(),
   sandwich.args = list(),
   custom.fns = list(),
   sp = NULL,
@@ -76,6 +77,13 @@ or heavily over-dispersed series. Applies to all DEGPD models 1-6.}
 \item{comppareto.args}{a list of arguments for the CompPareto GAM family.
 Currently this supports \code{spec = "lnorm"}, \code{"gamma"},
 \code{"weibull"}, or \code{"exp"} for the body distribution.}
+
+\item{gpig.args}{a list of arguments controlling how the GPIG/ZIGPIG pmf is
+evaluated, passed to \code{\link{gpig_control}}: \code{method} (one of
+\code{"hybrid"}, \code{"recursion"}, \code{"trunc"}, \code{"saddlepoint"},
+\code{"legacy"}), \code{yswitch}, \code{order}, \code{eps}, \code{sptol},
+\code{ymax}, \code{nquad} and \code{normalize}. Applied for the duration of the
+fit and then restored. Ignored, with a warning, for other families.}
 
 \item{sandwich.args}{a list of sandwich correction arguments}
 

@@ -21,6 +21,7 @@ export(distfit)
 export(fitegpd)   # deprecated alias for distfit
 export(fit_aggregate_egpd)
 export(fit_spliced_degpd)
+export(gpig_control)
 
 # Bivariate EGPD
 export(rbegpd)

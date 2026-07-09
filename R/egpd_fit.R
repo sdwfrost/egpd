@@ -29,6 +29,12 @@
 #'   \code{Inf} and saturates at \code{xi.max}; this stabilises fits on short, spiky,
 #'   or heavily over-dispersed series. Applies to all DEGPD models 1-6.
 #' @param zidegpd.args a list of arguments for ZIDEGPD family (e.g., m=1)
+#' @param gpig.args a list of arguments controlling how the GPIG/ZIGPIG pmf is
+#'   evaluated, passed to \code{\link{gpig_control}}: \code{method} (one of
+#'   \code{"hybrid"}, \code{"recursion"}, \code{"trunc"}, \code{"saddlepoint"},
+#'   \code{"legacy"}), \code{yswitch}, \code{order}, \code{eps}, \code{sptol},
+#'   \code{ymax}, \code{nquad} and \code{normalize}. Applied for the duration of the
+#'   fit and then restored. Ignored, with a warning, for other families.
 #' @param comppareto.args a list of arguments for the CompPareto GAM family.
 #'   Currently this supports \code{spec = "lnorm"}, \code{"gamma"},
 #'   \code{"weibull"}, or \code{"exp"} for the body distribution.
@@ -44,11 +50,16 @@ egpd <- function(formula, data, family="egpd", correctV=TRUE, rho0=0,
 inits=NULL, outer="bfgs", control=NULL, removeData=FALSE, trace=0,
 knots=NULL, maxdata=1e20, maxspline=1e20, compact=FALSE,
 egpd.args=list(), degpd.args=list(), zidegpd.args=list(), comppareto.args=list(),
-sandwich.args=list(), custom.fns=list(), sp=NULL, gamma=1) {
+gpig.args=list(), sandwich.args=list(), custom.fns=list(), sp=NULL, gamma=1) {
 
 ## setup family
 family.info <- .setup.family.egpd(family, egpd.args, degpd.args, zidegpd.args, comppareto.args, formula, custom.fns)
 family <- family.info$family
+
+## GPIG/ZIGPIG pmf evaluation route (see gpig_control). Set for the duration of
+## this fit only, so a method chosen here cannot leak into later calls.
+.gpig.old <- .gpig_apply_control(family, gpig.args)
+if (!is.null(.gpig.old)) on.exit(do.call(gpig_control, .gpig.old), add = TRUE)
 
 ## setup formulae
 formula <- .setup.formulae(formula, family.info$npar, family.info$npar2, data, trace, family.info$nms)

@@ -759,6 +759,60 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// gpig_set_opts
+void gpig_set_opts(int method, int yswitch, int order, double eps, double sptol, int ymax, int nquad, int normalize);
+RcppExport SEXP _egpd_gpig_set_opts(SEXP methodSEXP, SEXP yswitchSEXP, SEXP orderSEXP, SEXP epsSEXP, SEXP sptolSEXP, SEXP ymaxSEXP, SEXP nquadSEXP, SEXP normalizeSEXP) {
+BEGIN_RCPP
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type method(methodSEXP);
+    Rcpp::traits::input_parameter< int >::type yswitch(yswitchSEXP);
+    Rcpp::traits::input_parameter< int >::type order(orderSEXP);
+    Rcpp::traits::input_parameter< double >::type eps(epsSEXP);
+    Rcpp::traits::input_parameter< double >::type sptol(sptolSEXP);
+    Rcpp::traits::input_parameter< int >::type ymax(ymaxSEXP);
+    Rcpp::traits::input_parameter< int >::type nquad(nquadSEXP);
+    Rcpp::traits::input_parameter< int >::type normalize(normalizeSEXP);
+    gpig_set_opts(method, yswitch, order, eps, sptol, ymax, nquad, normalize);
+    return R_NilValue;
+END_RCPP
+}
+// gpig_get_opts
+Rcpp::List gpig_get_opts();
+RcppExport SEXP _egpd_gpig_get_opts() {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    rcpp_result_gen = Rcpp::wrap(gpig_get_opts());
+    return rcpp_result_gen;
+END_RCPP
+}
+// gpig_logS_cpp
+double gpig_logS_cpp(double a, double b, double c);
+RcppExport SEXP _egpd_gpig_logS_cpp(SEXP aSEXP, SEXP bSEXP, SEXP cSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< double >::type a(aSEXP);
+    Rcpp::traits::input_parameter< double >::type b(bSEXP);
+    Rcpp::traits::input_parameter< double >::type c(cSEXP);
+    rcpp_result_gen = Rcpp::wrap(gpig_logS_cpp(a, b, c));
+    return rcpp_result_gen;
+END_RCPP
+}
+// gpig_logp_cpp
+Rcpp::NumericVector gpig_logp_cpp(int y, double a, double b, double c);
+RcppExport SEXP _egpd_gpig_logp_cpp(SEXP ySEXP, SEXP aSEXP, SEXP bSEXP, SEXP cSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type y(ySEXP);
+    Rcpp::traits::input_parameter< double >::type a(aSEXP);
+    Rcpp::traits::input_parameter< double >::type b(bSEXP);
+    Rcpp::traits::input_parameter< double >::type c(cSEXP);
+    rcpp_result_gen = Rcpp::wrap(gpig_logp_cpp(y, a, b, c));
+    return rcpp_result_gen;
+END_RCPP
+}
 // gpig1d0
 double gpig1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
 RcppExport SEXP _egpd_gpig1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
@@ -1380,6 +1434,10 @@ static const R_CallMethodDef CallEntries[] = {
     {"_egpd_egpd6d12", (DL_FUNC) &_egpd_egpd6d12, 8},
     {"_egpd_armapinv", (DL_FUNC) &_egpd_armapinv, 2},
     {"_egpd_armaginv", (DL_FUNC) &_egpd_armaginv, 2},
+    {"_egpd_gpig_set_opts", (DL_FUNC) &_egpd_gpig_set_opts, 8},
+    {"_egpd_gpig_get_opts", (DL_FUNC) &_egpd_gpig_get_opts, 0},
+    {"_egpd_gpig_logS_cpp", (DL_FUNC) &_egpd_gpig_logS_cpp, 3},
+    {"_egpd_gpig_logp_cpp", (DL_FUNC) &_egpd_gpig_logp_cpp, 4},
     {"_egpd_gpig1d0", (DL_FUNC) &_egpd_gpig1d0, 8},
     {"_egpd_gpig1d12", (DL_FUNC) &_egpd_gpig1d12, 8},
     {"_egpd_gpignat1d0", (DL_FUNC) &_egpd_gpignat1d0, 8},

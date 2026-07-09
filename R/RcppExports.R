@@ -169,6 +169,22 @@ armaginv <- function(x, tol) {
     .Call(`_egpd_armaginv`, x, tol)
 }
 
+gpig_set_opts <- function(method, yswitch, order, eps, sptol, ymax, nquad, normalize) {
+    invisible(.Call(`_egpd_gpig_set_opts`, method, yswitch, order, eps, sptol, ymax, nquad, normalize))
+}
+
+gpig_get_opts <- function() {
+    .Call(`_egpd_gpig_get_opts`)
+}
+
+gpig_logS_cpp <- function(a, b, c) {
+    .Call(`_egpd_gpig_logS_cpp`, a, b, c)
+}
+
+gpig_logp_cpp <- function(y, a, b, c) {
+    .Call(`_egpd_gpig_logp_cpp`, y, a, b, c)
+}
+
 gpig1d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
     .Call(`_egpd_gpig1d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
 }
