@@ -153,6 +153,19 @@ if (type %in% c("response", "quantile")) {
     if ("a" %in% names(out)) out[["a"]] <- pmin(pmax(out[["a"]], 1e-3), 1 - 1e-6)
     if ("c" %in% names(out)) out[["c"]] <- pmin(pmax(out[["c"]], 1e-6), 1 - 1e-6)
   }
+  ## The same guard for the count families of src/countfams.cpp. It matters most for the
+  ## generalized Waring: rho -> Inf is its negative-binomial limit, and since rho enters the
+  ## likelihood only through the clamp, the optimiser can push eta3 arbitrarily far with no
+  ## change in fit. Unclamped, predict() then reports rho = Inf (or 1e220) while the fitted
+  ## model actually used rho = 1e6 -- a boundary fit that looks like a converged one.
+  if (family %in% c("gpois", "gwaring", "plnorm")) {
+    bd <- cf_bounds_cpp()[[family]]        # single source of truth: the C++ clamps
+    for (pn in c("mu", "lambda", "k", "rho", "sigma")) {
+      lo <- paste0(pn, "_lo"); hi <- paste0(pn, "_hi")
+      if (pn %in% names(out) && lo %in% names(bd))
+        out[[pn]] <- pmin(pmax(out[[pn]], bd[[lo]]), bd[[hi]])
+    }
+  }
 
   ## issue #2: report the *bounded* tail index for DEGPD model 1 fitted with a
   ## finite xi.max, matching the link used in the likelihood. The unlink above

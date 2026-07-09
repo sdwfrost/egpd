@@ -77,6 +77,10 @@ plnorm_logpmf_cpp <- function(y, mu, sigma) {
     .Call(`_egpd_plnorm_logpmf_cpp`, y, mu, sigma)
 }
 
+cf_bounds_cpp <- function() {
+    .Call(`_egpd_cf_bounds_cpp`)
+}
+
 cf_grad_cpp <- function(fam, y, eta) {
     .Call(`_egpd_cf_grad_cpp`, fam, y, eta)
 }

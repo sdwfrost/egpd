@@ -310,6 +310,16 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// cf_bounds_cpp
+Rcpp::List cf_bounds_cpp();
+RcppExport SEXP _egpd_cf_bounds_cpp() {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    rcpp_result_gen = Rcpp::wrap(cf_bounds_cpp());
+    return rcpp_result_gen;
+END_RCPP
+}
 // cf_grad_cpp
 Rcpp::NumericVector cf_grad_cpp(std::string fam, double y, Rcpp::NumericVector eta);
 RcppExport SEXP _egpd_cf_grad_cpp(SEXP famSEXP, SEXP ySEXP, SEXP etaSEXP) {
@@ -1568,6 +1578,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_egpd_gpois_logpmf_cpp", (DL_FUNC) &_egpd_gpois_logpmf_cpp, 3},
     {"_egpd_gwaring_logpmf_cpp", (DL_FUNC) &_egpd_gwaring_logpmf_cpp, 4},
     {"_egpd_plnorm_logpmf_cpp", (DL_FUNC) &_egpd_plnorm_logpmf_cpp, 3},
+    {"_egpd_cf_bounds_cpp", (DL_FUNC) &_egpd_cf_bounds_cpp, 0},
     {"_egpd_cf_grad_cpp", (DL_FUNC) &_egpd_cf_grad_cpp, 3},
     {"_egpd_degpd1d0", (DL_FUNC) &_egpd_degpd1d0, 9},
     {"_egpd_degpd1d12", (DL_FUNC) &_egpd_degpd1d12, 9},

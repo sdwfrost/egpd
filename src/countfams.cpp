@@ -343,6 +343,23 @@ Rcpp::NumericVector plnorm_logpmf_cpp(Rcpp::NumericVector y, double mu, double s
   return out;
 }
 
+// The parameter clamps, exported so that predict.egpd() and the tests read the SAME numbers
+// the likelihood enforces, rather than duplicating them as literals that can silently drift.
+// [[Rcpp::export]]
+Rcpp::List cf_bounds_cpp() {
+  return Rcpp::List::create(
+    Rcpp::Named("gpois")   = Rcpp::NumericVector::create(
+      Rcpp::Named("mu_lo") = GP_MU_LO, Rcpp::Named("mu_hi") = GP_MU_HI,
+      Rcpp::Named("lambda_lo") = GP_LAM_LO, Rcpp::Named("lambda_hi") = GP_LAM_HI),
+    Rcpp::Named("gwaring") = Rcpp::NumericVector::create(
+      Rcpp::Named("mu_lo") = GW_MU_LO, Rcpp::Named("mu_hi") = GW_MU_HI,
+      Rcpp::Named("k_lo") = GW_K_LO, Rcpp::Named("k_hi") = GW_K_HI,
+      Rcpp::Named("rho_lo") = GW_RHO_LO, Rcpp::Named("rho_hi") = GW_RHO_HI),
+    Rcpp::Named("plnorm")  = Rcpp::NumericVector::create(
+      Rcpp::Named("mu_lo") = PLN_MU_LO, Rcpp::Named("mu_hi") = PLN_MU_HI,
+      Rcpp::Named("sigma_lo") = PLN_SG_LO, Rcpp::Named("sigma_hi") = PLN_SG_HI));
+}
+
 // Gradient of log pmf wrt the linear predictors at one y, for the finite-difference test.
 // [[Rcpp::export]]
 Rcpp::NumericVector cf_grad_cpp(std::string fam, double y, Rcpp::NumericVector eta) {

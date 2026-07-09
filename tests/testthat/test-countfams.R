@@ -141,3 +141,32 @@ test_that("each family fits a GAM through egpd() and predicts on the response sc
   pr <- as.data.frame(predict(f3, newdata = d[1, , drop = FALSE], type = "response"))
   expect_named(pr, c("mu", "sigma"))
 })
+
+test_that("predict() reports the same parameters the likelihood used (clamps applied)", {
+  # rho enters the gwaring likelihood only through its clamp, so beyond the bound the
+  # objective is flat and the optimiser leaves eta3 unbounded. Unclamped, predict() reported
+  # rho = Inf (and 4.8e220) on real Tycho fits while the model had used rho = 1e6 -- a
+  # boundary fit that looked converged. The bounds come from C++ so they cannot drift.
+  bd <- egpd:::cf_bounds_cpp()
+  expect_gt(bd$gwaring[["rho_lo"]], 1)               # rho > 1 keeps the mean finite
+  expect_true(all(vapply(bd, function(b) all(is.finite(b)), TRUE)))
+
+  set.seed(11)
+  # Poisson data has no heavy tail, so gwaring must escape to its rho -> Inf (NB) limit.
+  d <- data.frame(y = stats::rpois(400, 30))
+  f <- egpd(list(lmu = y ~ 1, lk = ~1, lrho = ~1), data = d, family = "gwaring")
+  pr <- as.data.frame(predict(f, newdata = d[1, , drop = FALSE], type = "response"))
+  expect_true(is.finite(pr$rho))
+  expect_lte(pr$rho, bd$gwaring[["rho_hi"]])
+  expect_gte(pr$rho, bd$gwaring[["rho_lo"]])
+  expect_true(is.finite(1 / pr$rho))                 # xi is then reportable, and ~0
+})
+
+test_that("gwaring collapses onto the negative binomial as rho -> Inf", {
+  # BNB(r=k, alpha=rho, beta=a) with a = mu(rho-1)/k tends to NB(size=k, mu) as rho -> Inf.
+  # This is the limit the optimiser escapes to on light-tailed data, so it must be right.
+  mu <- 30; k <- 2
+  for (y in c(0, 5, 30, 200))
+    expect_equal(dgwaring(y, mu = mu, k = k, rho = 1e7),
+                 stats::dnbinom(y, size = k, mu = mu), tolerance = 1e-4)
+})
