@@ -305,7 +305,15 @@ if (is.null(inits)) {
   } else {
   if (family %in% c("egpd", "degpd")) {
     inits <- numeric(npar)
-    inits[1:2] <- c(log(mean(likdata$y[,1])), .05)
+    ## The second linear predictor is lxi under the default log link but xi itself
+    ## under the identity link (.degpd1idfns, flagged by identity.xi). Seeding both
+    ## with 0.05 therefore starts the identity-link fit from xi = 0.05 rather than
+    ## xi = exp(0.05) = 1.051 -- a tail 20x lighter. On series whose largest counts
+    ## sit far out relative to sigma = mean(y), the DEGPD log-density then underflows
+    ## at those counts, log p = -Inf, and the fit aborts with "Some gradient
+    ## non-finite" before the optimiser can take a step. Seed the same xi under both.
+    xi0 <- if (isTRUE(likfns$identity.xi)) exp(.05) else .05
+    inits[1:2] <- c(log(mean(likdata$y[,1])), xi0)
     if (attr(family, "type") == 6)
       inits <- c(inits[1:2], 0, 0, 0)
   } else {
