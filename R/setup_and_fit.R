@@ -356,6 +356,12 @@ if (is.null(inits)) {
       }
       if (family %in% c("zigpig", "zigpignat"))
         inits[4] <- stats::qlogis(min(max(mean(y1 == 0), 1e-3), 0.5))
+    } else if (family == "cmp") {
+      ## CMP: Var ~ mu/nu asymptotically, so seed nu at 1/DI (clamped into the valid range).
+      y1 <- likdata$y[, 1]
+      ybar <- max(mean(y1), 1e-3); vv <- stats::var(y1)
+      DI <- if (is.finite(vv) && vv > 0) max(vv / ybar, 1e-3) else 1
+      inits <- c(log(ybar), log(min(max(1 / DI, 1e-5), 50)))
     } else if (family == "prl") {
       ## PRL cannot represent a mean below 4 (mu = tau^2/(tau-1) is minimised at tau = 2).
       y1 <- likdata$y[, 1]

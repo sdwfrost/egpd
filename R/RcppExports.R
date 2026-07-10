@@ -41,6 +41,34 @@ bell_W0_cpp <- function(x) {
     .Call(`_egpd_bell_W0_cpp`, x)
 }
 
+cmp1d0 <- function(pars, X1, X2, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_cmp1d0`, pars, X1, X2, yvec, dupid, dcate, offsets)
+}
+
+cmp1d12 <- function(pars, X1, X2, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_cmp1d12`, pars, X1, X2, yvec, dupid, dcate, offsets)
+}
+
+cmp_sums_cpp <- function(loglambda, nu) {
+    .Call(`_egpd_cmp_sums_cpp`, loglambda, nu)
+}
+
+cmp_ll_from_mu_cpp <- function(mu, nu) {
+    .Call(`_egpd_cmp_ll_from_mu_cpp`, mu, nu)
+}
+
+cmp_logpmf_cpp <- function(y, mu, nu) {
+    .Call(`_egpd_cmp_logpmf_cpp`, y, mu, nu)
+}
+
+cmp_grad_cpp <- function(y, mu, nu) {
+    .Call(`_egpd_cmp_grad_cpp`, y, mu, nu)
+}
+
+cmp_bounds_cpp <- function() {
+    .Call(`_egpd_cmp_bounds_cpp`)
+}
+
 gpois1d0 <- function(pars, X1, X2, yvec, dupid, dcate, offsets) {
     .Call(`_egpd_gpois1d0`, pars, X1, X2, yvec, dupid, dcate, offsets)
 }

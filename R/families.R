@@ -206,6 +206,15 @@
     nms <- c("ltheta", "logitpi")
     nms2 <- c('logtheta', 'logitpi')
     attr(family, "type") <- 1
+  } else if (family == "cmp") {
+    ## Conway-Maxwell-Poisson, mean parameterisation: mu = mean (log), nu = dispersion (log).
+    ## nu < 1 overdispersed, nu = 1 Poisson, nu > 1 underdispersed. Tail is lighter than
+    ## geometric for any nu > 0, so xi = 0: a dispersion model, not a heavy-tail model.
+    lik.fns <- .cmp1fns
+    npar <- 2
+    nms <- c("lmu", "lnu")
+    nms2 <- c('logmu', 'lognu')
+    attr(family, "type") <- 1
   } else if (family == "prl") {
     ## Poisson Ramos-Louzada (Alkhairy 2023), mean parameterisation: mu = mean (log link).
     ## One parameter: tau = (mu + sqrt(mu^2-4mu))/2, so mu >= 4 and DI ~ mu are structural.
@@ -256,7 +265,7 @@
       }
       nms2 <- nms
     } else {
-      stop(paste("Family '", family, "' not supported. Use 'egpd', 'degpd', 'zidegpd', 'pig', 'gpig', 'bell', 'gpois', 'gwaring', 'plnorm', 'prl', or 'comppareto'.", sep=""))
+      stop(paste("Family '", family, "' not supported. Use 'egpd', 'degpd', 'zidegpd', 'pig', 'gpig', 'bell', 'gpois', 'gwaring', 'plnorm', 'prl', 'cmp', or 'comppareto'.", sep=""))
     }
   }
   out <- list(npar=npar, npar2=npar, lik.fns=lik.fns, nms=nms, family=family, nms2 = nms2)

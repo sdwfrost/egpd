@@ -166,6 +166,100 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// cmp1d0
+double cmp1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_cmp1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(cmp1d0(pars, X1, X2, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cmp1d12
+arma::mat cmp1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_cmp1d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(cmp1d12(pars, X1, X2, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cmp_sums_cpp
+Rcpp::NumericVector cmp_sums_cpp(double loglambda, double nu);
+RcppExport SEXP _egpd_cmp_sums_cpp(SEXP loglambdaSEXP, SEXP nuSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< double >::type loglambda(loglambdaSEXP);
+    Rcpp::traits::input_parameter< double >::type nu(nuSEXP);
+    rcpp_result_gen = Rcpp::wrap(cmp_sums_cpp(loglambda, nu));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cmp_ll_from_mu_cpp
+double cmp_ll_from_mu_cpp(double mu, double nu);
+RcppExport SEXP _egpd_cmp_ll_from_mu_cpp(SEXP muSEXP, SEXP nuSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< double >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< double >::type nu(nuSEXP);
+    rcpp_result_gen = Rcpp::wrap(cmp_ll_from_mu_cpp(mu, nu));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cmp_logpmf_cpp
+Rcpp::NumericVector cmp_logpmf_cpp(Rcpp::NumericVector y, double mu, double nu);
+RcppExport SEXP _egpd_cmp_logpmf_cpp(SEXP ySEXP, SEXP muSEXP, SEXP nuSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type y(ySEXP);
+    Rcpp::traits::input_parameter< double >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< double >::type nu(nuSEXP);
+    rcpp_result_gen = Rcpp::wrap(cmp_logpmf_cpp(y, mu, nu));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cmp_grad_cpp
+Rcpp::NumericVector cmp_grad_cpp(double y, double mu, double nu);
+RcppExport SEXP _egpd_cmp_grad_cpp(SEXP ySEXP, SEXP muSEXP, SEXP nuSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< double >::type y(ySEXP);
+    Rcpp::traits::input_parameter< double >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< double >::type nu(nuSEXP);
+    rcpp_result_gen = Rcpp::wrap(cmp_grad_cpp(y, mu, nu));
+    return rcpp_result_gen;
+END_RCPP
+}
+// cmp_bounds_cpp
+Rcpp::NumericVector cmp_bounds_cpp();
+RcppExport SEXP _egpd_cmp_bounds_cpp() {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    rcpp_result_gen = Rcpp::wrap(cmp_bounds_cpp());
+    return rcpp_result_gen;
+END_RCPP
+}
 // gpois1d0
 double gpois1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
 RcppExport SEXP _egpd_gpois1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
@@ -1635,6 +1729,13 @@ static const R_CallMethodDef CallEntries[] = {
     {"_egpd_zibellnat1d12", (DL_FUNC) &_egpd_zibellnat1d12, 7},
     {"_egpd_bell_pmf_cpp", (DL_FUNC) &_egpd_bell_pmf_cpp, 2},
     {"_egpd_bell_W0_cpp", (DL_FUNC) &_egpd_bell_W0_cpp, 1},
+    {"_egpd_cmp1d0", (DL_FUNC) &_egpd_cmp1d0, 7},
+    {"_egpd_cmp1d12", (DL_FUNC) &_egpd_cmp1d12, 7},
+    {"_egpd_cmp_sums_cpp", (DL_FUNC) &_egpd_cmp_sums_cpp, 2},
+    {"_egpd_cmp_ll_from_mu_cpp", (DL_FUNC) &_egpd_cmp_ll_from_mu_cpp, 2},
+    {"_egpd_cmp_logpmf_cpp", (DL_FUNC) &_egpd_cmp_logpmf_cpp, 3},
+    {"_egpd_cmp_grad_cpp", (DL_FUNC) &_egpd_cmp_grad_cpp, 3},
+    {"_egpd_cmp_bounds_cpp", (DL_FUNC) &_egpd_cmp_bounds_cpp, 0},
     {"_egpd_gpois1d0", (DL_FUNC) &_egpd_gpois1d0, 7},
     {"_egpd_gpois1d12", (DL_FUNC) &_egpd_gpois1d12, 7},
     {"_egpd_gwaring1d0", (DL_FUNC) &_egpd_gwaring1d0, 8},

@@ -158,6 +158,11 @@ if (type %in% c("response", "quantile")) {
   ## likelihood only through the clamp, the optimiser can push eta3 arbitrarily far with no
   ## change in fit. Unclamped, predict() then reports rho = Inf (or 1e220) while the fitted
   ## model actually used rho = 1e6 -- a boundary fit that looks like a converged one.
+  if (family == "cmp") {
+    bd <- cmp_bounds_cpp()                # single source of truth: the C++ clamps
+    if ("mu" %in% names(out)) out[["mu"]] <- pmin(pmax(out[["mu"]], bd[["mu_lo"]]), bd[["mu_hi"]])
+    if ("nu" %in% names(out)) out[["nu"]] <- pmin(pmax(out[["nu"]], bd[["nu_lo"]]), bd[["nu_hi"]])
+  }
   if (family == "prl" && "mu" %in% names(out)) {
     bd <- prl_bounds_cpp()                # single source of truth: the C++ clamp
     out[["mu"]] <- pmin(pmax(out[["mu"]], bd[["mu_lo"]]), bd[["mu_hi"]])
