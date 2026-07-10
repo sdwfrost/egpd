@@ -206,6 +206,14 @@
     nms <- c("ltheta", "logitpi")
     nms2 <- c('logtheta', 'logitpi')
     attr(family, "type") <- 1
+  } else if (family == "prl") {
+    ## Poisson Ramos-Louzada (Alkhairy 2023), mean parameterisation: mu = mean (log link).
+    ## One parameter: tau = (mu + sqrt(mu^2-4mu))/2, so mu >= 4 and DI ~ mu are structural.
+    lik.fns <- .prl1fns
+    npar <- 1
+    nms <- c("lmu")
+    nms2 <- c('logmu')
+    attr(family, "type") <- 1
   } else if (family == "gpois") {
     ## Generalized Poisson (Consul & Jain), mean parameterisation:
     ## mu = mean (log link), lambda = dispersion (logit); Var = mu/(1-lambda)^2.
@@ -248,7 +256,7 @@
       }
       nms2 <- nms
     } else {
-      stop(paste("Family '", family, "' not supported. Use 'egpd', 'degpd', 'zidegpd', 'pig', 'gpig', 'bell', 'gpois', 'gwaring', 'plnorm', or 'comppareto'.", sep=""))
+      stop(paste("Family '", family, "' not supported. Use 'egpd', 'degpd', 'zidegpd', 'pig', 'gpig', 'bell', 'gpois', 'gwaring', 'plnorm', 'prl', or 'comppareto'.", sep=""))
     }
   }
   out <- list(npar=npar, npar2=npar, lik.fns=lik.fns, nms=nms, family=family, nms2 = nms2)

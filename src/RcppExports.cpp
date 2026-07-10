@@ -1323,6 +1323,72 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// prl1d0
+double prl1d0(const Rcpp::List& pars, const arma::mat& X1, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_prl1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(prl1d0(pars, X1, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// prl1d12
+arma::mat prl1d12(const Rcpp::List& pars, arma::mat X1, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets);
+RcppExport SEXP _egpd_prl1d12(SEXP parsSEXP, SEXP X1SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    rcpp_result_gen = Rcpp::wrap(prl1d12(pars, X1, yvec, dupid, dcate, offsets));
+    return rcpp_result_gen;
+END_RCPP
+}
+// prl_logpmf_cpp
+Rcpp::NumericVector prl_logpmf_cpp(Rcpp::NumericVector y, double tau);
+RcppExport SEXP _egpd_prl_logpmf_cpp(SEXP ySEXP, SEXP tauSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type y(ySEXP);
+    Rcpp::traits::input_parameter< double >::type tau(tauSEXP);
+    rcpp_result_gen = Rcpp::wrap(prl_logpmf_cpp(y, tau));
+    return rcpp_result_gen;
+END_RCPP
+}
+// prl_grad_cpp
+Rcpp::NumericVector prl_grad_cpp(double y, double eta);
+RcppExport SEXP _egpd_prl_grad_cpp(SEXP ySEXP, SEXP etaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< double >::type y(ySEXP);
+    Rcpp::traits::input_parameter< double >::type eta(etaSEXP);
+    rcpp_result_gen = Rcpp::wrap(prl_grad_cpp(y, eta));
+    return rcpp_result_gen;
+END_RCPP
+}
+// prl_bounds_cpp
+Rcpp::NumericVector prl_bounds_cpp();
+RcppExport SEXP _egpd_prl_bounds_cpp() {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    rcpp_result_gen = Rcpp::wrap(prl_bounds_cpp());
+    return rcpp_result_gen;
+END_RCPP
+}
 // zidegpd1d0
 double zidegpd1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, const arma::mat& X4, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
 RcppExport SEXP _egpd_zidegpd1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP X4SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
@@ -1635,6 +1701,11 @@ static const R_CallMethodDef CallEntries[] = {
     {"_egpd_pig1d12", (DL_FUNC) &_egpd_pig1d12, 7},
     {"_egpd_zipig1d0", (DL_FUNC) &_egpd_zipig1d0, 8},
     {"_egpd_zipig1d12", (DL_FUNC) &_egpd_zipig1d12, 8},
+    {"_egpd_prl1d0", (DL_FUNC) &_egpd_prl1d0, 6},
+    {"_egpd_prl1d12", (DL_FUNC) &_egpd_prl1d12, 6},
+    {"_egpd_prl_logpmf_cpp", (DL_FUNC) &_egpd_prl_logpmf_cpp, 2},
+    {"_egpd_prl_grad_cpp", (DL_FUNC) &_egpd_prl_grad_cpp, 2},
+    {"_egpd_prl_bounds_cpp", (DL_FUNC) &_egpd_prl_bounds_cpp, 0},
     {"_egpd_zidegpd1d0", (DL_FUNC) &_egpd_zidegpd1d0, 9},
     {"_egpd_zidegpd1d12", (DL_FUNC) &_egpd_zidegpd1d12, 9},
     {"_egpd_zidegpd2d0", (DL_FUNC) &_egpd_zidegpd2d0, 11},

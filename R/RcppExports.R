@@ -305,6 +305,26 @@ zipig1d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
     .Call(`_egpd_zipig1d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
 }
 
+prl1d0 <- function(pars, X1, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_prl1d0`, pars, X1, yvec, dupid, dcate, offsets)
+}
+
+prl1d12 <- function(pars, X1, yvec, dupid, dcate, offsets) {
+    .Call(`_egpd_prl1d12`, pars, X1, yvec, dupid, dcate, offsets)
+}
+
+prl_logpmf_cpp <- function(y, tau) {
+    .Call(`_egpd_prl_logpmf_cpp`, y, tau)
+}
+
+prl_grad_cpp <- function(y, eta) {
+    .Call(`_egpd_prl_grad_cpp`, y, eta)
+}
+
+prl_bounds_cpp <- function() {
+    .Call(`_egpd_prl_bounds_cpp`)
+}
+
 zidegpd1d0 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets) {
     .Call(`_egpd_zidegpd1d0`, pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets)
 }

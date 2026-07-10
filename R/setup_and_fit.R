@@ -356,6 +356,10 @@ if (is.null(inits)) {
       }
       if (family %in% c("zigpig", "zigpignat"))
         inits[4] <- stats::qlogis(min(max(mean(y1 == 0), 1e-3), 0.5))
+    } else if (family == "prl") {
+      ## PRL cannot represent a mean below 4 (mu = tau^2/(tau-1) is minimised at tau = 2).
+      y1 <- likdata$y[, 1]
+      inits <- log(max(mean(y1), 4 + 1e-3))
     } else if (family == "gpois") {
       ## Generalized Poisson: Var/mean = 1/(1-lambda)^2, so lambda = 1 - sqrt(mean/var).
       y1 <- likdata$y[, 1]
