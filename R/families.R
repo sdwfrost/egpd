@@ -239,6 +239,31 @@
     nms <- c("lmu", "lk", "lrho")
     nms2 <- c('logmu', 'logk', 'logrho')
     attr(family, "type") <- 1
+  } else if (family == "ztgwaring") {
+    ## Zero-truncated generalized Waring: the positive block of a hurdle model
+    ## (see fit_hurdle). Same parameters as "gwaring"; support is y >= 1.
+    lik.fns <- .ztgwaring1fns
+    npar <- 3
+    nms <- c("lmu", "lk", "lrho")
+    nms2 <- c('logmu', 'logk', 'logrho')
+    attr(family, "type") <- 1
+  } else if (family == "ztdegpd") {
+    ## Zero-truncated DEGPD model 1: the positive block of a hurdle model.
+    ## Same parameters and link choice as "degpd"; support is y >= 1.
+    if (is.null(degpd$m)) degpd$m <- 1
+    if (!identical(as.integer(degpd$m), 1L))
+      stop("ztdegpd currently supports only degpd.args = list(m = 1).")
+    if (!is.null(degpd$link) && identical(degpd$link, "identity")) {
+      lik.fns <- .ztdegpd1idfns
+      nms <- c("lsigma", "xi", "lkappa")
+      nms2 <- c('logscale', 'shape', 'logkappa')
+    } else {
+      lik.fns <- .ztdegpd1fns
+      nms <- c("lsigma", "lxi", "lkappa")
+      nms2 <- c('logscale', 'logshape', 'logkappa')
+    }
+    npar <- 3
+    attr(family, "type") <- 1
   } else if (family == "plnorm") {
     ## Poisson-lognormal, mean parameterisation: mu = mean (log), sigma (log).
     ## muz = log(mu) - sigma^2/2; pmf by adaptive Gauss-Hermite quadrature.
@@ -265,7 +290,7 @@
       }
       nms2 <- nms
     } else {
-      stop(paste("Family '", family, "' not supported. Use 'egpd', 'degpd', 'zidegpd', 'pig', 'gpig', 'bell', 'gpois', 'gwaring', 'plnorm', 'prl', 'cmp', or 'comppareto'.", sep=""))
+      stop(paste("Family '", family, "' not supported. Use 'egpd', 'degpd', 'zidegpd', 'pig', 'gpig', 'bell', 'gpois', 'gwaring', 'ztgwaring', 'ztdegpd', 'plnorm', 'prl', 'cmp', or 'comppareto'.", sep=""))
     }
   }
   out <- list(npar=npar, npar2=npar, lik.fns=lik.fns, nms=nms, family=family, nms2 = nms2)

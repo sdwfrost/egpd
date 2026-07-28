@@ -59,6 +59,13 @@ if (se.fit) {
 got.newdata <- !missing(newdata)
 
 if (got.newdata) {
+  ## Parameters pinned via `fixed = list(...)` are carried by synthetic constant
+  ## columns the caller has no reason to know about, so re-inject them rather than
+  ## demanding the user reproduce them in newdata. No-op when `fixed` was not used.
+  if (length(object$fixed.offsets)) {
+    for (cn in names(object$fixed.offsets))
+      newdata[[cn]] <- rep(object$fixed.offsets[[cn]], nrow(newdata))
+  }
   pred.vars <- object$predictor.names
   missing.vars <- pred.vars[!(pred.vars %in% names(newdata))]
   if (length(missing.vars) > 0)

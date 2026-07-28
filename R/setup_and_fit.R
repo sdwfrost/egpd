@@ -582,28 +582,55 @@ if (smooths) {
 } else {
   H <- H0
 }
+## Coefficients pinned by an offset-only predictor (`fixed=`, see .predictable.gam)
+## carry an all-zero design column, so their row and column of H are exactly zero and
+## H is singular. That direction is a nuisance -- orthogonal to every estimated
+## coefficient -- but left alone it corrupts the whole covariance matrix through
+## pinv() and the smoothing-parameter correction below; on one test fit it produced a
+## negative variance for the shape parameter, so confint() returned NA. Giving those
+## directions a unit diagonal makes H block-diagonal and invertible without altering
+## the inverse of the free block; their rows and columns are zeroed out afterwards,
+## which also leaves them exactly zero effective degrees of freedom in .edf().
+inert <- which(rowSums(abs(H)) == 0 & colSums(abs(H)) == 0)
+if (length(inert)) diag(H)[inert] <- 1
+
 cholH <- try(chol(H), silent=TRUE)
 if (inherits(cholH, "try-error") & trace >= 0)
   message("Final Hessian of negative penalized log-likelihood not numerically positive definite.")
 Vc <- Vp <- pinv(H)
 if (smooths) {
 if (correctV) {
-cholVp <- try(chol(Vp), silent=TRUE)
-if (inherits(cholVp, "try-error")) {
-    cholVp <- attr(.perturb(Vp), "chol")
-}
-attr(lsp, "beta") <- fitreml$beta
-spSl <- Map("*", attr(Sdata, "Sl"), exp(lsp))
-dbeta <- .d1beta(lsp, fitreml$beta, spSl, .Hdata(H))$d1
+## Vc corrects Vp for uncertainty in the smoothing parameters. That correction only
+## exists if they were estimated: when the caller supplies `sp` they are fixed
+## quantities carrying no uncertainty, fitreml then has no invHessian to propagate,
+## and the correction term is exactly zero, so Vc = Vp. Previously this branch ran
+## regardless and failed on the missing invHessian ("requires numeric/complex matrix
+## arguments"), which made any `sp = ` fit unusable at the default correctV = TRUE.
 Vrho <- fitreml$invHessian
-Vbetarho <- tcrossprod(dbeta %*% Vrho, dbeta)
-VR <- matrix(0, nrow=likdata$nb, ncol=likdata$nb)
-Vc <- .perturb(Vp + Vbetarho + VR)
+if (is.null(Vrho) || !is.matrix(Vrho) || nrow(Vrho) != length(lsp)) {
+  Vrho <- 0
+} else {
+  cholVp <- try(chol(Vp), silent=TRUE)
+  if (inherits(cholVp, "try-error")) {
+      cholVp <- attr(.perturb(Vp), "chol")
+  }
+  attr(lsp, "beta") <- fitreml$beta
+  spSl <- Map("*", attr(Sdata, "Sl"), exp(lsp))
+  dbeta <- .d1beta(lsp, fitreml$beta, spSl, .Hdata(H))$d1
+  Vbetarho <- tcrossprod(dbeta %*% Vrho, dbeta)
+  VR <- matrix(0, nrow=likdata$nb, ncol=likdata$nb)
+  Vc <- .perturb(Vp + Vbetarho + VR)
+}
 } else {
   Vrho <- 0
 }
 } else {
   Vrho <- 0
+}
+## a pinned coefficient has no sampling variability and no covariance with anything
+if (length(inert)) {
+  Vp[inert, ] <- 0; Vp[, inert] <- 0
+  Vc[inert, ] <- 0; Vc[, inert] <- 0
 }
 list(Vp=Vp, Vc=Vc, Vlsp=Vrho, H0=H0, H=H)
 }
@@ -714,4 +741,59 @@ for (i in seq_along(gams[nms])[-gotsmooth])
   gams[[i]]$smooth <- NULL
 class(gams) <- "egpd"
 return(gams)
+}
+
+############ .setup.fixed.egpd ##########################
+
+## Sugar for holding distribution parameters at known values.
+##
+## `fixed` is a named list of RESPONSE-scale values, e.g. list(kappa = 1). Each is
+## translated into the offset-only predictor `~ offset(<col>) - 1`, which pins that
+## parameter without any free coefficient (see .predictable.gam). The translation
+## exists because the offset has to be supplied on the LINK scale, which is the part
+## users get wrong: parameters whose internal name starts with "l" (lsigma, lkappa,
+## lxi, ...) use a log link, so the offset is log(value); the rest (e.g. `xi` under
+## degpd.args link = "identity") are pinned on their natural scale.
+##
+## Names are matched against the family's parameter names both with and without the
+## leading link letter, so fixed = list(kappa = 1) and list(lkappa = 1) both work and
+## both mean "kappa = 1".
+.setup.fixed.egpd <- function(fixed, formula, data, nms) {
+  if (is.null(names(fixed)) || any(!nzchar(names(fixed))))
+    stop("`fixed` must be a named list, e.g. fixed = list(kappa = 1)", call. = FALSE)
+  if (is.null(nms))
+    stop("this family does not expose named parameters, so `fixed` cannot be used",
+         call. = FALSE)
+  if (!is.list(formula))
+    stop("`fixed` requires the multi-parameter list form of `formula`", call. = FALSE)
+
+  bare <- sub("^l", "", nms)          # lsigma -> sigma, lkappa -> kappa, xi -> xi
+  n    <- nrow(data)
+  offsets <- list(); values <- list()
+
+  for (nm in names(fixed)) {
+    v <- fixed[[nm]]
+    if (!is.numeric(v) || length(v) != 1L || !is.finite(v))
+      stop(sprintf("fixed$%s must be a single finite number", nm), call. = FALSE)
+
+    i <- match(nm, nms)
+    if (is.na(i)) i <- match(nm, bare)
+    if (is.na(i))
+      stop(sprintf("'%s' is not a parameter of this family; available: %s",
+                   nm, paste(nms, collapse = ", ")), call. = FALSE)
+
+    logscale <- startsWith(nms[i], "l")
+    if (logscale && v <= 0)
+      stop(sprintf("fixed$%s must be positive (it is fitted on the log scale)", nm),
+           call. = FALSE)
+    eta <- if (logscale) log(v) else v
+
+    col <- paste0(".fixedpar_", nms[i])
+    data[[col]] <- rep(eta, n)
+    formula[[i]] <- stats::as.formula(paste0("~ offset(", col, ") - 1"))
+    offsets[[col]] <- eta            # link scale, for predict() on newdata
+    values[[nms[i]]] <- v            # response scale, for the user
+  }
+
+  list(formula = formula, data = data, offsets = offsets, values = values)
 }

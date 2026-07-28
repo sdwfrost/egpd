@@ -50,11 +50,53 @@ egpd <- function(formula, data, family="egpd", correctV=TRUE, rho0=0,
 inits=NULL, outer="bfgs", control=NULL, removeData=FALSE, trace=0,
 knots=NULL, maxdata=1e20, maxspline=1e20, compact=FALSE,
 egpd.args=list(), degpd.args=list(), zidegpd.args=list(), comppareto.args=list(),
-gpig.args=list(), sandwich.args=list(), custom.fns=list(), sp=NULL, gamma=1) {
+gpig.args=list(), sandwich.args=list(), custom.fns=list(), sp=NULL, gamma=1,
+fixed=list(), restarts=TRUE) {
+
+## Multi-start for DEGPD model 1. Its likelihood has a nearly flat ridge along which
+## sigma -> 0 and kappa -> infinity together (they enter the upper tail only through
+## kappa * sigma^(1/xi)), and from a single start the optimiser can settle on it or on
+## a saddle -- which shows up as a wildly large kappa, or as a negative variance for a
+## parameter that is genuinely estimated. Trying a few starts and keeping the highest
+## likelihood costs little and removes both failure modes. Every candidate lies in the
+## same parameter space, so this is plain multi-start MLE, not selection across models.
+## Skipped when the caller supplies `inits`, or sets restarts = FALSE.
+if (isTRUE(restarts) && is.null(inits) && identical(family, "degpd") &&
+    (is.null(degpd.args$m) || identical(as.integer(degpd.args$m), 1L))) {
+  cl <- match.call()
+  ybar <- tryCatch({
+    fl <- if (is.list(formula)) formula[[1]] else formula
+    mean(data[[all.vars(fl)[1]]], na.rm = TRUE)
+  }, error = function(e) NA_real_)
+  if (is.finite(ybar)) {
+    idlink <- !is.null(degpd.args$link) && identical(degpd.args$link, "identity")
+    ## a light and a heavier shape, alongside the package default
+    starts <- c(list(NULL), lapply(c(0.05, 0.3), function(v)
+                 c(log(ybar + 1), if (idlink) v else log(v), 0)))
+    cand <- lapply(starts, function(s) {
+      cl$inits <- s; cl$restarts <- FALSE
+      tryCatch(suppressWarnings(eval(cl, parent.frame())), error = function(e) NULL)
+    })
+    cand <- Filter(function(z) !is.null(z) && is.finite(as.numeric(z$logLik)), cand)
+    if (length(cand))
+      return(cand[[which.max(vapply(cand, function(z) as.numeric(z$logLik), 0))]])
+  }
+}
 
 ## setup family
 family.info <- .setup.family.egpd(family, egpd.args, degpd.args, zidegpd.args, comppareto.args, formula, custom.fns)
 family <- family.info$family
+
+## `fixed`: hold named parameters at known values. This is sugar for the offset-only
+## pinning `~ offset(rep(<link>(v), n)) - 1`, which is easy to get wrong by hand because
+## the offset must be on the LINK scale (log for l-prefixed parameters, identity
+## otherwise). Values here are given on the RESPONSE scale, so fixed = list(kappa = 1)
+## pins kappa itself rather than log kappa.
+if (length(fixed)) {
+  .fx <- .setup.fixed.egpd(fixed, formula, data, family.info$nms)
+  formula <- .fx$formula
+  data    <- .fx$data
+}
 
 ## GPIG/ZIGPIG pmf evaluation route (see gpig_control). Set for the duration of
 ## this fit only, so a method chosen here cannot leak into later calls.
@@ -151,6 +193,31 @@ gams <- .swap(fit.reml, temp.data$gams, lik.data, VpVc, temp.data$gotsmooth, edf
 
 ## add extra things that make an egpd object
 gams <- .finalise(gams, data, family.info$lik.fns, lik.data, S.data, fit.reml, VpVc, family, temp.data$gotsmooth, formula, response.name, removeData, edf, family.info$nms2)
+
+## record any `fixed` pins so predict() can re-create their synthetic columns for
+## newdata, and so the constraint is visible on the fitted object
+if (length(fixed)) {
+  gams$fixed.offsets <- .fx$offsets
+  gams$fixed         <- .fx$values
+}
+
+## Warn on the DEGPD kappa ridge. sigma and kappa enter the upper tail only through
+## kappa * sigma^(1/xi), so they are separated by the bulk alone; on a short series
+## that separation is weak and the optimum drifts along a flat ridge to very large
+## kappa and near-zero sigma. xi usually survives this -- it is not part of the
+## confounding -- but sigma and kappa individually do not, so quantiles and any
+## interval that leans on them should be treated as provisional.
+if (identical(attr(family, "type"), 1) && grepl("degpd", family) && !removeData) {
+  kap <- tryCatch(suppressWarnings(max(as.data.frame(
+           stats::predict(gams, type = "response"))$kappa, na.rm = TRUE)),
+         error = function(e) NA_real_)
+  if (is.finite(kap) && kap > 1e4)
+    warning(sprintf(paste0("fitted kappa reaches %.3g: the DEGPD scale/carrier pair is ",
+                           "effectively unidentified (the sigma-kappa ridge). xi is ",
+                           "usually still identified; sigma and kappa are not. Consider ",
+                           "fixed = list(kappa = 1) for a plain discretised GPD."), kap),
+            call. = FALSE)
+}
 
 return(gams)
 }
