@@ -95,7 +95,7 @@
 distfit <- function(x, type = 1,
                     family = c("egpd", "degpd", "ziegpd", "zidegpd",
                                "cpegpd", "cpdegpd", "pig", "zipig",
-                               "gpig", "zigpig", "bell", "zibell", "begpd",
+                               "gpig", "zigpig", "bell", "zibell", "gwaring", "begpd",
                                "bdegpd", "bzidegpd",
                                "mdgpd", "zimdgpd"),
                     method = c("mle", "bernstein", "neuralbayes"),
@@ -134,7 +134,7 @@ distfit <- function(x, type = 1,
     stop("'type' must be an integer from 1 to 6")
   if (method == "bernstein" && family != "egpd")
     stop("Bernstein method is only available for family='egpd'")
-  if (family %in% c("degpd", "zidegpd", "cpdegpd", "pig", "zipig", "gpig", "zigpig", "bell", "zibell") && any(x != floor(x) | x < 0))
+  if (family %in% c("degpd", "zidegpd", "cpdegpd", "pig", "zipig", "gpig", "zigpig", "bell", "zibell", "gwaring") && any(x != floor(x) | x < 0))
     warning("Discrete family expects non-negative integer data")
   if (family %in% c("ziegpd", "zidegpd", "zipig", "zigpig", "zibell") && !any(x == 0))
     warning("Zero-inflated family but no zeros observed in data")
@@ -241,7 +241,7 @@ distfit <- function(x, type = 1,
 fitegpd <- function(x, type = 1,
                     family = c("egpd", "degpd", "ziegpd", "zidegpd",
                                "cpegpd", "cpdegpd", "pig", "zipig",
-                               "gpig", "zigpig", "bell", "zibell", "begpd",
+                               "gpig", "zigpig", "bell", "zibell", "gwaring", "begpd",
                                "bdegpd", "bzidegpd",
                                "mdgpd", "zimdgpd"),
                     method = c("mle", "bernstein", "neuralbayes"),
@@ -283,6 +283,17 @@ fitegpd <- function(x, type = 1,
     if (family == "zigpig")
       spec <- c(spec, list(pi = list(transform = "logit")))
     return(spec)
+  }
+
+  ## Generalized Waring, mean parameterisation (as in egpd()): mu = mean (log),
+  ## k > 0 (log), rho > 1 (log). The tail is P(Y = y) ~ y^-(rho+1), so xi = 1/rho.
+  ## The mean exists only for rho > 1; the likelihood returns +Inf below that, which
+  ## keeps the optimiser out of that region without a bespoke transform. The
+  ## G-transformation `type` does not apply.
+  if (family == "gwaring") {
+    return(list(mu  = list(transform = "log"),
+                k   = list(transform = "log"),
+                rho = list(transform = "log")))
   }
 
   ## Bell / ZIBell (Castellares et al. 2018), native theta parameterisation:
@@ -418,6 +429,19 @@ fitegpd <- function(x, type = 1,
     return(start[names(spec)])
   }
 
+  ## Generalized Waring: seed the mean from the data, and rho from the index of
+  ## dispersion -- a heavier tail shows up as greater overdispersion, so a large
+  ## variance-to-mean ratio seeds a smaller rho.
+  if (family == "gwaring") {
+    xm <- mean(xclean); v <- stats::var(xclean)
+    if (!is.finite(xm) || xm <= 0) xm <- 1
+    if (!is.finite(v) || v <= xm) v <- 2 * xm
+    rho0 <- 1 + 2 / max(log1p(v / xm), 0.2)
+    return(list(mu  = max(xm, 0.1),
+                k   = 1,
+                rho = min(max(rho0, 1.2), 20))[names(spec)])
+  }
+
   ## Bell / ZIBell: seed the native theta at the MLE theta.hat = W0(ybar).
   if (family %in% c("bell", "zibell")) {
     xm <- mean(xclean)
@@ -538,6 +562,18 @@ fitegpd <- function(x, type = 1,
 
   ## Merge with fixed args
   all_par <- as.list(c(par, unlist(fix.arg)))
+
+  ## Generalized Waring. dgwaring() rejects rho <= 1 outright, so the tryCatch is
+  ## what enforces the constraint: an out-of-range proposal scores 1e20 rather than
+  ## stopping the optimisation.
+  if (family == "gwaring") {
+    nll <- tryCatch(
+      -sum(dgwaring(x, mu = all_par[["mu"]], k = all_par[["k"]],
+                    rho = all_par[["rho"]], log = TRUE)),
+      error = function(e) Inf)
+    if (!is.finite(nll)) return(1e20)
+    return(nll)
+  }
 
   ## PIG / ZIPIG mixed-Poisson count models (delegate to gamlss.dist).
   if (family %in% c("pig", "zipig")) {
