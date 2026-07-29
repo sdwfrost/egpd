@@ -66,6 +66,15 @@ static bool cmp_sums(double ll, double nu,
   // 12-width rule truncates while the summand is still ~15% of its max. We walk j upward,
   // tracking the running max, and stop once past the mode AND the summand has fallen LOG_TOL
   // below it (exp(-LOG_TOL) negligible against a max term of order 1).
+  // Fast infeasibility bail. The mode is where f'(j) = ll - nu*digamma(j+1) = 0, i.e.
+  // digamma(j+1) = ll/nu, so j* ~ exp(ll/nu) for large argument. If that already exceeds
+  // CMP_JMAX the entire computable range lies on the rising part of f and the sum cannot
+  // converge -- return at once rather than walk 4e6 terms to discover it. Without this the
+  // optimiser's probes into infeasible (lambda, nu) regions each cost the full JMAX walk,
+  // which on overdispersed data (small nu) turns a fit into hours. lambda <= 1 (ll <= 0) has
+  // its mode at 0 and is always fine.
+  if (ll > 0.0 && ll / nu > std::log(CMP_JMAX)) return false;
+
   const double LOG_TOL = 45.0;                           // exp(-45) ~ 3e-20
   std::vector<double> f, lg;
   f.reserve(4096); lg.reserve(4096);
