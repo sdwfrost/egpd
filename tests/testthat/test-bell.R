@@ -140,11 +140,11 @@ test_that("native GAM fit matches the direct optim MLE (both parameterisations)"
   fn <- egpd(y ~ 1, data = dat, family = "bellnat", trace = 0)
   ## the two parameterisations describe the same fitted distribution
   expect_equal(as.numeric(logLik(fm)), as.numeric(logLik(fn)), tolerance = 1e-3)
-  ## and they reach the direct MLE (up to the REML/Laplace constant)
+  ## and they reach the direct MLE. logLik() is the plain unpenalised
+  ## log-likelihood, so this is an equality with no constant to absorb.
   nll <- function(lt) -sum(egpd:::dbell(y, theta = exp(lt), log = TRUE))
   o <- optimize(nll, c(-5, 3))
-  k <- 0.5 * 1 * log(2 * pi)   # Laplace constant for 1 parameter
-  expect_equal(as.numeric(logLik(fn)) + k, -o$objective, tolerance = 1e-2)
+  expect_equal(as.numeric(logLik(fn)), -o$objective, tolerance = 1e-2)
 })
 
 test_that("distfit recovers Bell / ZIBell parameters", {

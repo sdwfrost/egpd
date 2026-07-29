@@ -680,8 +680,16 @@ gams$logLik <- NA_real_
 converged <- isTRUE(gams$convergence == 0L)
 gams$df <- sum(edf)
 if (converged) {
+## The unpenalised log-likelihood at the fitted coefficients, and nothing else.
+## This used to have likdata$const = .5 * Mp * log(2 * pi) subtracted from it,
+## which is the REML criterion's normalising constant and has no place in a
+## log-likelihood: it is not a Laplace correction (that would *add* the term and
+## carry .5*log|S|+ - .5*log|H| with it), and .nllh.nopen is already used bare
+## as the log-likelihood by the profile intervals in confint(). Because Mp counts
+## one per linear predictor plus each smooth's null-space dimension, the offset
+## grew with model complexity, so it biased AIC/BIC against the more flexible
+## model rather than cancelling in a comparison.
 gams$logLik <- -.nllh.nopen(fitreml$beta, likdata, likfns)
-gams$logLik <- gams$logLik - likdata$const
 gams$AIC <- -2 * gams$logLik + 2 * gams$df
 gams$BIC <- -2 * gams$logLik + log(likdata$nobs) * gams$df
 } else {

@@ -134,11 +134,11 @@ test_that("native GAM fit matches the direct optim MLE (both parameterisations)"
   fn <- egpd(y ~ 1, data = dat, family = "gpignat", trace = 0)
   ## the two parameterisations describe the same fitted distribution
   expect_equal(as.numeric(logLik(fm)), as.numeric(logLik(fn)), tolerance = 1e-3)
-  ## and they reach the direct MLE (up to the REML/Laplace constant)
+  ## and they reach the direct MLE. logLik() is the plain unpenalised
+  ## log-likelihood, so this is an equality with no constant to absorb.
   nll <- function(par) -sum(egpd:::dgpig(y, expit(par[1]), exp(par[2]), expit(par[3]), log = TRUE))
   o <- optim(c(0, log(mean(y)), 0), nll, method = "BFGS")
-  k <- 0.5 * 3 * log(2 * pi)   # Laplace constant for 3 parameters
-  expect_equal(as.numeric(logLik(fm)) + k, -o$value, tolerance = 1e-2)
+  expect_equal(as.numeric(logLik(fm)), -o$value, tolerance = 1e-2)
 })
 
 test_that("distfit recovers GPIG / ZIGPIG parameters and detects the PIG case", {
