@@ -26,6 +26,23 @@ static inline double bounded_lxi(double eta, double xi_max, double* mp, double* 
   return log(B);
 }
 
+// (1 + z)^p, evaluated as exp(p * log1p(z)) so that a tiny z keeps full precision.
+//
+// The DEGPD densities are built from (1 + xi*y/sigma)^(1/xi). Forming the base as
+// `1 + z` first and then raising it discards z entirely once z < eps: at xi = 1e-15
+// the base rounds to exactly 1.0, pow(1.0, 1/xi) = 1.0, the two survival terms
+// collapse to the same value and -log(hi - lo) becomes +Inf. Errors are already
+// ~3e-2 by xi = 1e-13 and change sign by 1e-14.
+//
+// This matters because the *log* link forces xi = exp(eta) > 0, so on light- or
+// bounded-tailed data the optimiser drives eta -> -Inf and walks straight into that
+// region -- and it then optimises a corrupted objective. log1p(z) is accurate for
+// small z, so routing every such power through it removes the cancellation. The
+// substitution is exact in real arithmetic; only the floating-point path changes.
+static inline double degpd_pow1p(double z, double p) {
+  return exp(p * log1p(z));
+}
+
 // //' Discrete Extended generalized Pareto distribution of type 1 (deGPD1) negative log-likelihood
 // //'
 // //' @param pars a list of vectors of coefficients for each deGPD parameter
@@ -82,20 +99,29 @@ double degpd1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
     e3= 1+ (y+1)*e2;
 	e4 = 1+  y*e2;
 	e5= exp(lkappa);
-    hi=  R_pow(1- R_pow(1/e3, e1) , e5);
-    lo= R_pow(1-R_pow(1/e4, e1) , e5);
-    
+    // the support checks have to come first: log1p below is undefined at z <= -1
     if (e3 <= 0) {
       nllh = 1e20;
       break;
     }
-    
+
     if (e4 <= 0) {
       nllh = 1e20;
       break;
     }
-    
-    nllh += -log(hi-lo);
+
+    // H(y+1)^kappa and H(y)^kappa, with (1+z)^(-1/xi) routed through log1p
+    hi=  R_pow(1- degpd_pow1p((y+1)*e2, -e1) , e5);
+    lo= R_pow(1- degpd_pow1p(y*e2, -e1) , e5);
+
+    // hi and lo are both in [0,1] and can be very close, so difference them on the
+    // log scale: log(hi - lo) = log(hi) + log1p(-lo/hi), which keeps the leading
+    // digits that a plain subtraction would cancel away.
+    if (!(hi > lo)) {
+      nllh = 1e20;
+      break;
+    }
+    nllh += -(log(hi) + log1p(-lo / hi));
     //if (!ISNA(nllh)){
     //nllh = 1e20;
     // break;
@@ -174,16 +200,16 @@ arma::mat degpd1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
     ee9  = exp(lkappa);
     ee10  = ee6 + 1;
     ee11  = 1 + ee8;
-    ee12  = R_pow(ee10,ee3);
-    ee13  = R_pow(ee11,ee3);
+    ee12  = degpd_pow1p(ee6, ee3);
+    ee13  = degpd_pow1p(ee8, ee3);
     ee14  = 1 - 1/ee12;
     ee15  = 1 - 1/ee13;
     ee16  = 1 + ee3;
     ee17 = ee9 - 1;
     ee18 = R_pow(ee14,ee9);
     ee19 = R_pow(ee15,ee9);
-    ee20 = R_pow(ee10,ee16);
-    ee21 = R_pow(ee11,ee16);
+    ee20 = degpd_pow1p(ee6, ee16);
+    ee21 = degpd_pow1p(ee8, ee16);
     ee22 = R_pow(ee14,ee17);
     ee23 = R_pow(ee15,ee17);
     ee24 = ee18 - ee19;
@@ -200,9 +226,9 @@ arma::mat degpd1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
     ee35 = ee24 * ee2;
     ee36 = ee22 * ee4;
     ee37 = y * ee23;
-    ee38 = R_pow(ee10,ee27);
+    ee38 = degpd_pow1p(ee6, ee27);
     ee39 = ee36/ee20;
-    ee40 = R_pow(ee11,ee27);
+    ee40 = degpd_pow1p(ee8, ee27);
     ee42 = ee9 - 2;
     ee44 = ee25/ee33 - ee4/ee28;
     ee46 = ee26/ee34 - y/ee29;
@@ -215,9 +241,9 @@ arma::mat degpd1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
     ee56 = ee47 - ee39;
     ee58 = (y * ee40)/ee2;
     ee59 = ee49 - ee51;
-    ee60 = R_pow(ee10,ee30);
+    ee60 = degpd_pow1p(ee6, ee30);
     ee61 = ee52 - ee53;
-    ee62 = R_pow(ee11,ee30);
+    ee62 = degpd_pow1p(ee8, ee30);
     ee63 = 2 * ee16;
     ee64 = ee58 - ee55;
     ee65 = ee22 * ee44;
@@ -238,11 +264,11 @@ arma::mat degpd1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
     ee86 = R_pow(ee29,2);
     ee87 = R_pow(ee34,2);
     ee91 = ee77/ee2 - (ee20 * ee25)/ee1;
-    ee92 = R_pow(ee10,ee63);
+    ee92 = degpd_pow1p(ee6, ee63);
     ee94 = ee22 * ee9 * ee31;
     ee95 = ee67 * ee17;
     ee97 = ee23 * ee9 * ee32;
-    ee100 = R_pow(ee11,ee63);
+    ee100 = degpd_pow1p(ee8, ee63);
     //ee101 = 1 + 3/ee1;
     ee102 = ee3 - ee63;
     ee103 = ee9 * ee56;
@@ -252,7 +278,7 @@ out(j, 0) = -(ee103/ee35);
     out(j, 1) = -(ee85/ee24); 
     out(j, 2) = -(ee74/ee24);
     out(j, 3) = -(((R_pow(y,2) * 
-                      (ee23 * ee16 * R_pow(ee11,ee102) * ee1 - ee78/ee100) - (R_pow(ee10,ee102) * 
+                      (ee23 * ee16 * degpd_pow1p(ee8, ee102) * ee1 - ee78/ee100) - (degpd_pow1p(ee6, ee102) * 
                                                                          ee22 * ee16 * ee1 - ee95/ee92) * R_pow(ee4,2))/(ee24 * R_pow(ee2,2)) - 
                      (ee35 + ee103) * ee56/ee70) * ee9);
     out(j, 4) = -(ee9 * (y * 
@@ -282,9 +308,9 @@ else {
     eee5 = eee3 * eee1/eee2;
     eee6 = 1/eee1;
     eee7 = eee5 + 1;
-    eee8 = R_pow(eee7,eee6);
+    eee8 = degpd_pow1p(eee5, eee6);
     eee9 = 1 + eee6;
-    eee10 = R_pow(eee7,eee9);
+    eee10 = degpd_pow1p(eee5, eee9);
     eee11 = 1 - 1/eee8;
     eee12 = exp(lkappa);
     eee13 = log1p(eee5);
@@ -292,7 +318,7 @@ else {
     eee15 = eee10 * eee11;
     eee16 = eee15 * eee2;
     eee17 = eee8 * eee1;
-    eee18 = R_pow(eee7,eee6 - 1);
+    eee18 = degpd_pow1p(eee5, eee6 - 1);
     eee20 = eee18 * eee3/eee2;
     eee22 = eee8 * eee13/eee1;
     eee25 = eee13/eee17 - eee3/eee14;
@@ -303,7 +329,7 @@ else {
     eee34 = R_pow(eee14,2);
     eee35 = R_pow(eee17,2);
     eee39 = eee29/eee2 - eee10 * eee13/eee1;
-    eee41 = R_pow(eee7,2/eee1) * eee11;
+    eee41 = degpd_pow1p(eee5, 2/eee1) * eee11;
     
 	
 	out(j, 0) = eee31; 
