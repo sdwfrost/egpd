@@ -61,8 +61,11 @@ fixed=list(), restarts=TRUE) {
 ## likelihood costs little and removes both failure modes. Every candidate lies in the
 ## same parameter space, so this is plain multi-start MLE, not selection across models.
 ## Skipped when the caller supplies `inits`, or sets restarts = FALSE.
-if (isTRUE(restarts) && is.null(inits) && identical(family, "degpd") &&
-    (is.null(degpd.args$m) || identical(as.integer(degpd.args$m), 1L))) {
+## Number of linear predictors per DEGPD carrier, needed to size a start vector before
+## .setup.family.egpd() has run. Mirrors the npar values there.
+.degpd_npar <- c(`1` = 3L, `2` = 5L, `3` = 3L, `4` = 4L, `5` = 3L, `6` = 3L)
+
+if (isTRUE(restarts) && is.null(inits) && identical(family, "degpd")) {
   cl <- match.call()
   ## The caller's frame must be captured HERE, not inside the lapply() below.
   ## match.call() records argument *expressions*, so cl still refers to whatever
@@ -77,9 +80,20 @@ if (isTRUE(restarts) && is.null(inits) && identical(family, "degpd") &&
   }, error = function(e) NA_real_)
   if (is.finite(ybar)) {
     idlink <- !is.null(degpd.args$link) && identical(degpd.args$link, "identity")
-    ## a light and a heavier shape, alongside the package default
-    starts <- c(list(NULL), lapply(c(0.05, 0.3), function(v)
-                 c(log(ybar + 1), if (idlink) v else log(v), 0)))
+    mi <- if (is.null(degpd.args$m)) 1L else as.integer(degpd.args$m)
+    np <- .degpd_npar[[as.character(mi)]]
+    ## A light and a heavier shape, alongside the package default -- and, for the
+    ## carriers that have more than one shape parameter of their own, two fills for
+    ## them as well. Restarts used to be restricted to model 1, which silently left
+    ## every other carrier single-start however `restarts` was set. That flattered
+    ## model 1 in any comparison: on a Tycho measles series model 4's default start
+    ## reaches logLik -40053.7 with xi-hat 5e-08 and an unbounded interval, while a
+    ## start at xi = 0.3 reaches -37672.6 with xi-hat 0.324 [0.295, 0.356] -- the same
+    ## optimum the other carriers find, and 2,380 units better.
+    starts <- c(list(NULL), unlist(lapply(c(0.05, 0.3), function(v)
+                 lapply(c(0, log(2)), function(cf)
+                   c(log(ybar + 1), if (idlink) v else log(v), rep(cf, np - 2L)))),
+                 recursive = FALSE))
     err <- NULL
     cand <- lapply(starts, function(s) {
       cl$inits <- s; cl$restarts <- FALSE
