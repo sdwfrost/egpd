@@ -64,6 +64,13 @@ fixed=list(), restarts=TRUE) {
 if (isTRUE(restarts) && is.null(inits) && identical(family, "degpd") &&
     (is.null(degpd.args$m) || identical(as.integer(degpd.args$m), 1L))) {
   cl <- match.call()
+  ## The caller's frame must be captured HERE, not inside the lapply() below.
+  ## match.call() records argument *expressions*, so cl still refers to whatever
+  ## symbols the caller wrote -- and calling parent.frame() from inside the lambda
+  ## resolves to lapply()'s frame, where those symbols do not exist. Every restart
+  ## then failed with "object not found", tryCatch turned that into NULL, and the
+  ## function fell through to a single start with no error and no warning. See #6.
+  caller_env <- parent.frame()
   ybar <- tryCatch({
     fl <- if (is.list(formula)) formula[[1]] else formula
     mean(data[[all.vars(fl)[1]]], na.rm = TRUE)
@@ -73,13 +80,19 @@ if (isTRUE(restarts) && is.null(inits) && identical(family, "degpd") &&
     ## a light and a heavier shape, alongside the package default
     starts <- c(list(NULL), lapply(c(0.05, 0.3), function(v)
                  c(log(ybar + 1), if (idlink) v else log(v), 0)))
+    err <- NULL
     cand <- lapply(starts, function(s) {
       cl$inits <- s; cl$restarts <- FALSE
-      tryCatch(suppressWarnings(eval(cl, parent.frame())), error = function(e) NULL)
+      tryCatch(suppressWarnings(eval(cl, caller_env)),
+               error = function(e) { err <<- conditionMessage(e); NULL })
     })
     cand <- Filter(function(z) !is.null(z) && is.finite(as.numeric(z$logLik)), cand)
     if (length(cand))
       return(cand[[which.max(vapply(cand, function(z) as.numeric(z$logLik), 0))]])
+    ## Never degrade quietly: a silent fall-through to one start is the failure mode
+    ## that made #6 invisible, and it can cost thousands of log-likelihood units.
+    warning("restarts requested but every restart failed; continuing from a single ",
+            "start", if (!is.null(err)) paste0(" (", err, ")"), call. = FALSE)
   }
 }
 
