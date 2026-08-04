@@ -26,6 +26,44 @@ static inline double bounded_lxi(double eta, double xi_max, double* mp, double* 
   return log(B);
 }
 
+// ---------------------------------------------------------------------------
+// IDENTITY LINK ON xi FOR CARRIERS 2-6.
+//
+// The log link forces xi = exp(eta) > 0, so a bounded/short tail (xi < 0, finite
+// upper endpoint -sigma/xi) is unreachable. Model 1 solved this with a separate
+// symbolically-derived translation unit (src/degpd1_identity.cpp). Re-deriving
+// five more carriers that way is unnecessary, because of one structural fact:
+//
+//   in every carrier the scalar lxi appears ONLY inside exp(lxi).
+//
+// (Verified across degpd2..degpd6: every other occurrence of the bare token is a
+// variable declaration or a comment.) So exp(lxi) is used purely as the VALUE of
+// xi, and the generated expressions are rational/power functions of that value,
+// analytic for xi < 0 wherever the support holds. Feeding xi in directly is
+// therefore legitimate, and what the routine then returns is
+//
+//   g_lxi  = xi * dnll/dxi ,   h_lxi,lxi = xi * dnll/dxi + xi^2 * d2nll/dxi2
+//
+// evaluated at that xi. R converts those to derivatives w.r.t. xi itself in
+// .identity_xi_chain() -- the exact inverse of the existing .bounded_xi_chain().
+// This keeps one set of derivative formulas serving both links.
+//
+// xi_identity = false reproduces the previous behaviour bit for bit.
+static const double XI_EPS_ID = 1e-6;   // avoid the 1/xi singularity at xi = 0
+static const double OOS_PEN_ID = 1e20;  // out-of-support penalty (matches model 1)
+
+// Never return exactly 0: the identity-link chain rule divides by xi.
+static inline double guard_xi_id(double xi) {
+  if (std::fabs(xi) < XI_EPS_ID) return (xi < 0 ? -XI_EPS_ID : XI_EPS_ID);
+  return xi;
+}
+
+// The value of xi for this observation under either link.
+static inline double degpd_xi_value(double eta, double xi_max, bool xi_identity) {
+  if (xi_identity) return guard_xi_id(eta);
+  return exp(bounded_lxi(eta, xi_max, nullptr, nullptr));
+}
+
 // (1 + z)^p, evaluated as exp(p * log1p(z)) so that a tiny z keeps full precision.
 //
 // The DEGPD densities are built from (1 + xi*y/sigma)^(1/xi). Forming the base as
@@ -379,7 +417,7 @@ else {
 // //' @export
 // [[Rcpp::export]]
 
-double degpd2d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, const arma::mat& X4, const arma::mat& X5, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max)
+double degpd2d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, const arma::mat& X4, const arma::mat& X5, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
   arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
@@ -409,7 +447,7 @@ double degpd2d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
   if (off4.n_elem > 0) logitpvec += off4;
   }
 
-  double y, lsigma, lxi, lkappa1, lkappa2, logitp;
+  double y, lsigma, xiv, lkappa1, lkappa2, logitp;
   double e1,e2,e3, e4,e5,e6,e7, e8, e9,e10,e11, e12;
   double lo, hi;
   double nllh=0.0;
@@ -418,7 +456,7 @@ double degpd2d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 
     y = yvec[j];
     lsigma = lsigmavec[j];
-    lxi = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);
+    xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);
     lkappa1 = lkappa1vec[j];
     // Reparameterization: ldkappa = log(kappa2 - kappa1), compute lkappa2 via log-sum-exp
     {
@@ -428,12 +466,15 @@ double degpd2d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
     }
     logitp = logitpvec[j];
     
-    e1=1.0/exp(lxi);
-    e2 =  exp(lxi) / exp(lsigma);
+    e1=1.0/xiv;
+    e2 =  xiv / exp(lsigma);
     e3= 1+ (y+1)*e2;
-    e4= R_pow(1/e3, e1);
-    e5= R_pow(1-e4, exp(lkappa1)); //(H(y+1))^lkappa1
     e6= 1+ y*e2;
+    // xi < 0 gives a finite upper endpoint -sigma/xi (see degpd_xi_value).
+    if (e6 <= 0.0) { nllh += OOS_PEN_ID; continue; }
+    // endpoint cell: y+1 past the endpoint means H(y+1) = 1, i.e. e4 = 0
+    e4= (e3 <= 0.0) ? 0.0 : R_pow(1/e3, e1);
+    e5= R_pow(1-e4, exp(lkappa1)); //(H(y+1))^lkappa1
     e7= R_pow(1/e6, e1);
     e8= R_pow(1-e7, exp(lkappa1)); //(H(y))^lkappa1
     e9= exp(logitp)/ (1+exp(logitp));
@@ -442,7 +483,8 @@ double degpd2d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 	e11= R_pow(1-e7, exp(lkappa2)); //(H(y))^lkappa2
 	e12= 1/(1+exp(logitp));
 	lo= e12*(e10-e11);
-    
+
+    if (!(hi + lo > 0.0) || !R_finite(hi + lo)) { nllh += OOS_PEN_ID; continue; }
     nllh += -log(hi+lo);
     //if (!ISNA(nllh)){
     //nllh = 1e20;
@@ -457,7 +499,7 @@ double degpd2d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 
 // //' @rdname degpd2d0
 // [[Rcpp::export]]
-arma::mat degpd2d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3,  arma::mat X4, arma::mat X5, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max)
+arma::mat degpd2d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3,  arma::mat X4, arma::mat X5, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
   
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -489,7 +531,7 @@ arma::mat degpd2d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
   if (off4.n_elem > 0) logitpvec += off4;
   }
 
-  double y, lsigma, lxi, lkappa1, lkappa2, logitp;
+  double y, lsigma, xiv, lkappa1, lkappa2, logitp;
   double ee1, ee2, ee3, ee4,  ee6, ee8,ee9, ee10, ee11, ee12, ee13, ee14, ee15, ee16, ee17, ee18, ee19;
   double ee20, ee21,ee22, ee23, ee24, ee25, ee26,ee27, ee28, ee30, ee31,  ee32, ee33, ee34, ee35, ee36, ee37, ee38, ee39, ee40, ee41, ee42,ee43, ee44, ee45, ee46, ee47;
   double ee50,ee52, ee54, ee56,ee58, ee60, ee61, ee62, ee63;
@@ -512,8 +554,25 @@ arma::mat degpd2d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
     
     y  = yvec[j];
       lsigma  = lsigmavec[j];
-      lxi  = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);
+      xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);
       lkappa1  = lkappa1vec[j];
+
+    // IDENTITY LINK SUPPORT GUARD. With xi < 0 the distribution has a finite upper
+    // endpoint -sigma/xi, and the generated derivative expressions below evaluate
+    // R_pow(1/e3, 1/xi) on a NEGATIVE base past it -- NaN, which would propagate
+    // through the whole gradient and Hessian. Zero the row instead, matching what
+    // degpd5d12/degpd6d12 already do when gpd_Fderiv reports out of support. This
+    // also covers the endpoint cell (y+1 past the endpoint): d0 scores it exactly,
+    // but the fused hi-lo derivative formulas here cannot represent it, so its
+    // gradient contribution is dropped rather than computed wrongly.
+    {
+      double sg_ = exp(lsigmavec[j]);
+      if (1.0 + xiv * y / sg_ <= 0.0 || 1.0 + xiv * (y + 1.0) / sg_ <= 0.0) {
+        for (arma::uword c_ = 0; c_ < out.n_cols; c_++) out(j, c_) = 0.0;
+        continue;
+      }
+    }
+
       // Reparameterization: ldkappa = log(kappa2 - kappa1), compute lkappa2 via log-sum-exp
       {
         double ldk = ldkappavec[j];
@@ -523,7 +582,7 @@ arma::mat degpd2d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
       logitp  = logitpvec[j];
 
     if(y>0){
-      ee1 = exp(lxi);
+      ee1 = xiv;
     ee2 = exp(lsigma);
     ee3 = 1/ee1;
     ee4 = 1 + y;
@@ -759,7 +818,7 @@ out(j, 19) = -((((ee92 - ee91) * ee18 + ee24 -
 
 else {
      	   
-    eee1 = exp(lxi);
+    eee1 = xiv;
     eee2 = exp(lsigma);
     eee3 = 1 + y;
     eee5 = eee3 * eee1/eee2;
@@ -937,7 +996,7 @@ else {
 // //' ## to follow
 // //' @export
 // [[Rcpp::export]]
-double degpd3d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max)
+double degpd3d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
   
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -960,34 +1019,43 @@ double degpd3d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
   if (off2.n_elem > 0) ldeltavec += off2;
   }
 
-  double y, lsigma, lxi, ldelta;
+  double y, lsigma, xiv, ldelta;
   double e1,e2,e3, e4,e5,e6,e7, e8, e9,e10,e11, e12, e13;
   double lo, hi;
   double nllh=0.0;
-  
+
   for (int j=0; j < nobs; j++) {
-    
+
     y = yvec[j];
     lsigma = lsigmavec[j];
-    lxi = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);
+    xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);
     ldelta = ldeltavec[j];
-    
-    e1=1.0/exp(lxi);
-    e2 =  exp(lxi) / exp(lsigma);
+
+    e1=1.0/xiv;
+    e2 =  xiv / exp(lsigma);
     e3= 1+ (y+1)*e2;
-    e4= R_pow(1/e3, e1);
-    e5= 1-e4; //H(y+1)
-    e6= exp(ldelta)+1; 
-    e7= R_pow(e4, e6)/ exp(ldelta); //[bar H(y+1)]^(ldelta+1)//ldelta
-    e8=e4/ exp(ldelta);  //[bar H(y+1)]//ldelta
-	hi= e5+e7-e8;
 	e9= 1+ y*e2;
+    // xi < 0 gives a finite upper endpoint -sigma/xi. y past it has zero
+    // probability; y+1 past it is the endpoint cell, where H(y+1) = 1 so
+    // F(y+1) = G(1) = 1 for every carrier.
+    if (e9 <= 0.0) { nllh += OOS_PEN_ID; continue; }
+    e6= exp(ldelta)+1;
+    if (e3 <= 0.0) {
+      hi = 1.0;
+    } else {
+      e4= R_pow(1/e3, e1);
+      e5= 1-e4; //H(y+1)
+      e7= R_pow(e4, e6)/ exp(ldelta); //[bar H(y+1)]^(ldelta+1)//ldelta
+      e8=e4/ exp(ldelta);  //[bar H(y+1)]//ldelta
+	  hi= e5+e7-e8;
+    }
 	e10= R_pow(1/e9, e1);
     e11= 1-e10; //H(y)
     e12= R_pow(e10, e6)/ exp(ldelta); //[bar H(y)]^(ldelta+1)//ldelta
 	e13=e10/ exp(ldelta);  //[bar H(y+1)]//ldelta
 	lo= e11+e12-e13;
-    
+
+    if (!(hi - lo > 0.0) || !R_finite(hi - lo)) { nllh += OOS_PEN_ID; continue; }
     nllh += -log(hi-lo);
     //if (!ISNA(nllh)){
     //nllh = 1e20;
@@ -1002,7 +1070,7 @@ double degpd3d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 
 // //' @rdname degpd3d0
 // [[Rcpp::export]]
-arma::mat degpd3d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max)
+arma::mat degpd3d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
   
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -1026,7 +1094,7 @@ arma::mat degpd3d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
   if (off2.n_elem > 0) ldeltavec += off2;
   }
 
-  double y, lsigma, lxi, ldelta;
+  double y, lsigma, xiv, ldelta;
   double ee1, ee2, ee3, ee4, ee6, ee8, ee9;
   double ee10, ee11, ee12, ee13, ee14, ee15, ee16, ee17, ee18, ee19;
   double ee20, ee21,ee22, ee23, ee24, ee25, ee26, ee27, ee28, ee29;
@@ -1050,11 +1118,28 @@ arma::mat degpd3d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
     
     y  = yvec[j];
       lsigma  = lsigmavec[j];
-      lxi  = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);
+      xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);
       ldelta  = ldeltavec[j];
+
+    // IDENTITY LINK SUPPORT GUARD. With xi < 0 the distribution has a finite upper
+    // endpoint -sigma/xi, and the generated derivative expressions below evaluate
+    // R_pow(1/e3, 1/xi) on a NEGATIVE base past it -- NaN, which would propagate
+    // through the whole gradient and Hessian. Zero the row instead, matching what
+    // degpd5d12/degpd6d12 already do when gpd_Fderiv reports out of support. This
+    // also covers the endpoint cell (y+1 past the endpoint): d0 scores it exactly,
+    // but the fused hi-lo derivative formulas here cannot represent it, so its
+    // gradient contribution is dropped rather than computed wrongly.
+    {
+      double sg_ = exp(lsigmavec[j]);
+      if (1.0 + xiv * y / sg_ <= 0.0 || 1.0 + xiv * (y + 1.0) / sg_ <= 0.0) {
+        for (arma::uword c_ = 0; c_ < out.n_cols; c_++) out(j, c_) = 0.0;
+        continue;
+      }
+    }
+
    
     if(y>0){   
-    ee1 = exp(lxi);
+    ee1 = xiv;
     ee2 = exp(lsigma);
     ee3 = 1 + y;
     ee4 = exp(ldelta);
@@ -1194,7 +1279,7 @@ arma::mat degpd3d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
 
 else {
      	   
-    eee1 = exp(lxi);
+    eee1 = xiv;
     eee2 = exp(lsigma);
     eee3 = 1 + y;
     eee5 = eee3 * eee1/eee2;
@@ -1296,7 +1381,7 @@ else {
 // //' @export
 // [[Rcpp::export]]
 
-double degpd4d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, const arma::mat& X4, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max)
+double degpd4d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, const arma::mat& X4, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
   arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
@@ -1322,7 +1407,7 @@ double degpd4d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
   if (off3.n_elem > 0) lkappavec += off3;
   }
 
-  double y, lsigma, lxi, ldelta, lkappa;
+  double y, lsigma, xiv, ldelta, lkappa;
   double e1,e2,e3, e4,e5,e6,e7, e8, e9,e10,e11, e12, e13;
   double lo, hi;
   double nllh=0.0;
@@ -1331,26 +1416,33 @@ double degpd4d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 
     y = yvec[j];
     lsigma = lsigmavec[j];
-    lxi = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);
+    xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);
     ldelta = ldeltavec[j];
     lkappa = lkappavec[j];
     
-    e1=1.0/exp(lxi);
-    e2 =  exp(lxi) / exp(lsigma);
+    e1=1.0/xiv;
+    e2 =  xiv / exp(lsigma);
     e3= 1+ (y+1)*e2;
-    e4= R_pow(1/e3, e1);
-    e5= 1-e4; //H(y+1)
-    e6= exp(ldelta)+1; 
-    e7= R_pow(e4, e6)/ exp(ldelta); //[bar H(y+1)]^(ldelta+1)//ldelta
-    e8=e4/ exp(ldelta);  //[bar H(y+1)]//ldelta
-	hi= R_pow((e5+e7-e8),exp(lkappa)/2);
 	e9= 1+ y*e2;
+    // xi < 0 gives a finite upper endpoint -sigma/xi (see degpd_xi_value).
+    if (e9 <= 0.0) { nllh += OOS_PEN_ID; continue; }
+    e6= exp(ldelta)+1;
+    if (e3 <= 0.0) {
+      hi = 1.0;                       // endpoint cell: H(y+1)=1 so F(y+1)=G(1)=1
+    } else {
+      e4= R_pow(1/e3, e1);
+      e5= 1-e4; //H(y+1)
+      e7= R_pow(e4, e6)/ exp(ldelta); //[bar H(y+1)]^(ldelta+1)//ldelta
+      e8=e4/ exp(ldelta);  //[bar H(y+1)]//ldelta
+	  hi= R_pow((e5+e7-e8),exp(lkappa)/2);
+    }
 	e10= R_pow(1/e9, e1);
     e11= 1-e10; //H(y)
     e12= R_pow(e10, e6)/ exp(ldelta); //[bar H(y)]^(ldelta+1)//ldelta
 	e13=e10/ exp(ldelta);  //[bar H(y+1)]//ldelta
 	lo= R_pow((e11+e12-e13),exp(lkappa)/2);
-    
+
+    if (!(hi - lo > 0.0) || !R_finite(hi - lo)) { nllh += OOS_PEN_ID; continue; }
     nllh += -log(hi-lo);
     //if (!ISNA(nllh)){
     //nllh = 1e20;
@@ -1365,7 +1457,7 @@ double degpd4d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 
 // //' @rdname degpd4d0
 // [[Rcpp::export]]
-arma::mat degpd4d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3,  arma::mat X4, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max)
+arma::mat degpd4d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3,  arma::mat X4, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
   
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -1393,7 +1485,7 @@ arma::mat degpd4d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
   if (off3.n_elem > 0) lkappavec += off3;
   }
 
-  double y, lsigma, lxi, ldelta, lkappa;
+  double y, lsigma, xiv, ldelta, lkappa;
   double ee1, ee2, ee3, ee4, ee5, ee7, ee9, ee10, ee11, ee12, ee13, ee14, ee15, ee16, ee17, ee18, ee19;
   double ee20, ee21,ee22, ee23, ee24, ee25, ee26, ee28, ee30, ee31,  ee32, ee33, ee34, ee35, ee36, ee37, ee38, ee39, ee40, ee41, ee42,ee43, ee44, ee45, ee46, ee47, ee48;
   double ee49, ee50, ee51,ee52,ee53,ee54, ee55, ee56, ee57,ee58, ee59, ee60, ee61, ee62;
@@ -1417,12 +1509,29 @@ arma::mat degpd4d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
     
     y  = yvec[j];
       lsigma  = lsigmavec[j];
-      lxi  = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);
+      xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);
       ldelta  = ldeltavec[j];
       lkappa  = lkappavec[j];
+
+    // IDENTITY LINK SUPPORT GUARD. With xi < 0 the distribution has a finite upper
+    // endpoint -sigma/xi, and the generated derivative expressions below evaluate
+    // R_pow(1/e3, 1/xi) on a NEGATIVE base past it -- NaN, which would propagate
+    // through the whole gradient and Hessian. Zero the row instead, matching what
+    // degpd5d12/degpd6d12 already do when gpd_Fderiv reports out of support. This
+    // also covers the endpoint cell (y+1 past the endpoint): d0 scores it exactly,
+    // but the fused hi-lo derivative formulas here cannot represent it, so its
+    // gradient contribution is dropped rather than computed wrongly.
+    {
+      double sg_ = exp(lsigmavec[j]);
+      if (1.0 + xiv * y / sg_ <= 0.0 || 1.0 + xiv * (y + 1.0) / sg_ <= 0.0) {
+        for (arma::uword c_ = 0; c_ < out.n_cols; c_++) out(j, c_) = 0.0;
+        continue;
+      }
+    }
+
    
     if(y>0){   
-      ee1 = exp(lxi);
+      ee1 = xiv;
       ee2 = exp(lsigma);
       ee3 = exp(ldelta);
       ee4 = 1 + y;
@@ -1650,7 +1759,7 @@ out(j, 13) = -(((0.25 *
 
 else {
      	   
-    eee1 = exp(lxi);
+    eee1 = xiv;
     eee2 = exp(lsigma);
     eee3 = 1 + y;
     eee5 = eee3 * eee1/eee2;
@@ -1776,7 +1885,7 @@ else {
 // //' ## to follow
 // //' @export
 // [[Rcpp::export]]
-double degpd5d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max)
+double degpd5d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
 
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -1799,18 +1908,18 @@ double degpd5d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
   if (off2.n_elem > 0) lkappavec += off2;
   }
 
-  double y, lsigma, lxi, lkappa;
+  double y, lsigma, xiv, lkappa;
   double nllh = 0.0;
 
   for (int j = 0; j < nobs; j++) {
 
     y = yvec[j];
     lsigma = lsigmavec[j];
-    lxi = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);
+    xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);
     lkappa = lkappavec[j];
 
     double sigma = exp(lsigma);
-    double xi = exp(lxi);
+    double xi = xiv;
     double kappa = exp(lkappa);
     double sk = sqrt(kappa);
 
@@ -1820,13 +1929,15 @@ double degpd5d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
     double v_hi = xi * (y + 1.0) / sigma;
     double t_hi = 1.0 + v_hi;
 
-    if (t_lo <= 0.0 || t_hi <= 0.0) {
-      nllh = 1e20;
-      break;
-    }
+    // xi < 0 gives a finite upper endpoint -sigma/xi. y past it has zero
+    // probability; y+1 past it is the ENDPOINT CELL, which is legitimate --
+    // H(y+1) = 1 there, so F_hi = 1 and G_hi = G(1) = 1. The previous code
+    // aborted the whole sum on t_hi <= 0, which under the log link was
+    // unreachable but under the identity link would reject valid fits.
+    if (t_lo <= 0.0) { nllh += OOS_PEN_ID; continue; }
 
     double F_lo = 1.0 - R_pow(t_lo, -1.0 / xi);
-    double F_hi = 1.0 - R_pow(t_hi, -1.0 / xi);
+    double F_hi = (t_hi <= 0.0) ? 1.0 : 1.0 - R_pow(t_hi, -1.0 / xi);
 
     // Truncated normal G-function
     double Fmin = R::pnorm(-sk, 0.0, 1.0, 1, 0);
@@ -1846,7 +1957,7 @@ double degpd5d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 
 // //' @rdname degpd5d0
 // [[Rcpp::export]]
-arma::mat degpd5d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max)
+arma::mat degpd5d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
 
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -1870,7 +1981,7 @@ arma::mat degpd5d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
   if (off2.n_elem > 0) lkappavec += off2;
   }
 
-  double y, lsigma, lxi, lkappa;
+  double y, lsigma, xiv, lkappa;
 
   // Analytic gradient + Hessian for model 5 (truncated-normal G). nll = -log(P),
   // P = G(F_hi) - G(F_lo). The GPD CDF F (and its lsigma/lxi derivatives) and the
@@ -1881,11 +1992,11 @@ arma::mat degpd5d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
 
     y = yvec[j];
     lsigma = lsigmavec[j];
-    lxi = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);  // chain rule applied in R
+    xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);  // chain rule applied in R
     lkappa = lkappavec[j];
 
     double sigma = exp(lsigma);
-    double xi = exp(lxi);
+    double xi = xiv;
     double kappa = exp(lkappa);
     double q = 1.0 / xi;
     double sk = sqrt(kappa);
@@ -1982,7 +2093,7 @@ arma::mat degpd5d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
 // //' ## to follow
 // //' @export
 // [[Rcpp::export]]
-double degpd6d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max)
+double degpd6d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
 
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -2005,18 +2116,18 @@ double degpd6d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
   if (off2.n_elem > 0) lkappavec += off2;
   }
 
-  double y, lsigma, lxi, lkappa;
+  double y, lsigma, xiv, lkappa;
   double nllh = 0.0;
 
   for (int j = 0; j < nobs; j++) {
 
     y = yvec[j];
     lsigma = lsigmavec[j];
-    lxi = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);
+    xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);
     lkappa = lkappavec[j];
 
     double sigma = exp(lsigma);
-    double xi = exp(lxi);
+    double xi = xiv;
     double kappa = exp(lkappa);
 
     // GPD CDF at y and y+1
@@ -2025,13 +2136,12 @@ double degpd6d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
     double v_hi = xi * (y + 1.0) / sigma;
     double t_hi = 1.0 + v_hi;
 
-    if (t_lo <= 0.0 || t_hi <= 0.0) {
-      nllh = 1e20;
-      break;
-    }
+    // See the note in degpd5d0: t_hi <= 0 is the endpoint cell (F_hi = 1), not a
+    // failure. Only y itself past the endpoint has zero probability.
+    if (t_lo <= 0.0) { nllh += OOS_PEN_ID; continue; }
 
     double F_lo = 1.0 - R_pow(t_lo, -1.0 / xi);
-    double F_hi = 1.0 - R_pow(t_hi, -1.0 / xi);
+    double F_hi = (t_hi <= 0.0) ? 1.0 : 1.0 - R_pow(t_hi, -1.0 / xi);
 
     // Truncated Beta G-function
     // G(u; kappa) = [pbeta((0.5 - 1/32)*u + 1/32, kappa, kappa) - pbeta(1/32, kappa, kappa)]
@@ -2059,7 +2169,7 @@ double degpd6d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2
 
 // //' @rdname degpd6d0
 // [[Rcpp::export]]
-arma::mat degpd6d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max)
+arma::mat degpd6d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
 
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
@@ -2083,7 +2193,7 @@ arma::mat degpd6d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
   if (off2.n_elem > 0) lkappavec += off2;
   }
 
-  double y, lsigma, lxi, lkappa;
+  double y, lsigma, xiv, lkappa;
 
   // Fully analytic gradient + Hessian for model 6 (truncated-beta G). Same assembly as
   // model 5, but tb_Gtheta supplies the truncated-beta G derivatives; its kappa pieces
@@ -2093,9 +2203,9 @@ arma::mat degpd6d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::ma
 
     y = yvec[j];
     lsigma = lsigmavec[j];
-    lxi = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);  // chain rule applied in R
+    xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);  // chain rule applied in R
     lkappa = lkappavec[j];
-    double sigma = exp(lsigma), xi = exp(lxi), kappa = exp(lkappa);
+    double sigma = exp(lsigma), xi = xiv, kappa = exp(lkappa);
 
     FDeriv flo = gpd_Fderiv(y, sigma, xi);
     FDeriv fhi = gpd_Fderiv(y + 1.0, sigma, xi);

@@ -466,8 +466,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // degpd2d0
-double degpd2d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, const arma::mat& X4, const arma::mat& X5, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max);
-RcppExport SEXP _egpd_degpd2d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP X4SEXP, SEXP X5SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP) {
+double degpd2d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, const arma::mat& X4, const arma::mat& X5, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity);
+RcppExport SEXP _egpd_degpd2d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP X4SEXP, SEXP X5SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP, SEXP xi_identitySEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -482,13 +482,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
     Rcpp::traits::input_parameter< double >::type xi_max(xi_maxSEXP);
-    rcpp_result_gen = Rcpp::wrap(degpd2d0(pars, X1, X2, X3, X4, X5, yvec, dupid, dcate, offsets, xi_max));
+    Rcpp::traits::input_parameter< bool >::type xi_identity(xi_identitySEXP);
+    rcpp_result_gen = Rcpp::wrap(degpd2d0(pars, X1, X2, X3, X4, X5, yvec, dupid, dcate, offsets, xi_max, xi_identity));
     return rcpp_result_gen;
 END_RCPP
 }
 // degpd2d12
-arma::mat degpd2d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::mat X4, arma::mat X5, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max);
-RcppExport SEXP _egpd_degpd2d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP X4SEXP, SEXP X5SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP) {
+arma::mat degpd2d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::mat X4, arma::mat X5, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity);
+RcppExport SEXP _egpd_degpd2d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP X4SEXP, SEXP X5SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP, SEXP xi_identitySEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -503,13 +504,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
     Rcpp::traits::input_parameter< double >::type xi_max(xi_maxSEXP);
-    rcpp_result_gen = Rcpp::wrap(degpd2d12(pars, X1, X2, X3, X4, X5, yvec, dupid, dcate, offsets, xi_max));
+    Rcpp::traits::input_parameter< bool >::type xi_identity(xi_identitySEXP);
+    rcpp_result_gen = Rcpp::wrap(degpd2d12(pars, X1, X2, X3, X4, X5, yvec, dupid, dcate, offsets, xi_max, xi_identity));
     return rcpp_result_gen;
 END_RCPP
 }
 // degpd3d0
-double degpd3d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max);
-RcppExport SEXP _egpd_degpd3d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP) {
+double degpd3d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity);
+RcppExport SEXP _egpd_degpd3d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP, SEXP xi_identitySEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -522,13 +524,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
     Rcpp::traits::input_parameter< double >::type xi_max(xi_maxSEXP);
-    rcpp_result_gen = Rcpp::wrap(degpd3d0(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max));
+    Rcpp::traits::input_parameter< bool >::type xi_identity(xi_identitySEXP);
+    rcpp_result_gen = Rcpp::wrap(degpd3d0(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity));
     return rcpp_result_gen;
 END_RCPP
 }
 // degpd3d12
-arma::mat degpd3d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max);
-RcppExport SEXP _egpd_degpd3d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP) {
+arma::mat degpd3d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity);
+RcppExport SEXP _egpd_degpd3d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP, SEXP xi_identitySEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -541,13 +544,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
     Rcpp::traits::input_parameter< double >::type xi_max(xi_maxSEXP);
-    rcpp_result_gen = Rcpp::wrap(degpd3d12(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max));
+    Rcpp::traits::input_parameter< bool >::type xi_identity(xi_identitySEXP);
+    rcpp_result_gen = Rcpp::wrap(degpd3d12(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity));
     return rcpp_result_gen;
 END_RCPP
 }
 // degpd4d0
-double degpd4d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, const arma::mat& X4, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max);
-RcppExport SEXP _egpd_degpd4d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP X4SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP) {
+double degpd4d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, const arma::mat& X4, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity);
+RcppExport SEXP _egpd_degpd4d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP X4SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP, SEXP xi_identitySEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -561,13 +565,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
     Rcpp::traits::input_parameter< double >::type xi_max(xi_maxSEXP);
-    rcpp_result_gen = Rcpp::wrap(degpd4d0(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets, xi_max));
+    Rcpp::traits::input_parameter< bool >::type xi_identity(xi_identitySEXP);
+    rcpp_result_gen = Rcpp::wrap(degpd4d0(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets, xi_max, xi_identity));
     return rcpp_result_gen;
 END_RCPP
 }
 // degpd4d12
-arma::mat degpd4d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::mat X4, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max);
-RcppExport SEXP _egpd_degpd4d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP X4SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP) {
+arma::mat degpd4d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::mat X4, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity);
+RcppExport SEXP _egpd_degpd4d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP X4SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP, SEXP xi_identitySEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -581,13 +586,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
     Rcpp::traits::input_parameter< double >::type xi_max(xi_maxSEXP);
-    rcpp_result_gen = Rcpp::wrap(degpd4d12(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets, xi_max));
+    Rcpp::traits::input_parameter< bool >::type xi_identity(xi_identitySEXP);
+    rcpp_result_gen = Rcpp::wrap(degpd4d12(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets, xi_max, xi_identity));
     return rcpp_result_gen;
 END_RCPP
 }
 // degpd5d0
-double degpd5d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max);
-RcppExport SEXP _egpd_degpd5d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP) {
+double degpd5d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity);
+RcppExport SEXP _egpd_degpd5d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP, SEXP xi_identitySEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -600,13 +606,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
     Rcpp::traits::input_parameter< double >::type xi_max(xi_maxSEXP);
-    rcpp_result_gen = Rcpp::wrap(degpd5d0(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max));
+    Rcpp::traits::input_parameter< bool >::type xi_identity(xi_identitySEXP);
+    rcpp_result_gen = Rcpp::wrap(degpd5d0(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity));
     return rcpp_result_gen;
 END_RCPP
 }
 // degpd5d12
-arma::mat degpd5d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max);
-RcppExport SEXP _egpd_degpd5d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP) {
+arma::mat degpd5d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity);
+RcppExport SEXP _egpd_degpd5d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP, SEXP xi_identitySEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -619,13 +626,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
     Rcpp::traits::input_parameter< double >::type xi_max(xi_maxSEXP);
-    rcpp_result_gen = Rcpp::wrap(degpd5d12(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max));
+    Rcpp::traits::input_parameter< bool >::type xi_identity(xi_identitySEXP);
+    rcpp_result_gen = Rcpp::wrap(degpd5d12(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity));
     return rcpp_result_gen;
 END_RCPP
 }
 // degpd6d0
-double degpd6d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max);
-RcppExport SEXP _egpd_degpd6d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP) {
+double degpd6d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity);
+RcppExport SEXP _egpd_degpd6d0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP, SEXP xi_identitySEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -638,13 +646,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
     Rcpp::traits::input_parameter< double >::type xi_max(xi_maxSEXP);
-    rcpp_result_gen = Rcpp::wrap(degpd6d0(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max));
+    Rcpp::traits::input_parameter< bool >::type xi_identity(xi_identitySEXP);
+    rcpp_result_gen = Rcpp::wrap(degpd6d0(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity));
     return rcpp_result_gen;
 END_RCPP
 }
 // degpd6d12
-arma::mat degpd6d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max);
-RcppExport SEXP _egpd_degpd6d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP) {
+arma::mat degpd6d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity);
+RcppExport SEXP _egpd_degpd6d12(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP, SEXP xi_identitySEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -657,7 +666,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
     Rcpp::traits::input_parameter< double >::type xi_max(xi_maxSEXP);
-    rcpp_result_gen = Rcpp::wrap(degpd6d12(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max));
+    Rcpp::traits::input_parameter< bool >::type xi_identity(xi_identitySEXP);
+    rcpp_result_gen = Rcpp::wrap(degpd6d12(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -1749,16 +1759,16 @@ static const R_CallMethodDef CallEntries[] = {
     {"_egpd_cf_grad_cpp", (DL_FUNC) &_egpd_cf_grad_cpp, 3},
     {"_egpd_degpd1d0", (DL_FUNC) &_egpd_degpd1d0, 9},
     {"_egpd_degpd1d12", (DL_FUNC) &_egpd_degpd1d12, 9},
-    {"_egpd_degpd2d0", (DL_FUNC) &_egpd_degpd2d0, 11},
-    {"_egpd_degpd2d12", (DL_FUNC) &_egpd_degpd2d12, 11},
-    {"_egpd_degpd3d0", (DL_FUNC) &_egpd_degpd3d0, 9},
-    {"_egpd_degpd3d12", (DL_FUNC) &_egpd_degpd3d12, 9},
-    {"_egpd_degpd4d0", (DL_FUNC) &_egpd_degpd4d0, 10},
-    {"_egpd_degpd4d12", (DL_FUNC) &_egpd_degpd4d12, 10},
-    {"_egpd_degpd5d0", (DL_FUNC) &_egpd_degpd5d0, 9},
-    {"_egpd_degpd5d12", (DL_FUNC) &_egpd_degpd5d12, 9},
-    {"_egpd_degpd6d0", (DL_FUNC) &_egpd_degpd6d0, 9},
-    {"_egpd_degpd6d12", (DL_FUNC) &_egpd_degpd6d12, 9},
+    {"_egpd_degpd2d0", (DL_FUNC) &_egpd_degpd2d0, 12},
+    {"_egpd_degpd2d12", (DL_FUNC) &_egpd_degpd2d12, 12},
+    {"_egpd_degpd3d0", (DL_FUNC) &_egpd_degpd3d0, 10},
+    {"_egpd_degpd3d12", (DL_FUNC) &_egpd_degpd3d12, 10},
+    {"_egpd_degpd4d0", (DL_FUNC) &_egpd_degpd4d0, 11},
+    {"_egpd_degpd4d12", (DL_FUNC) &_egpd_degpd4d12, 11},
+    {"_egpd_degpd5d0", (DL_FUNC) &_egpd_degpd5d0, 10},
+    {"_egpd_degpd5d12", (DL_FUNC) &_egpd_degpd5d12, 10},
+    {"_egpd_degpd6d0", (DL_FUNC) &_egpd_degpd6d0, 10},
+    {"_egpd_degpd6d12", (DL_FUNC) &_egpd_degpd6d12, 10},
     {"_egpd_degpd1id0", (DL_FUNC) &_egpd_degpd1id0, 9},
     {"_egpd_degpd1id12", (DL_FUNC) &_egpd_degpd1id12, 9},
     {"_egpd_egpd1d0", (DL_FUNC) &_egpd_egpd1d0, 8},
