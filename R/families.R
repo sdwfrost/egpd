@@ -1,3 +1,20 @@
+## Is an identity link on xi requested? Available for every DEGPD carrier: model 1
+## through the symbolically-derived src/degpd1_identity.cpp, models 2-6 by handing
+## xi straight to the existing C++ and converting the returned log-link derivatives
+## in .identity_xi_chain() (see the note in R/degpd_lik.R).
+##
+## This validates rather than ignores. Before, an unrecognised link was silently
+## dropped, so degpd.args = list(m = 3, link = "identity") quietly fitted the LOG
+## link and returned a strictly positive xi -- the caller had asked for the ability
+## to represent a bounded tail and got no indication they had not received it.
+.degpd_identity_link <- function(degpd) {
+  if (is.null(degpd$link)) return(FALSE)
+  if (!is.character(degpd$link) || length(degpd$link) != 1L ||
+      !degpd$link %in% c("log", "identity"))
+    stop("degpd.args$link must be \"log\" or \"identity\".", call. = FALSE)
+  identical(degpd$link, "identity")
+}
+
 .setup.family.egpd <- function(family, egpd, degpd, zidegpd, comppareto, formula, likfns) {
   if (family == "egpd") {
     if (is.null(egpd$m))
@@ -45,7 +62,7 @@
     if (is.null(degpd$m))
       degpd$m <- 1
     if (degpd$m == 1) {
-      if (!is.null(degpd$link) && identical(degpd$link, "identity")) {
+      if (.degpd_identity_link(degpd)) {
         lik.fns <- .degpd1idfns                       # identity link on xi (xi may be < 0)
         npar <- 3
         nms <- c("lsigma", "xi", "lkappa")
@@ -58,34 +75,39 @@
       }
       attr(family, "type") <- 1
     } else if (degpd$m == 2) {
-      lik.fns <- .degpd2fns
+      idl <- .degpd_identity_link(degpd)
+      lik.fns <- if (idl) .degpd2idfns else .degpd2fns
       npar <- 5
-      nms <- c("lsigma", "lxi", "lkappa1", "ldkappa", "logitp")
-      nms2 <- c('logscale', 'logshape', 'logkappa1', 'logdkappa', 'logitp')
+      nms <- c("lsigma", if (idl) "xi" else "lxi", "lkappa1", "ldkappa", "logitp")
+      nms2 <- c('logscale', if (idl) 'shape' else 'logshape', 'logkappa1', 'logdkappa', 'logitp')
       attr(family, "type") <- 6
     } else if (degpd$m == 3) {
-      lik.fns <- .degpd3fns
+      idl <- .degpd_identity_link(degpd)
+      lik.fns <- if (idl) .degpd3idfns else .degpd3fns
       npar <- 3
-      nms <- c("lsigma", "lxi", "ldelta")
-      nms2 <- c('logscale', 'logshape', 'logdelta')
+      nms <- c("lsigma", if (idl) "xi" else "lxi", "ldelta")
+      nms2 <- c('logscale', if (idl) 'shape' else 'logshape', 'logdelta')
       attr(family, "type") <- 4
     } else if (degpd$m == 4) {
-      lik.fns <- .degpd4fns
+      idl <- .degpd_identity_link(degpd)
+      lik.fns <- if (idl) .degpd4idfns else .degpd4fns
       npar <- 4
-      nms <- c("lsigma", "lxi", "ldelta", "lkappa")
-      nms2 <- c('logscale', 'logshape', 'logdelta', 'logkappa')
+      nms <- c("lsigma", if (idl) "xi" else "lxi", "ldelta", "lkappa")
+      nms2 <- c('logscale', if (idl) 'shape' else 'logshape', 'logdelta', 'logkappa')
       attr(family, "type") <- 5
     } else if (degpd$m == 5) {
-      lik.fns <- .degpd5fns
+      idl <- .degpd_identity_link(degpd)
+      lik.fns <- if (idl) .degpd5idfns else .degpd5fns
       npar <- 3
-      nms <- c("lsigma", "lxi", "lkappa")
-      nms2 <- c('logscale', 'logshape', 'logkappa')
+      nms <- c("lsigma", if (idl) "xi" else "lxi", "lkappa")
+      nms2 <- c('logscale', if (idl) 'shape' else 'logshape', 'logkappa')
       attr(family, "type") <- 2
     } else if (degpd$m == 6) {
-      lik.fns <- .degpd6fns
+      idl <- .degpd_identity_link(degpd)
+      lik.fns <- if (idl) .degpd6idfns else .degpd6fns
       npar <- 3
-      nms <- c("lsigma", "lxi", "lkappa")
-      nms2 <- c('logscale', 'logshape', 'logkappa')
+      nms <- c("lsigma", if (idl) "xi" else "lxi", "lkappa")
+      nms2 <- c('logscale', if (idl) 'shape' else 'logshape', 'logkappa')
       attr(family, "type") <- 3
     } else {
       stop("degpd$m must be 1, 2, 3, 4, 5, or 6.")

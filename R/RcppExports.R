@@ -121,44 +121,44 @@ degpd1d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max) {
     .Call(`_egpd_degpd1d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max)
 }
 
-degpd2d0 <- function(pars, X1, X2, X3, X4, X5, yvec, dupid, dcate, offsets, xi_max) {
-    .Call(`_egpd_degpd2d0`, pars, X1, X2, X3, X4, X5, yvec, dupid, dcate, offsets, xi_max)
+degpd2d0 <- function(pars, X1, X2, X3, X4, X5, yvec, dupid, dcate, offsets, xi_max, xi_identity = FALSE) {
+    .Call(`_egpd_degpd2d0`, pars, X1, X2, X3, X4, X5, yvec, dupid, dcate, offsets, xi_max, xi_identity)
 }
 
-degpd2d12 <- function(pars, X1, X2, X3, X4, X5, yvec, dupid, dcate, offsets, xi_max) {
-    .Call(`_egpd_degpd2d12`, pars, X1, X2, X3, X4, X5, yvec, dupid, dcate, offsets, xi_max)
+degpd2d12 <- function(pars, X1, X2, X3, X4, X5, yvec, dupid, dcate, offsets, xi_max, xi_identity = FALSE) {
+    .Call(`_egpd_degpd2d12`, pars, X1, X2, X3, X4, X5, yvec, dupid, dcate, offsets, xi_max, xi_identity)
 }
 
-degpd3d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max) {
-    .Call(`_egpd_degpd3d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max)
+degpd3d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity = FALSE) {
+    .Call(`_egpd_degpd3d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity)
 }
 
-degpd3d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max) {
-    .Call(`_egpd_degpd3d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max)
+degpd3d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity = FALSE) {
+    .Call(`_egpd_degpd3d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity)
 }
 
-degpd4d0 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets, xi_max) {
-    .Call(`_egpd_degpd4d0`, pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets, xi_max)
+degpd4d0 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets, xi_max, xi_identity = FALSE) {
+    .Call(`_egpd_degpd4d0`, pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets, xi_max, xi_identity)
 }
 
-degpd4d12 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets, xi_max) {
-    .Call(`_egpd_degpd4d12`, pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets, xi_max)
+degpd4d12 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets, xi_max, xi_identity = FALSE) {
+    .Call(`_egpd_degpd4d12`, pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets, xi_max, xi_identity)
 }
 
-degpd5d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max) {
-    .Call(`_egpd_degpd5d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max)
+degpd5d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity = FALSE) {
+    .Call(`_egpd_degpd5d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity)
 }
 
-degpd5d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max) {
-    .Call(`_egpd_degpd5d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max)
+degpd5d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity = FALSE) {
+    .Call(`_egpd_degpd5d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity)
 }
 
-degpd6d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max) {
-    .Call(`_egpd_degpd6d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max)
+degpd6d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity = FALSE) {
+    .Call(`_egpd_degpd6d0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity)
 }
 
-degpd6d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max) {
-    .Call(`_egpd_degpd6d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max)
+degpd6d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity = FALSE) {
+    .Call(`_egpd_degpd6d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity)
 }
 
 degpd1id0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max) {

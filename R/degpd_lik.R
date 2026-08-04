@@ -181,3 +181,81 @@
 .iG6_degpd <- function(v, kappa) q.G(v, type = 3, kappa = kappa)
 
 .degpd6fns <- list(d0=.degpd6.d0, d120=.degpd6.d12, d340=NULL, m=6, iG=.iG6_degpd)
+
+## ---------------------------------------------------------------------------
+## IDENTITY LINK ON xi, CARRIERS 2-6.
+##
+## The C++ routines are handed xi directly (xi_identity = TRUE) instead of
+## exp(eta); see the long note in src/degpd.cpp. Because their expressions were
+## derived w.r.t. log xi, what comes back is
+##
+##   g_lxi = xi * dnll/dxi
+##   h_lxi,lxi = xi * dnll/dxi + xi^2 * d2nll/dxi2
+##   h_lxi,theta = xi * d2nll/(dxi dtheta)
+##
+## evaluated at that xi. Inverting gives the identity-link derivatives:
+##
+##   dnll/dxi           = g_lxi / xi
+##   d2nll/dxi2         = (h_lxi,lxi - g_lxi) / xi^2
+##   d2nll/(dxi dtheta) = h_lxi,theta / xi
+##
+## This is exactly .bounded_xi_chain() run backwards, and it reuses one set of
+## derivative formulas for both links rather than re-deriving five carriers.
+##
+## ACCURACY NEAR xi = 0: dividing by xi amplifies cancellation, so like the
+## model-1 identity code (src/degpd1_identity.cpp) this degrades in a band around
+## zero, where the two terms of (h - g) nearly cancel. That band is the light-tail
+## boundary, where the bounded-vs-heavy question is moot; the C++ guards
+## |xi| >= 1e-6 so the division is never singular.
+.identity_xi_chain <- function(out, pars, likdata) {
+  npar <- length(likdata$X)
+  xcol <- 2L                                   # shape is parameter 2 (1-based)
+  beta <- split(pars, factor(likdata$idpars, levels = seq_along(likdata$X)))[[xcol]]
+  xi <- as.numeric(likdata$X[[xcol]] %*% beta)
+  if (isTRUE(likdata$duplicate == 1)) xi <- xi[likdata$dupid + 1]
+  if (length(likdata$offsets[[xcol]]) > 0) xi <- xi + likdata$offsets[[xcol]]
+  ## must match guard_xi_id() in src/degpd.cpp, or the chain rule divides by a
+  ## different xi than the one the derivatives were evaluated at
+  eps <- 1e-6
+  small <- abs(xi) < eps
+  xi[small] <- ifelse(xi[small] < 0, -eps, eps)
+
+  ## packed upper-tri column (1-based) for parameter pair (i,j), i<=j, 0-based
+  col_ij <- function(i, j) {
+    off <- 0L; if (i > 0) for (r in 0:(i - 1)) off <- off + (npar - r)
+    npar + off + (j - i) + 1L
+  }
+  xi0 <- 1L                                    # 0-based index of the shape parameter
+  g <- out[, xcol]; cdd <- col_ij(xi0, xi0); hdd <- out[, cdd]
+  out[, xcol] <- g / xi
+  for (k in 0:(npar - 1)) if (k != xi0) {
+    cc <- col_ij(min(k, xi0), max(k, xi0)); out[, cc] <- out[, cc] / xi
+  }
+  out[, cdd] <- (hdd - g) / (xi * xi)
+  out
+}
+
+## Build the identity-link wrappers mechanically: same C++ entry points, xi.max
+## forced to Inf (a bounding link on xi is meaningless when xi may be negative),
+## xi_identity = TRUE, and .identity_xi_chain in place of .bounded_xi_chain.
+.make_degpd_id_fns <- function(m, d0fun, d12fun, nX, iG) {
+  cargs <- function(likdata, pars)
+    c(list(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X)))),
+      likdata$X[seq_len(nX)],
+      list(likdata$y[, 1], likdata$dupid, likdata$duplicate, likdata$offsets,
+           Inf, TRUE))
+  d0 <- function(pars, likdata) {
+    if (likdata$censored)
+      stop("Censored likelihoods not currently available for extended GPDs.")
+    do.call(d0fun, cargs(likdata, pars))
+  }
+  d12 <- function(pars, likdata)
+    .identity_xi_chain(do.call(d12fun, cargs(likdata, pars)), pars, likdata)
+  list(d0 = d0, d120 = d12, d340 = NULL, m = m, iG = iG, identity.xi = TRUE)
+}
+
+.degpd2idfns <- .make_degpd_id_fns(2, degpd2d0, degpd2d12, 5, .iG2_degpd)
+.degpd3idfns <- .make_degpd_id_fns(3, degpd3d0, degpd3d12, 3, .iG3_degpd)
+.degpd4idfns <- .make_degpd_id_fns(4, degpd4d0, degpd4d12, 4, .iG4_degpd)
+.degpd5idfns <- .make_degpd_id_fns(5, degpd5d0, degpd5d12, 3, .iG5_degpd)
+.degpd6idfns <- .make_degpd_id_fns(6, degpd6d0, degpd6d12, 3, .iG6_degpd)
