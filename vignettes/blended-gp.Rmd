@@ -55,8 +55,11 @@ $$
 w(y) = F_{\mathrm{Beta}}\!\left(\frac{y-a}{b-a}; c_1, c_2\right),
 $$
 
-which smoothly increases from `0` to `1` over `[a, b]`. In package terms, the
-resulting blended CDF is evaluated as
+which smoothly increases from `0` to `1` over `[a, b]`. Following the paper
+(Majumder and Richards, p. 12), the shapes must satisfy $c_1, c_2 > 3$, which
+makes the second derivative of the log-density continuous; `pbgpd()`,
+`dbgpd()`, `qbgpd()` and `rbgpd()` reject smaller values. In package terms,
+the resulting blended CDF is evaluated as
 
 $$
 H(y)=
@@ -71,9 +74,16 @@ where the GP threshold and scale are chosen so that the bulk and GP
 distributions agree at both `a` and `b`. This yields the exact GP upper tail
 from the paper, while keeping the body flexible.
 
-The implementation also checks the blended density numerically on `[a, b]`.
+The implementation also checks the blended density numerically on `[a, b]`,
+evaluating a fine 2049-point spatial grid plus Beta-weight quantile knots and
+running local minimization across concentrated transitions, finite-difference
+sign changes, and low-density subintervals.
 This matters because the paper notes that some bulk/weight combinations can, in
 principle, create invalid negative densities in the blending interval.
+The evidence here is the original-author preprint **arXiv:2504.19994v2**,
+Eqs. (4)--(6) and its negative-density caveat. Numerical checks are not a
+proof of monotonicity for arbitrary user-supplied bulk functions; CDF,
+density and quantile functions must be mutually consistent.
 
 ## 2. A default Beta-bulk example
 
@@ -183,24 +193,25 @@ parameterization.
 
 ## 4. Checking the exact GP tail
 
-For `y >= b`, the package should agree exactly with the bridged GP tail implied
-by the paper. We can reconstruct the bridge parameters and compare directly.
+For `y >= b`, the package should agree with the GP tail implied by the two
+matching quantiles. It is convenient to express the GP relative to `a`:
+the survivor there is `1 - pa`. Using `expm1()` and `log1p()` avoids
+subtracting nearly equal powers when the shape is close to zero.
 
 ```{r exact-tail}
-A <- (1 - args$pa)^(-args$xi)
-B <- (1 - args$pb)^(-args$xi)
-sigma_bridge <- args$xi * (a - b) / (A - B)
-u_bridge <- a - sigma_bridge * (A - 1) / args$xi
-
+L <- log1p((args$pb - args$pa) / (1 - args$pb))
+xi <- args$xi
+scale_a <- if (xi == 0) (b - a) / L else (b - a) * xi / expm1(xi * L)
 tail_x <- c(b + 0.1, b + 0.4, b + 0.8)
+t <- (tail_x - a) / scale_a
+hazard <- if (xi == 0) t else log1p(xi * t) / xi
 
 tail_compare <- data.frame(
   x = round(tail_x, 3),
   pbgpd = round(do.call(pbgpd, c(list(q = tail_x), args)), 6),
-  gp_cdf = round(1 - (1 + args$xi * (tail_x - u_bridge) / sigma_bridge)^(-1 / args$xi), 6),
+  gp_cdf = round(-expm1(log1p(-args$pa) - hazard), 6),
   dbgpd = round(do.call(dbgpd, c(list(x = tail_x), args)), 6),
-  gp_density = round((1 / sigma_bridge) *
-    (1 + args$xi * (tail_x - u_bridge) / sigma_bridge)^(-1 / args$xi - 1), 6)
+  gp_density = round((1 - args$pa) * exp(-(1 + xi) * hazard) / scale_a, 6)
 )
 
 tail_compare

@@ -39,6 +39,7 @@ test_that("closed-form mean and variance match the recursion", {
 })
 
 test_that("mean-parameterisation dGPIG has the requested mean", {
+  skip_on_cran()
   p <- egpd::dGPIG(0:20000, mu = 3, sigma = 0.45, nu = 0.8)
   expect_equal(sum((0:20000) * p), 3, tolerance = 1e-3)
 })
@@ -136,7 +137,7 @@ test_that("native GAM fit matches the direct optim MLE (both parameterisations)"
   expect_equal(as.numeric(logLik(fm)), as.numeric(logLik(fn)), tolerance = 1e-3)
   ## and they reach the direct MLE. logLik() is the plain unpenalised
   ## log-likelihood, so this is an equality with no constant to absorb.
-  nll <- function(par) -sum(egpd:::dgpig(y, expit(par[1]), exp(par[2]), expit(par[3]), log = TRUE))
+  nll <- function(par) -sum(suppressWarnings(egpd:::dgpig(y, expit(par[1]), exp(par[2]), expit(par[3]), log = TRUE)))
   o <- optim(c(0, log(mean(y)), 0), nll, method = "BFGS")
   expect_equal(as.numeric(logLik(fm)), -o$value, tolerance = 1e-2)
 })
@@ -180,8 +181,11 @@ test_that("boundary guard keeps the ZIGPIG fit off the degenerate a ~ 0 corner",
   ## collapsed (all-mass-at-0) fitted CDF that broke the residuals.
   set.seed(201)
   y <- egpd:::rzigpig(1500, a = 0.5, b = 2, c = 0.7, pi = 0.2)
-  fit <- egpd(list(lmu = y ~ 1, logita = ~ 1, logitc = ~ 1, logitpi = ~ 1),
-              data = data.frame(y = y), family = "zigpig", trace = 0)
+  ## at the guard bound the score of logit(a) is zero, and so is its row of the
+  ## outer-product Hessian: egpd() warns that its standard error is not meaningful
+  expect_warning(fit <- egpd(list(lmu = y ~ 1, logita = ~ 1, logitc = ~ 1, logitpi = ~ 1),
+                             data = data.frame(y = y), family = "zigpig", trace = 0),
+                 class = "egpd_singular_hessian")
   p <- predict(fit, type = "response")[1, ]
   ## a is clamped to the guard bound (1e-3), not the old ~1e-18 collapse; predict()
   ## applies the same clamp as the likelihood, so the reported value respects it.

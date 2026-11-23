@@ -21,5 +21,14 @@ q.G(u, type = 1, prob = NA, kappa = NA, delta = NA)
 Inverse-transformed values
 }
 \description{
-Inverse transformation (quantile) for EGPD
+Numeric arguments are recycled to their common maximum length. The mixture
+carrier (type 6), the lower tails of carriers 2 and 3, carrier 3 with
+very small or extreme positive \code{kappa}, and carrier-5 targets whose intermediate value
+\eqn{u^{2/\kappa}} is below the double range are inverted by a log-scale
+root search with relative accuracy, preserving accuracy near both ends of
+the unit interval.
+}
+\details{
+Carrier parameters required by \code{type} must be supplied: a missing
+  one is an error, whereas supplied \code{NA} values give \code{NA} results.
 }

@@ -79,8 +79,9 @@ test_that("the analytic score matches Richardson-extrapolated finite differences
 
 test_that("the grid path reproduces the exact per-observation path", {
   # The load-bearing check: nu being intercept-only lets us grid log lambda once per
-  # likelihood evaluation instead of solving per observation. If the grid changed the
-  # likelihood by more than rounding, every CMP AIC in the comparison would be wrong.
+  # likelihood evaluation instead of solving per observation. The grid is validated against
+  # exact solves and gives way to them wherever its log-pmf error could exceed 1e-5
+  # (src/cmp.cpp); for this overdispersed law (Var[Y] > 2) it is used throughout.
   set.seed(5)
   n  <- 300
   y  <- as.numeric(stats::rpois(n, 20))

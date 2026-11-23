@@ -6,9 +6,10 @@
 \title{egpd: Extended Generalized Pareto Distribution GAMs}
 \description{
 The egpd package fits Extended Generalized Pareto Distribution (EGPD),
-Discrete EGPD (DEGPD), Zero-Inflated EGPD (ZIEGPD), and Zero-Inflated
-Discrete EGPD (ZIDEGPD) models within a GAM framework, with additional
-support for fitting via \code{gamlss} and \code{bamlss}. The fitting
+Discrete EGPD (DEGPD), and Zero-Inflated Discrete EGPD (ZIDEGPD) models
+within a GAM framework, with additional support for continuous
+Zero-Inflated EGPD (ZIEGPD) utilities, neural-Bayes multivariate EGPD
+extensions, and fitting via \code{gamlss} and \code{bamlss}. The fitting
 infrastructure is adapted from the \code{evgam} package by Ben Youngman.
 P-value testing code is adapted from the \code{mgcv} package by Simon Wood.
 }
@@ -20,18 +21,37 @@ The main function is \code{\link{egpd}}.
 \references{
 Abbas, A., Ahmad, T. and Ahmad, I. (2025).
 Modeling zero-inflated precipitation extremes.
-\emph{arXiv preprint} arXiv:2504.11058.
-\url{https://arxiv.org/abs/2504.11058}
+\emph{Communications in Statistics - Simulation and Computation}, 1--17.
+\doi{10.1080/03610918.2025.2585398}
 
-Ahmad, T. and Arshad, I. A. (2024).
-New flexible versions of extended generalized Pareto model for count data.
-\emph{arXiv preprint} arXiv:2409.18719.
-\url{https://arxiv.org/abs/2409.18719}
+Ahmad, T. and Arshad, I. A. (2026).
+New flexible versions of the extended generalized Pareto distribution for
+count data. \emph{Journal of Applied Statistics}, 1--21.
+\doi{10.1080/02664763.2026.2634785} (preprint: arXiv:2409.18719)
+
+Ahmad, T., Gaetan, C. and Naveau, P. (2025).
+An extended generalized Pareto regression model for count data.
+\emph{Statistical Modelling}, 25(5), 416--431.
+\doi{10.1177/1471082X241266729}
 
 Ahmad, T. and Hussain, A. (2025).
 Flexible model for varying levels of zeros and outliers in count data.
 \emph{arXiv preprint} arXiv:2510.27365.
 \url{https://arxiv.org/abs/2510.27365}
+
+Ailliot, P., Gaetan, C. and Naveau, P. (2026).
+A parsimonious tail compliant multiscale statistical model for aggregated
+rainfall. \emph{Advances in Water Resources}, 208, 105216.
+\doi{10.1016/j.advwatres.2026.105216}
+
+Gamet, P. and Jalbert, J. (2022).
+A flexible extended generalized Pareto distribution for tail estimation.
+\emph{Environmetrics}, 33(6), e2744. \doi{10.1002/env.2744}
+
+Naveau, P., Huser, R., Ribereau, P. and Hannart, A. (2016).
+Modeling jointly low, moderate, and heavy rainfall intensities without a
+threshold selection. \emph{Water Resources Research}, 52(4), 2753--2769.
+\doi{10.1002/2015WR018552}
 }
 \seealso{
 Useful links:

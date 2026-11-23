@@ -13,14 +13,16 @@
 
 \item{which}{a vector of integers identifying which smooths to plot}
 
-\item{main}{a character string or vector of plot titles}
+\item{main}{a character string or vector of plot titles, one per plot drawn
+(recycled); by default each smooth is titled with its parameter and label}
 
 \item{ask}{logical: ask to show next plots?}
 
 \item{...}{extra arguments to pass to \code{mgcv::plot.gam}}
 }
 \value{
-Plots representing smooth terms
+Plots representing smooth terms. A model without smooth terms has
+  nothing to plot, which is an error.
 }
 \description{
 Plot a fitted \code{egpd} object

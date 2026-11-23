@@ -33,6 +33,7 @@ test_that("closed-form mean and variance match the recursion", {
 })
 
 test_that("mean-parameterisation dBELL has the requested mean", {
+  skip_on_cran()
   p <- egpd::dBELL(0:30000, mu = 4)
   expect_equal(sum((0:30000) * p), 4, tolerance = 1e-4)
 })
@@ -126,6 +127,41 @@ test_that("ZIBell d12 gradient and exact Hessian match FD (both parameterisation
     Hm <- .hess_fd(function(e, yy) .d0(cf$d0, e, yy, 2), cf$e, y)
     expect_equal(as.numeric(g), as.numeric(gf), tolerance = 1e-5)
     expect_equal(as.numeric(H), c(Hm[1, 1], Hm[1, 2], Hm[2, 2]), tolerance = 1e-4)
+  }
+})
+
+test_that("a tiny Bell intensity retains link-scale curvature and does not abort a fit", {
+  eta <- -400
+  intensity <- exp(eta)
+  for (native in c(FALSE, TRUE)) {
+    bf <- if (native) egpd:::bellnat1d12 else egpd:::bell1d12
+    zf <- if (native) egpd:::zibellnat1d12 else egpd:::zibell1d12
+    b0 <- if (native) egpd:::bellnat1d0 else egpd:::bell1d0
+    z0 <- if (native) egpd:::zibellnat1d0 else egpd:::zibell1d0
+    expect_equal(.d0(b0, eta, 0, 1) / intensity, 1, tolerance = 1e-12)
+    expect_equal(.d0(z0, c(eta, qlogis(.25)), 0, 2) / intensity, .75, tolerance = 1e-12)
+    ## As theta -> 0, H/exp(eta) -> 1 for the native link and 1+y
+    ## for the mean link. Relative checks distinguish the curvature from 0.
+    for (y in c(0, 1)) {
+      expected <- if (native) 1 else 1 + y
+      expect_equal(.d0(bf, eta, y, 1)[2] / intensity, expected, tolerance = 1e-12)
+      row <- .d0(zf, c(eta, qlogis(.25)), y, 2)
+      expect_equal(row[3] / intensity, if (y == 0) .75 else expected, tolerance = 1e-12)
+      if (y == 0)
+        expect_equal(row[2] / intensity, -.25 * .75, tolerance = 1e-12)
+    }
+  }
+  d <- data.frame(y = c(0,0,1,2,0,3,1,2), z = c(eta, rep(0,7)))
+  ## Exactly one negligible mean; solve the native score equation without the fitter.
+  root <- uniroot(function(b) {
+    th <- exp(b + d$z)
+    sum(th * exp(th) - d$y)
+  }, c(-2,1), tol = 1e-12)$root
+  for (fam in c("bellnat", "bell")) {
+    f <- egpd(y ~ offset(z), d, family = fam)
+    expect_equal(f$convergence, 0)
+    expect_equal(unname(f$coefficients), if (fam == "bellnat") root else log(mean(d$y[-1L])),
+                 tolerance = 1e-5)
   }
 })
 

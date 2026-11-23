@@ -36,9 +36,12 @@ rgpois(n, mu = 1, lambda = 0.5)
 
 \item{p}{vector of probabilities}
 
-\item{max.value}{largest count searched when inverting the cdf}
+\item{max.value}{largest count searched when inverting the cdf; nonattaining
+caps return \code{NA} with a warning. Invalid probabilities return \code{NaN},
+with endpoints 0 and \code{Inf}.}
 
-\item{n}{number of draws}
+\item{n}{number of draws; if \code{length(n) != 1}, the length is taken to be
+the number required (\code{numeric(0)} gives none), as in \code{\link[stats]{rpois}}}
 }
 \value{
 a numeric vector

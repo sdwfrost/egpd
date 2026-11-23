@@ -63,6 +63,10 @@ static void prl_lpg(double y, double e1, double& lp, double* g)
   lp = -y * std::log1p(1.0 / tau) + std::log(A)
      - std::log(tau - 1.0) - 2.0 * std::log1p(tau);
   if (!g) return;
+  if (e1 < std::log(PRL_MU_LO) || e1 > std::log(PRL_MU_HI)) {
+    g[0] = 0.0;
+    return;
+  }
 
   double dl_dtau = y / (tau * (tau + 1.0))            // -y d/dtau log((tau+1)/tau)
                  + (2.0 * tau - 1.0) / A

@@ -17,7 +17,27 @@
 \item{x}{a \code{summary.egpd} object}
 }
 \value{
-A \code{summary.egpd} object
+A \code{summary.egpd} object: a list whose first element holds, for each
+  distributional parameter, a table of the parametric (non-smooth) coefficients
+  with columns \code{Estimate}, \code{Std. Error} (from \code{Vp}),
+  \code{z value} and \code{Pr(>|z|)}, the two-sided Wald p-value
+  \eqn{2\Phi(-|z|)} (the likelihood has no free scale parameter, so the
+  reference distribution is normal, as in \code{mgcv::summary.gam} for
+  known-scale families); and whose second element holds, for each parameter
+  with smooth terms, a table with columns \code{edf}, \code{max.df},
+  \code{Chi.sq} and \code{p-value}. For ordinary smooths these are Wood's
+  smooth-term tests. For a fully penalised term such as \code{s(g, bs="re")},
+  zero variance is on the boundary. Its approximate test uses a weighted
+  sum of chi-squares, conditional on the fitted smoothing parameters, with
+  nuisance terms from all predictors accounted for (as in \pkg{mgcv}'s
+  random-effect test). Neither \code{edf} nor \code{max.df} is the reference
+  chi-square degrees of freedom for this test. If the null law is unavailable
+  (for example after a cluster adjustment, without usable joint information,
+  or with no estimable contrast), the statistic and p-value are \code{NA}
+  and a warning names the term and reason. Its element
+  \code{hessian.rank} is that of the fit (see \code{\link{egpd}}, Value): when the
+  Hessian behind the standard errors is singular, printing the summary adds a
+  note under the tables.
 }
 \description{
 Summary method for a fitted \code{egpd} object

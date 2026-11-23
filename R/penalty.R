@@ -40,7 +40,7 @@ pars <- as.vector(likdata$compmode + likdata$CH %*% (pars - likdata$compmode))
 temp <- likfns$d120(pars, likdata)
 temp <- as.vector(.gH(temp, likdata, deriv=1)[[1]])
 temp <- likdata$k * temp
-temp <- as.vector(likdata$CH %*% temp)
+temp <- as.vector(crossprod(likdata$CH, temp))
 as.vector(out + temp)
 }
 
@@ -48,7 +48,7 @@ as.vector(out + temp)
 
 .hess.nopen <- function(pars, likdata, likfns) {
 pars <- as.vector(likdata$compmode + likdata$CH %*% (as.vector(pars) - likdata$compmode))
-temp <- likfns$d120(pars, likdata)
+temp <- .lik_d12(pars, likdata, likfns)
 temp <- .gH(temp, likdata)[[2]]
 temp <- likdata$k * temp
 temp <- crossprod(likdata$CH, temp) %*% likdata$CH
@@ -66,7 +66,8 @@ H2 <- .perturb(H2)
 out$H <- H2
 out$dH <- attr(H2, "d")
 out$cH <- attr(H2, "chol")
-out$iH <- crossprod(backsolve(out$cH, diag(out$dH), transpose=TRUE))
+attr(out$cH, "d") <- out$dH
+out$iH <- .precond_solve(out$cH, diag(nrow(H)))
 out$kept <- !logical(nrow(H))
 out
 }
@@ -103,9 +104,39 @@ if (nX == 1) {
 out
 }
 
+## In a BHHH family the native second-derivative columns are score products.
+## For sandwich inference differentiate the scores instead. Shifting a predictor's
+## offset perturbs that predictor on every row (including in compact fits), so
+## this costs two evaluations per free predictor, not per spline coefficient.
+.lik_d12 <- function(pars, likdata, likfns, deriv = 2L) {
+  gh <- likfns$d120(pars, likdata)
+  h <- likdata$observed.step
+  if (is.null(h) || deriv < 2L) return(gh)
+  idx <- seq_along(likdata$X)
+  d <- vector("list", length(idx))
+  for (j in idx) {
+    if (.is_pinned_block(likdata$X[[j]])) next
+    off <- likdata$offsets[[j]]
+    if (!length(off)) off <- numeric(nrow(gh))
+    trial <- likdata
+    trial$offsets[[j]] <- off + h
+    up <- likfns$d120(pars, trial)[, idx, drop = FALSE]
+    trial$offsets[[j]] <- off - h
+    dn <- likfns$d120(pars, trial)[, idx, drop = FALSE]
+    d[[j]] <- (up - dn) / (2 * h)
+  }
+  col <- length(idx)
+  for (i in idx) for (j in i:length(idx)) {
+    col <- col + 1L
+    gh[, col] <- if (is.null(d[[i]]) || is.null(d[[j]])) 0 else
+      (d[[i]][, j] + d[[j]][, i]) / 2
+  }
+  gh
+}
+
 .gH.nopen <- function(pars, likdata, likfns, sandwich=FALSE, deriv=2) {
 pars <- as.vector(likdata$compmode + likdata$CH %*% (as.vector(pars) - likdata$compmode))
-temp <- likfns$d120(pars, likdata)
+temp <- .lik_d12(pars, likdata, likfns, deriv)
 temp <- .gH(temp, likdata, sandwich, deriv)
 temp[[1]] <- likdata$k * temp[[1]]
 temp[[1]] <- t(temp[[1]] %*% likdata$CH)
@@ -121,7 +152,8 @@ temp
 temp <- .gH.nopen(pars, likdata, likfns, deriv=deriv)
 temp[[1]] <- temp[[1]] + crossprod(pars, likdata$S)[1, ]
 if (deriv > 1) {
-  attr(temp, "PP") <- attr(temp, "PP") + likdata$S / norm(likdata$S, "F")
+  s <- norm(likdata$S, "F")
+  if (s > 0) attr(temp, "PP") <- attr(temp, "PP") + likdata$S / s
   temp[[2]] <- temp[[2]] + likdata$S
 }
 temp

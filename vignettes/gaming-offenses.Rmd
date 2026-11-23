@@ -144,6 +144,12 @@ aic20 <- data.frame(
 aic20
 ```
 
+At the 20th-percentile threshold the two-power mixture improves the
+log-likelihood over DEGPD-1 by
+`r sprintf("%.2f", as.numeric(logLik(fit20_m2)) - as.numeric(logLik(fit20_m1)))`.
+Even with the penalty for its two extra parameters, its AIC is
+`r sprintf("%.2f", AIC(fit20_m1) - AIC(fit20_m2))` lower.
+
 ## Goodness of fit
 
 ```{r gof, fig.width = 7, fig.height = 5}
@@ -234,10 +240,12 @@ par(mfrow = c(1, 1))
 ## Threshold sensitivity
 
 Comparing fitted parameters across thresholds gives insight into model
-stability.
+stability. `predict(type = "response")` also returns an `xi` column that
+duplicates `shape`, so we select the parameter columns by name.
 
 ```{r sensitivity}
-p10 <- predict(fit10_m1, type = "response")[1, ]
-p20 <- predict(fit20_m1, type = "response")[1, ]
+par_cols <- c("scale", "shape", "kappa")
+p10 <- predict(fit10_m1, type = "response")[1, par_cols]
+p20 <- predict(fit20_m1, type = "response")[1, par_cols]
 rbind("u = 10th pctl" = unlist(p10), "u = 20th pctl" = unlist(p20))
 ```

@@ -23,7 +23,7 @@ families:
 1. **Standard EGPD** (`family = "egpd"`) --- parametric G-transformation
 2. **Bernstein EGPD** (`method = "bernstein"`) --- semiparametric
    G-transformation using a Bernstein polynomial density
-3. **Compound Poisson EGPD** (`family = "cpegpd"`) --- aggregated counts
+3. **Compound Poisson EGPD** (`family = "cpegpd"`) --- aggregated totals
    modelled via Panjer recursion
 
 All three share the same GPD tail behaviour controlled by the shape parameter
@@ -167,28 +167,32 @@ rainfall over a period) as the random sum $S = X_1 + \cdots + X_N$ where:
 - $X_i \sim \mathrm{EGPD}(\sigma, \xi, \kappa)$ are i.i.d. event sizes.
 
 The distribution of $S$ has a point mass at zero
-($P(S=0) = e^{-\lambda}$) and a continuous positive part. The PMF is
-evaluated via **Panjer recursion** on a discretized EGPD severity.
-
-This model is described in
-[Naveau et al. (2025)](https://arxiv.org/abs/2601.08350) for aggregated
-rainfall.
+($P(S=0) = e^{-\lambda}$) and a positive part. Following
+[Ailliot, Gaetan and Naveau (2026)](https://doi.org/10.1016/j.advwatres.2026.105216)
+for aggregated rainfall, each event size is recorded on a grid of width
+$h$, as by a rain gauge with resolution $h$: an event of size $X$ is
+recorded as $\lceil X/h \rceil h$. The functions `dcpegpd()`, `pcpegpd()`,
+`qcpegpd()` and `rcpegpd()` all describe this gauge-discretised total
+$$S_h = \sum_{i=1}^{N} \lceil X_i/h \rceil\, h$$
+on the grid $\{0, h, 2h, \ldots\}$ (argument `h`, default 0.2), and
+`rcpegpd(h = 0)` simulates the continuous total $S$.
 
 ### Panjer recursion
 
-The severity CDF is discretized on a grid $\{0, h, 2h, \ldots\}$ using
-the mean-preserving rounding method:
-$$f_0 = F_{\mathrm{EGPD}}(h/2),\qquad
-f_k = F_{\mathrm{EGPD}}\!\bigl((k+\tfrac12)h\bigr) -
-F_{\mathrm{EGPD}}\!\bigl((k-\tfrac12)h\bigr),\quad k \ge 1$$
-The compound distribution is then computed recursively:
-$$g_0 = e^{-\lambda(1-f_0)},\qquad
-g_k = \frac{\lambda}{k}\sum_{j=1}^{k} j\,f_j\,g_{k-j},\quad k \ge 1$$
+The recorded event size has probability mass function (Ailliot et al.,
+Appendix F, Eq. F.2)
+$$f_0 = 0,\qquad
+f_k = F_{\mathrm{EGPD}}(kh) - F_{\mathrm{EGPD}}\bigl((k-1)h\bigr),\quad k \ge 1,$$
+so the zero atom $P(S_h = 0) = e^{-\lambda}$ is exact. The compound
+distribution is then computed recursively:
+$$g_0 = e^{-\lambda},\qquad
+g_k = \frac{\lambda}{k}\sum_{j=1}^{k} j\,f_j\,g_{k-j},\quad k \ge 1.$$
 
 ### Simulating compound Poisson-EGPD data
 
-The `rcpegpd()` function uses direct simulation (no Panjer needed):
-draw $N \sim \mathrm{Poisson}(\lambda)$, then sum $N$ i.i.d. EGPD draws.
+`rcpegpd()` simulates directly (no Panjer recursion is needed): it draws
+$N \sim \mathrm{Poisson}(\lambda)$ and sums $N$ i.i.d. EGPD event sizes,
+each recorded on the same $h$-grid as the d/p/q functions.
 
 ```{r cpegpd-sim}
 set.seed(42)
@@ -212,21 +216,21 @@ hist(y, breaks = 40, freq = FALSE, col = "lightblue", border = "grey",
 
 ### Fitting
 
-Select `family = "cpegpd"`. The discretization step size is controlled
-by `cpegpd.h` (default 0.2); smaller values give better accuracy at the
-cost of speed.
+Select `family = "cpegpd"`. The grid width is set by `cpegpd.h`
+(default 0.2) and should match the resolution at which the data were
+recorded, here the default `h = 0.2` of `rcpegpd()`.
 
 ```{r cpegpd-fit}
-fit_cp <- distfit(y, type = 1, family = "cpegpd", cpegpd.h = 0.1)
+fit_cp <- distfit(y, type = 1, family = "cpegpd", cpegpd.h = 0.2)
 summary(fit_cp)
 ```
 
 ```{r cpegpd-truth}
 truth <- c(sigma = sigma_true, xi = xi_true,
            kappa = kappa_true, lambda = lambda_true)
-est <- fit_cp$estimate
+est <- fit_cp$estimate[names(truth)]
 cbind(true = truth, estimate = round(est, 4),
-      SE = round(fit_cp$sd, 4))
+      SE = round(fit_cp$sd[names(truth)], 4))
 ```
 
 ### Diagnostics
@@ -235,43 +239,55 @@ cbind(true = truth, estimate = round(est, 4),
 plot(fit_cp)
 ```
 
-### Checking the Panjer approximation
+### Checking the Panjer recursion
 
-We can verify that the Panjer-based CDF matches the empirical distribution
-from a large simulation:
+The Panjer CDF should match the empirical distribution of a large
+simulation from the same law. The CDF is evaluated midway between grid
+points, where both are flat:
 
 ```{r cpegpd-cdf-check, fig.height = 4}
 set.seed(1)
 y_large <- rcpegpd(50000, sigma = sigma_true, xi = xi_true,
                     kappa = kappa_true, lambda = lambda_true, type = 1)
-qvals <- seq(0, 30, by = 0.5)
+qvals <- (seq_len(150) - 0.5) * 0.2
 emp_cdf <- sapply(qvals, function(q) mean(y_large <= q))
 theo_cdf <- pcpegpd(qvals, lambda = lambda_true, sigma = sigma_true,
-                     xi = xi_true, kappa = kappa_true, type = 1, h = 0.05)
+                     xi = xi_true, kappa = kappa_true, type = 1, h = 0.2)
 
 plot(qvals, emp_cdf, type = "l", lwd = 2,
      xlab = "s", ylab = "CDF", main = "Panjer CDF vs empirical")
 lines(qvals, theo_cdf, col = "red", lwd = 2, lty = 2)
-legend("bottomright", c("Empirical (n=50000)", "Panjer (h=0.05)"),
+legend("bottomright", c("Empirical (n=50000)", "Panjer (h=0.2)"),
        col = c("black", "red"), lty = 1:2, lwd = 2)
 ```
 
-### Effect of discretization step size
+### Choosing the grid width
 
-Smaller `h` gives a more accurate approximation but increases computation
-time:
+For gauge data, set `cpegpd.h` to the gauge resolution, so that the model
+describes the recorded totals exactly. For continuous data, $h$ is an
+approximation parameter: recording each event on the grid rounds it up by
+less than $h$, so $S_h$ exceeds the continuous total by less than $Nh$
+(about $\lambda h / 2$ on average). The discretised CDF approaches the
+continuous one as $h$ decreases, at a computational cost that grows
+quadratically in $\max(x)/h$:
 
 ```{r cpegpd-h}
-h_grid <- c(0.5, 0.2, 0.1, 0.05)
-aic_h <- sapply(h_grid, function(hv) {
-  AIC(distfit(y, type = 1, family = "cpegpd", cpegpd.h = hv))
+h_grid <- c(0.5, 0.2, 0.1, 0.05, 0.01)
+q_check <- c(1, 2, 5, 10, 20)
+cdf_h <- sapply(h_grid, function(hv) {
+  pcpegpd(q_check, lambda = lambda_true, sigma = sigma_true, xi = xi_true,
+          kappa = kappa_true, type = 1, h = hv)
 })
-data.frame(h = h_grid, AIC = round(aic_h, 2))
+dimnames(cdf_h) <- list(q = q_check, h = h_grid)
+round(cdf_h, 4)
 ```
 
-The AIC stabilises for sufficiently small `h`, indicating that the
-discretization error is negligible. We recommend `h = 0.1` as a good
-default for most applications.
+The `distfit()` log-likelihood uses the probability of an exact zero for zero
+observations and the bin probability divided by `h` (a density approximation)
+for positive ones, i.e. a likelihood with respect to a point mass at zero plus
+Lebesgue measure. Log-likelihoods, and hence AIC values, are therefore
+comparable across values of `h`, but not with continuous families that place
+a density, not a mass, at zero.
 
 ### Confidence intervals
 
@@ -285,7 +301,7 @@ As with other families, individual parameters can be fixed:
 
 ```{r cpegpd-fix}
 fit_cp_fix <- distfit(y, type = 1, family = "cpegpd",
-                       fix.arg = list(xi = 0.1), cpegpd.h = 0.1)
+                       fix.arg = list(xi = 0.1), cpegpd.h = 0.2)
 summary(fit_cp_fix)
 ```
 

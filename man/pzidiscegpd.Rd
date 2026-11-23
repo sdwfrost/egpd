@@ -12,7 +12,9 @@ pzidiscegpd(
   delta = NA,
   sigma = NA,
   xi = NA,
-  type = 1
+  type = 1,
+  lower.tail = TRUE,
+  log.p = FALSE
 )
 }
 \arguments{
@@ -31,10 +33,20 @@ pzidiscegpd(
 \item{xi}{GPD shape parameter}
 
 \item{type}{integer 1-6 specifying G type}
+
+\item{lower.tail}{logical; if TRUE (default), probabilities are \eqn{P(X \le q)},
+otherwise \eqn{P(X > q)}}
+
+\item{log.p}{logical; if TRUE, probabilities are returned on the log scale}
 }
 \value{
 CDF values
 }
 \description{
 CDF of the Zero-Inflated Discrete Extended GPD
+}
+\details{
+Parameters required by \code{type} (\code{pi}, the GPD \code{sigma} and \code{xi}
+  and the carrier parameters) must be supplied: a missing one is an error,
+  whereas supplied \code{NA} values give \code{NA} results.
 }

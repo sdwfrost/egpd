@@ -3,7 +3,7 @@ Bivariate BEGPD via Neural Bayes Estimation
 
 The `egpd` package supports Bivariate Extended Generalized Pareto
 Distribution (BEGPD) models, fitted via neural Bayes estimation. Unlike
-the univariate `fitegpd()` methods that use maximum likelihood, the
+the univariate `distfit()` methods that use maximum likelihood, the
 bivariate BEGPD uses pre-trained neural networks to perform amortized
 inference – either posterior sampling (NPE) or point estimation (NBE).
 
@@ -14,7 +14,7 @@ This vignette covers:
 3.  **Illustrative scenarios** – how parameters shape the dependence
     structure
 4.  **Neural Bayes estimation** – fitting via
-    `fitegpd(family = "begpd")`
+    `distfit(family = "begpd")`
 5.  **Diagnostics and inference** – S3 methods, posterior summaries, and
     plots
 6.  **Training custom models** – `train_begpd()`
@@ -31,7 +31,10 @@ The intensity $R$ follows a power-transformed GPD:
 $$R = \frac{\sigma}{\xi}\left[\left(1 - U^{1/\kappa}\right)^{-\xi} - 1\right], \qquad U \sim \mathrm{Uniform}(0,1)$$
 
 where $\kappa > 0$ is the EGPD shape, $\sigma > 0$ is the GPD scale, and
-$\xi > 0$ is the GPD shape parameter. The CDF of $R$ is the EGPD CDF:
+$\xi \ge 0$ is the GPD shape parameter. The CDF of the radial sum
+$R = Y_1 + Y_2$ is the univariate EGPD CDF (whereas the individual
+margins $Y_1, Y_2$ are angular fractions of $R$ and are not univariate
+EGPD; see Alotaibi et al. 2025, Section 2.3.1):
 
 $$F_R(r) = \left[1 - \left(1 + \xi\, r / \sigma\right)^{-1/\xi}\right]^\kappa$$
 
@@ -45,16 +48,18 @@ that control the lower and upper tail behaviour respectively:
 - **Upper tail angles:** $U_1 \sim \mathrm{Beta}(\theta_U, \theta_U)$,
   with $U_2 = 1 - U_1$
 
-Large values of $\theta_L$ or $\theta_U$ concentrate the angular
-distribution around equal splitting (independence), while small values
-induce stronger dependence.
+Large values of both $\theta_L$ and $\theta_U$ concentrate the angular
+distribution around equal splitting: the two components then share
+almost the same radial variation and are strongly positively dependent,
+not independent. Small values spread angles towards the axes and do not
+imply stronger positive dependence.
 
 ### Mixing
 
 A weight function smoothly transitions between the lower and upper tail
 regimes. Given the radial quantile $u = F_R(R)$, the weight is:
 
-$$w(u) = F_{\mathrm{Beta}(3,3)}\left(\frac{u - \theta_\omega}{1 - 2\theta_\omega}\right)$$
+$$w(u) = F_{\mathrm{Beta}(3,3)}\!\left(\frac{u - \theta_\omega}{1 - 2\theta_\omega}\right)$$
 
 where $\theta_\omega \in (0, 0.5)$ controls the transition point. The
 bivariate observations are then:
@@ -67,7 +72,7 @@ $$Y_1 = R\left[(1-w)\,V_1 + w\,U_1\right], \qquad Y_2 = R\left[(1-w)\,(1-V_1) + 
 |-----------|-----------------|---------------|----------------------------|
 | `kappa`   | $\kappa$        | $(0, \infty)$ | EGPD shape (intensity)     |
 | `sigma`   | $\sigma$        | $(0, \infty)$ | GPD scale (intensity)      |
-| `xi`      | $\xi$           | $(0, \infty)$ | GPD shape (tail heaviness) |
+| `xi`      | $\xi$           | $[0, \infty)$ | GPD shape (tail heaviness) |
 | `thL`     | $\theta_L$      | $(0, \infty)$ | Lower tail dependence      |
 | `thU`     | $\theta_U$      | $(0, \infty)$ | Upper tail dependence      |
 | `thw`     | $\theta_\omega$ | $(0, 0.5)$    | Lower/upper transition     |
@@ -87,12 +92,12 @@ head(Y)
 ```
 
                 Y1        Y2
-    [1,] 2.8277805 1.4084486
-    [2,] 2.5063541 2.1793926
-    [3,] 0.6210209 0.5147301
-    [4,] 1.1398503 2.1080683
-    [5,] 1.1267881 1.0683751
-    [6,] 0.8451407 0.9228765
+    [1,] 2.2381896 1.9980394
+    [2,] 3.2897810 1.3959657
+    [3,] 0.6346807 0.5010703
+    [4,] 2.0041241 1.2437945
+    [5,] 0.7313351 1.4638281
+    [6,] 0.9157725 0.8522446
 
 ``` r
 dim(Y)
@@ -180,10 +185,12 @@ par(op)
   dependence in both tails. The upper and lower extremes (red and blue)
   are roughly equally spread.
 - **Scenario 2** ($\kappa=0.3$, $\theta_U=0.5$): Small $\kappa$
-  concentrates mass near zero, while small $\theta_U$ induces strong
-  upper tail dependence (red points cluster along the diagonal).
+  concentrates mass near zero, while small $\theta_U$ spreads
+  upper-regime angles towards the axes rather than concentrating them on
+  the diagonal.
 - **Scenario 3** ($\xi=0.2$, $\theta_L=4$, $\theta_U=0.5$): Heavier GPD
-  tail ($\xi=0.2$) and stronger dependence in both tails.
+  tail ($\xi=0.2$) and different angular concentration in the two
+  regimes.
 
 ### Tail dependence measures
 
@@ -266,11 +273,18 @@ The `egpd` package supports two estimators:
 
 | Estimator | Method | Output |
 |----|----|----|
-| **NPE** (Neural Posterior Estimator) | Normalising flow | Full approximate posterior (samples) |
+| **NPE** (Neural Posterior Estimator) | Likelihood-to-evidence ratio with adaptive importance sampling | Full approximate posterior (samples) |
 | **NBE** (Neural Bayesian Estimator) | Ensemble of point estimators | Point estimates only |
 
 Both use a **DeepSet** architecture that can handle varying sample
-sizes.
+sizes. The ratio estimator is not the normalising-flow posterior of
+Alotaibi et al., arXiv:2509.05982v1 (pp. 20–21). Posterior draws come
+from adaptive importance sampling of prior $\times$ learned ratio
+(multivariate-$t$ proposals adapted over several stages); the effective
+sample size, the number of distinct draws and the number of stages are
+printed with the fit, and a warning flags an ESS below 200. Neither that
+preprint nor these implementation checks establishes calibration of
+package weights.
 
 ### Prerequisites
 
@@ -282,9 +296,9 @@ packages:
 install.packages("JuliaConnectoR")
 remotes::install_github("msainsburydale/NeuralEstimators")
 
-# Julia packages (run in Julia REPL)
+# Julia packages (run in Julia REPL; training needs NeuralEstimators.jl >= 0.3)
 # using Pkg
-# Pkg.add(["NeuralEstimators", "Flux"])
+# Pkg.add(["NeuralEstimators", "Flux", "BSON", "Optimisers"])
 ```
 
 ### Fitting with NPE
@@ -301,11 +315,9 @@ Y <- rbegpd(2000, kappa = 2, sigma = 1, xi = 0.1,
             thL = 5, thU = 5, thw = 0.2)
 
 # Fit using Neural Posterior Estimation
-fit_npe <- fitegpd(Y, family = "begpd", method = "neuralbayes",
+fit_npe <- distfit(Y, family = "begpd", method = "neuralbayes",
                    estimator = "npe", nsamples = 2000)
 ```
-
-    Starting Julia ...
 
 The `nsamples` argument controls how many draws are taken from the
 approximate posterior (default: 1000). More samples give smoother
@@ -314,21 +326,6 @@ posterior summaries at the cost of slightly longer inference.
 ``` r
 summary(fit_npe)
 ```
-
-    Fitting of bivariate BEGPD
-    Method: neuralbayes (npe)  [2000 posterior samples]
-
-    Posterior summary:
-          Median Post.SD   2.5%   97.5%
-    kappa 4.1220  2.5063 1.0773 10.1140
-    sigma 0.5883  0.2957 0.2721  1.3810
-    xi    0.1803  0.1069 0.0148  0.4003
-    thL   7.0989  5.9595 0.5358 22.6098
-    thU   4.9169  3.0116 2.2953 13.7070
-    thw   0.2598  0.1427 0.0321  0.5593
-
-    Note: log-likelihood, AIC, and BIC are not available for neural estimation
-    Number of observations:  2000 
 
 The summary provides:
 
@@ -342,25 +339,10 @@ The NBE is faster but only provides point estimates (no uncertainty
 quantification):
 
 ``` r
-fit_nbe <- fitegpd(Y, family = "begpd", method = "neuralbayes",
+fit_nbe <- distfit(Y, family = "begpd", method = "neuralbayes",
                    estimator = "nbe")
 summary(fit_nbe)
 ```
-
-    Fitting of bivariate BEGPD
-    Method: neuralbayes (nbe)
-
-    Estimated parameters:
-          Estimate SE
-    kappa   2.8949 NA
-    sigma   0.7741 NA
-    xi      0.2000 NA
-    thL     8.0920 NA
-    thU     3.8026 NA
-    thw     0.2455 NA
-
-    Note: log-likelihood, AIC, and BIC are not available for neural estimation
-    Number of observations:  2000 
 
 ## 5. Diagnostics and inference
 
@@ -372,8 +354,6 @@ bivariate data:
 ``` r
 plot(fit_npe)
 ```
-
-![](multivariate-egpd_files/figure-gfm/npe-plot-1.png)
 
 The panels show:
 
@@ -390,64 +370,17 @@ Standard S3 methods work as expected:
 ``` r
 # Point estimates (posterior median for NPE)
 coef(fit_npe)
-```
 
-        kappa     sigma        xi       thL       thU       thw 
-    4.1219923 0.5882915 0.1803492 7.0989270 4.9168750 0.2598206 
-
-``` r
 # Variance-covariance (from posterior sample covariance for NPE)
 vcov(fit_npe)
-```
 
-                kappa        sigma            xi          thL         thU
-    kappa  6.28149956 -0.600174713  0.1356676916  0.615366205  0.69632997
-    sigma -0.60017471  0.087410248 -0.0217106734  0.082408563 -0.16548903
-    xi     0.13566769 -0.021710673  0.0114364951 -0.003120395  0.01071749
-    thL    0.61536620  0.082408563 -0.0031203950 35.515969009 -9.98016365
-    thU    0.69632997 -0.165489034  0.0107174887 -9.980163649  9.06983086
-    thw    0.04403949 -0.004459596  0.0004874291  0.055442498  0.09548363
-                    thw
-    kappa  0.0440394870
-    sigma -0.0044595961
-    xi     0.0004874291
-    thL    0.0554424982
-    thU    0.0954836337
-    thw    0.0203693849
-
-``` r
 # 95% credible intervals (from posterior quantiles for NPE)
 confint(fit_npe)
-```
-
-               2.5 %     97.5 %
-    kappa 1.07734891 10.1139706
-    sigma 0.27213202  1.3809894
-    xi    0.01480625  0.4002942
-    thL   0.53575858 22.6098260
-    thU   2.29525945 13.7069981
-    thw   0.03209281  0.5593284
-
-``` r
 confint(fit_npe, level = 0.90)
-```
 
-                 5 %       95 %
-    kappa 1.29378743  9.1121527
-    sigma 0.29585897  1.2350336
-    xi    0.03052533  0.3707822
-    thL   0.87888364 19.5608631
-    thU   2.56212948 10.8467310
-    thw   0.04807524  0.5113078
-
-``` r
 # Subset parameters
 confint(fit_npe, parm = c("kappa", "xi"))
 ```
-
-               2.5 %     97.5 %
-    kappa 1.07734891 10.1139706
-    xi    0.01480625  0.4002942
 
 ### Comparing to true values
 
@@ -468,14 +401,6 @@ comparison <- data.frame(
 comparison
 ```
 
-          True Estimate  Lower   Upper Covered
-    kappa  2.0   4.1220 1.0773 10.1140    TRUE
-    sigma  1.0   0.5883 0.2721  1.3810    TRUE
-    xi     0.1   0.1803 0.0148  0.4003    TRUE
-    thL    5.0   7.0989 0.5358 22.6098    TRUE
-    thU    5.0   4.9169 2.2953 13.7070    TRUE
-    thw    0.2   0.2598 0.0321  0.5593    TRUE
-
 ### Limitations
 
 Since the neural estimator bypasses the likelihood, some standard
@@ -483,42 +408,15 @@ likelihood-based quantities are not available:
 
 ``` r
 logLik(fit_npe)   # returns NA with a warning
-```
-
-    Warning: Log-likelihood is not available for neural Bayes estimation
-
-    'log Lik.' NA (df=6)
-
-``` r
 AIC(fit_npe)      # NA
-```
-
-    Warning: Log-likelihood is not available for neural Bayes estimation
-
-    [1] NA
-
-``` r
 BIC(fit_npe)      # NA
 ```
-
-    Warning: Log-likelihood is not available for neural Bayes estimation
-
-    [1] NA
 
 ``` r
 # vcov and confint require NPE (not available for NBE)
 vcov(fit_nbe)     # error: no posterior samples
-```
-
-    Error:
-    ! Variance-covariance matrix not available for NBE estimator (no posterior samples)
-
-``` r
 confint(fit_nbe)  # error: no posterior samples
 ```
-
-    Error:
-    ! Credible intervals not available for NBE estimator (no posterior samples)
 
 ## 6. Simulation study
 
@@ -555,7 +453,7 @@ With Julia available, these datasets can be estimated:
 # Estimate a subset of datasets (full study would use all K)
 K_est <- min(K, 10)
 estimates <- sapply(datasets[seq_len(K_est)], function(Y) {
-  fit <- fitegpd(Y, family = "begpd", method = "neuralbayes",
+  fit <- distfit(Y, family = "begpd", method = "neuralbayes",
                  estimator = "npe", nsamples = 1000)
   coef(fit)
 })
@@ -563,22 +461,33 @@ estimates <- sapply(datasets[seq_len(K_est)], function(Y) {
 # RMSE for each parameter (based on K_est replications)
 rmse <- sqrt(rowMeans((estimates - true_params)^2))
 cat("RMSE (based on", K_est, "replications):\n")
-```
-
-    RMSE (based on 10 replications):
-
-``` r
 print(round(rmse, 4))
 ```
 
-     kappa  sigma     xi    thL    thU    thw 
-    2.2724 0.4158 0.0854 1.9625 0.7181 0.0541 
-
 ## 7. Training custom models
 
-The bundled `.bson` models were trained on uniform priors covering a
-wide parameter range. For specific applications, you may want to train
-on a narrower prior to improve accuracy.
+No pre-trained `.bson` models are bundled with `egpd`. Train compatible
+weights with `train_begpd()`, pass the saved `.bson` path via
+`model.path`, and retain each generated `.bson.metadata.rds` sidecar
+(contract v3); never attach new metadata to old weights. The sidecar
+also records the training sample-size range and the Julia,
+NeuralEstimators.jl and Flux.jl versions: `distfit()` warns when
+`nrow(Y)` is outside the training range, when the data are outside the
+simulator’s support, or when another NeuralEstimators.jl or Flux.jl
+version is loaded. The Julia helpers were run with NeuralEstimators.jl
+0.1.0 and follow the 0.2.1 to 0.3.x APIs (0.2.0 is not supported);
+training through the R package NeuralEstimators 0.2.2 requires
+NeuralEstimators.jl 0.3 or later and Optimisers.jl (see `?train_begpd`
+for the supported version pairings). Training priors are fixed by these
+helpers and define the prior used by NPE importance sampling; a narrower
+prior requires a corresponding change to both. Compatibility metadata
+does not establish posterior calibration. Without `savepath`, the
+trainers save to `tools::R_user_dir("egpd", "data")` and report the
+directory.
+
+The training `seed` controls R simulations reproducibly across fork
+counts and explicitly seeds Julia with `Random.seed!`. Library versions
+and nondeterministic backend kernels can still affect results.
 
 ### Quick training
 
@@ -593,13 +502,13 @@ paths <- train_begpd(
 # Training messages:
 #> Sampling parameters and simulating data...
 #> Training NPE...
-#> NPE saved to /tmp/.../NPE.bson
+#> NPE saved to <savepath>/NPE.bson
 #> Training NBE...
-#> NBE saved to /tmp/.../NBE.bson
+#> NBE saved to <savepath>/NBE.bson
 #> Training complete.
 
 # Use the custom-trained model
-fit_custom <- fitegpd(Y, family = "begpd", method = "neuralbayes",
+fit_custom <- distfit(Y, family = "begpd", method = "neuralbayes",
                       model.path = paths$npe, estimator = "npe")
 ```
 
@@ -609,7 +518,7 @@ For production use, train with the full settings:
 
 ``` r
 paths <- train_begpd(
-  savepath = "inst/models",
+  savepath = "~/egpd-models",
   estimator = "both",
   K = 100000,          # training parameter sets
   m = 1000:4000,       # sample size range
@@ -656,9 +565,13 @@ suited for set-valued inputs (samples of varying size). It consists of:
 - **Expert statistic**: The log sample size provides the network with
   information about the precision of the input data
 
-For NPE, the output feeds into a **normalising flow** that approximates
-the full posterior distribution. For NBE, an **ensemble** of five point
-estimators is used, with the final estimate being their average.
+For NPE, the data summary and a parameter summary feed the public
+`RatioEstimator` constructor of the installed NeuralEstimators.jl
+version. The package’s Julia helper `egpd_logratio()` evaluates the
+learned log-ratio $\log r(Z, \theta)$ on the logit scale for batches of
+parameter vectors, which drives the adaptive importance sampler in R.
+For NBE, an **ensemble** of five point estimators is used, with the
+final estimate being their average.
 
 ## References
 
@@ -673,4 +586,4 @@ American Statistician*, 78(1), 1–14.
 
 Naveau, P., Huser, R., Ribereau, P., and Hannart, A. (2016). Modeling
 jointly low, moderate, and heavy rainfall intensities without a
-threshold selection. *Water Resources Research*, 52(4), 2897–2911.
+threshold selection. *Water Resources Research*, 52(4), 2753–2769.

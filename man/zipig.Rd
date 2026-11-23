@@ -12,7 +12,15 @@ dzipig(x, mu = 1, sigma = 1, pi = 0.1, log = FALSE)
 
 pzipig(q, mu = 1, sigma = 1, pi = 0.1, lower.tail = TRUE, log.p = FALSE)
 
-qzipig(p, mu = 1, sigma = 1, pi = 0.1, lower.tail = TRUE, log.p = FALSE, ...)
+qzipig(
+  p,
+  mu = 1,
+  sigma = 1,
+  pi = 0.1,
+  lower.tail = TRUE,
+  log.p = FALSE,
+  max.value = 1e+05
+)
 
 rzipig(n, mu = 1, sigma = 1, pi = 0.1)
 }
@@ -23,8 +31,7 @@ rzipig(n, mu = 1, sigma = 1, pi = 0.1)
 
 \item{sigma}{vector of positive dispersion parameters.}
 
-\item{pi}{vector of zero-inflation probabilities in \eqn{(0, 1)} (passed to
-\code{gamlss.dist} as \code{nu}).}
+\item{pi}{vector of zero-inflation probabilities in \eqn{[0, 1)}.}
 
 \item{log, log.p}{logical; if \code{TRUE}, probabilities/densities \eqn{p} are
 given as \eqn{\log(p)}.}
@@ -32,26 +39,31 @@ given as \eqn{\log(p)}.}
 \item{lower.tail}{logical; if \code{TRUE} (default), probabilities are
 \eqn{P[X \le x]}, otherwise \eqn{P[X > x]}.}
 
-\item{...}{further arguments passed to the underlying \code{gamlss.dist}
-function (e.g. \code{max.value} for \code{qzipig}).}
-
 \item{p}{vector of probabilities.}
 
-\item{n}{number of random values to return.}
+\item{max.value}{integer cap on the support searched by \code{qpig}
+(default \code{1e5}). It does not limit \code{rpig}, which samples exactly.}
+
+\item{n}{number of random values to return; if \code{length(n) != 1}, the length is
+taken to be the number required (\code{numeric(0)} gives none), as in
+\code{\link[stats]{rpois}}.}
 }
 \value{
 \code{dzipig} gives the PMF, \code{pzipig} the CDF, \code{qzipig} the
-quantile function, and \code{rzipig} random deviates.
+  quantile function, and \code{rzipig} random deviates.
 }
 \description{
 Density (PMF), distribution function, quantile function and random
 generation for the zero-inflated Poisson-inverse Gaussian (ZIPIG)
 distribution: a PIG (mean \code{mu}, dispersion \code{sigma}) mixed with a
-point mass at zero of probability \code{pi}. These are thin wrappers around
-\code{\link[gamlss.dist]{dZIPIG}} etc. (whose zero-inflation argument is
-named \code{nu}).
+point mass at zero of probability \code{pi} (the \code{nu} of
+\code{\link[gamlss.dist]{ZIPIG}}). All four functions are computed natively from
+the PIG recursion; tails, quantiles and invalid input are handled as for
+\code{\link{pig}}, and \code{pi} outside \eqn{[0, 1)} is invalid. Random generation
+draws the structural zero with probability \code{pi} and otherwise an exact PIG
+draw (see \code{\link{rpig}}).
 }
 \seealso{
 \code{\link[gamlss.dist]{ZIPIG}} for the gamlss family;
-\code{\link{dpig}} for the non-inflated version.
+  \code{\link{dpig}} for the non-inflated version.
 }

@@ -4,7 +4,7 @@ test_that("rcpdegpd produces non-negative integer data with zeros", {
   set.seed(42)
   x <- rcpdegpd(500, sigma = 3, xi = 0.1, kappa = 1.5, lambda = 2, type = 1)
 
-  expect_true(is.numeric(x))
+  expect_true(is.integer(x))
   expect_equal(length(x), 500)
   expect_true(all(x >= 0))
   expect_true(all(x == floor(x)))
@@ -54,6 +54,30 @@ test_that("qcpdegpd inverts pcpdegpd", {
   ## Check that P(S <= q) >= p for all p
   cdf_at_q <- pcpdegpd(q, lambda = 2, sigma = 3, xi = 0.1, kappa = 1.5, type = 1)
   expect_true(all(cdf_at_q >= pvals - 1e-10))
+})
+
+test_that("compound CDFs retain the far upper tail at and inside the grid", {
+  ## floor(Uniform(0,2)) thins rate 1600 to 800. Rounding Uniform(0,h)
+  ## upwards gives a Poisson(800) number of gauge bins directly.
+  p <- 1 - 2^-46
+  k <- qpois(p, 800)
+  bins <- c(k - 1, k)
+  ref <- 1 - ppois(bins, 800, lower.tail = FALSE)
+  for (K in c(k, k + 240)) {
+    a <- pcpdegpd(bins, 1600, sigma = 2, xi = -1, kappa = 1, K = K)
+    b <- pcpegpd(bins / 4, 800, sigma = .25, xi = -1, kappa = 1, h = .25, K = K)
+    for (x in list(a, b)) {
+      expect_lte(max(abs(x - ref)), 2^-53)
+      expect_true(x[1] < p && p <= x[2])
+    }
+  }
+
+  ## With geometric floor jumps, condition on N: S | N is negative binomial.
+  ## A finite K must not discard either a larger jump or their aggregate.
+  n <- 1:80
+  tail <- sum(dpois(n, 3) * pnbinom(95, n, -expm1(-.5), lower.tail = FALSE))
+  x <- pcpdegpd(95, 3, sigma = 2, xi = 0, kappa = 1, K = 95)
+  expect_lte(abs(x - (1 - tail)), 2^-53)
 })
 
 test_that("distfit with family='cpdegpd' type 1 converges on simulated data", {

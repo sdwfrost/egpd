@@ -25,7 +25,10 @@ r.G(
 
 \item{type}{integer 1-6}
 
-\item{unifsamp}{optional uniform samples}
+\item{unifsamp}{optional uniform samples, recycled to length \code{n}. When
+supplied the draws are \code{q.G(unifsamp, ...)} (inverse-CDF sampling),
+except for \code{type = 6} with \code{direct = FALSE}, where the mixture
+component of each draw is still chosen with \code{runif}.}
 
 \item{direct}{logical for type 6}
 }
@@ -34,4 +37,10 @@ Random samples
 }
 \description{
 Random generation from transformation G
+}
+\details{
+Carrier parameters required by \code{type} must be supplied: a missing
+  one is an error, whereas supplied \code{NA} values give \code{NA} results.
+  For the random generators, \code{n} follows base R: if \code{length(n) > 1}
+  its length is used, so \code{numeric(0)} gives \code{numeric(0)}.
 }

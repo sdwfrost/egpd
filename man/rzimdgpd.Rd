@@ -4,31 +4,32 @@
 \alias{rzimdgpd}
 \title{\[Experimental\] Random generation from the zero-inflated MDGPD}
 \usage{
-rzimdgpd(n, sigma, xi, lambda, rho, pi0, d = 2L)
+rzimdgpd(n, sigma, xi, lambda = NULL, rho = NULL, pi0, d = 2L, rate = NULL)
 }
 \arguments{
 \item{n}{integer; number of observations to generate.}
 
-\item{sigma}{positive numeric; GPD scale parameter (common across dimensions).}
+\item{sigma}{positive finite numeric scalar or length-\code{d} vector;
+GPD scale parameter(s).}
 
-\item{xi}{non-negative numeric; GPD shape parameter. When \code{xi = 0}
-the marginals reduce to scaled geometric.}
+\item{xi}{finite numeric scalar or length-\code{d} vector; GPD shape
+parameter(s) (may be negative, zero, or positive).}
 
-\item{lambda}{positive numeric; Poisson rate for the generator components.
-Controls the spread of the dependence structure.}
-
-\item{rho}{numeric in \[0, 1); equicorrelation of the \code{d}-dimensional
-Poisson generator. Higher values give stronger positive dependence:
-\code{rho -> 1} gives near-perfect dependence, \code{rho = 0} gives
-weakest dependence for the given \code{lambda}.}
+\item{lambda, rho}{obsolete generator arguments; supplying either is an
+error. Migrate explicitly to \code{rate = (1 - rho) * lambda}.}
 
 \item{pi0}{numeric in (0, 1); joint zero-inflation probability.}
 
 \item{d}{integer >= 2; dimension of the multivariate distribution
 (default \code{2L}).}
+
+\item{rate}{non-negative finite numeric; rate of independent Poisson generator
+components (\code{rate = 0} gives the exact comonotonic limit). This is
+the identifiable combination of the former \code{lambda} and \code{rho};
+smaller rates give more nearly equal components.}
 }
 \value{
-An \code{n} by \code{d} integer matrix with columns
+An \code{n} by \code{d} integer-valued matrix with columns
   \code{Y1}, \code{Y2}, \ldots, \code{Yd}.
 }
 \description{
@@ -40,11 +41,11 @@ it is drawn from \code{\link{rmdgpd}}.
 This function is \strong{experimental} and its interface may change.
 }
 \examples{
-Y <- rzimdgpd(1000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5, pi0 = 0.3)
-mean(rowSums(Y) == 0)  # approximately 0.3 + natural zeros
+Y <- rzimdgpd(1000, sigma = 2, xi = 0.2, rate = 0.5, pi0 = 0.3)
+mean(apply(Y, 1, function(y) all(y == 0)))  # approximately 0.3
 
 # Trivariate
-Y3 <- rzimdgpd(1000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5, pi0 = 0.3, d = 3)
+Y3 <- rzimdgpd(1000, sigma = 2, xi = 0.2, rate = 0.5, pi0 = 0.3, d = 3)
 
 }
 \seealso{

@@ -8,72 +8,14 @@
 ##   Pr(Y = y) = theta^y exp(1 - e^theta) B_y / y!.
 ## Mean = theta e^theta, variance = theta(1+theta) e^theta.
 
-## Recycle args to a common length.
-.bell_recycle <- function(...) {
-  a <- list(...)
-  n <- max(lengths(a))
-  lapply(a, rep_len, n)
-}
-
-## pmf at (integer) x-values, scalar or vector theta.
-.bell_pmf_at <- function(x, theta) {
-  z <- .bell_recycle(x = x, theta = theta)
-  x <- z$x; theta <- z$theta
-  n <- length(x)
-  out <- numeric(n)
-  ok <- is.finite(x) & x >= 0 & x == floor(x) & is.finite(theta) & theta > 0
-  scalarpar <- length(unique(theta[ok])) <= 1
-  if (any(ok) && scalarpar) {
-    i0 <- which(ok)[1]
-    xm <- max(x[ok])
-    pmf <- bell_pmf_cpp(as.integer(xm), theta[i0])
-    out[ok] <- pmf[x[ok] + 1L]
-  } else if (any(ok)) {
-    for (i in which(ok))
-      out[i] <- bell_pmf_cpp(as.integer(x[i]), theta[i])[x[i] + 1L]
-  }
-  out
-}
-
-## CDF at (integer) q-values.
-.bell_cdf_at <- function(q, theta) {
-  z <- .bell_recycle(q = q, theta = theta)
-  q <- z$q; theta <- z$theta
-  n <- length(q); out <- numeric(n)
-  qf <- floor(q)
-  scalarpar <- length(unique(theta)) <= 1
-  if (scalarpar && n > 0) {
-    hi <- max(qf[is.finite(qf)], 0)
-    cdf <- cumsum(bell_pmf_cpp(as.integer(max(hi, 0)), theta[1]))
-    for (i in seq_len(n)) {
-      if (!is.finite(qf[i])) { out[i] <- NA; next }
-      out[i] <- if (qf[i] < 0) 0 else min(cdf[qf[i] + 1L], 1)
-    }
-  } else {
-    for (i in seq_len(n)) {
-      if (!is.finite(qf[i])) { out[i] <- NA; next }
-      if (qf[i] < 0) { out[i] <- 0; next }
-      out[i] <- min(sum(bell_pmf_cpp(as.integer(qf[i]), theta[i])), 1)
-    }
-  }
-  out
-}
-
-## scalar quantile: smallest k with F(k) >= p. A small tolerance keeps discrete
-## round-trips q(p(k)) == k robust to floating-point error (e.g. the ZI
-## probability rescaling (p - pi)/(1 - pi)).
-.bell_q1 <- function(p, theta, max.value, tol = 1e-12) {
-  if (!is.finite(p) || p <= 0) return(0)
-  if (p >= 1) return(max.value)
-  N <- 64L
-  repeat {
-    cdf <- cumsum(bell_pmf_cpp(as.integer(N), theta))
-    if (cdf[length(cdf)] >= p - tol || N >= max.value) break
-    N <- min(N * 2L, as.integer(max.value))
-  }
-  k <- which(cdf >= p - tol)[1] - 1L
-  if (is.na(k)) as.integer(N) else as.integer(k)
-}
+## The log pmf ladder log p_0..log p_n comes from bell_pmf_cpp; its theta-free table
+## log(B_k/k!) is cached for the session. The tail is super-geometric, so survivors are
+## summed directly until a ratio bound certifies the remainder (R/countfams.R).
+.bell_fam <- list(
+  pars = "theta",
+  valid = function(p) is.finite(p$theta) & p$theta > 0,
+  lpmf = function(n, p) attr(bell_pmf_cpp(as.integer(n), p$theta), "logpmf"),
+  init = function(p) max(32, ceiling(4 * p$theta * exp(p$theta))))
 
 #' The Bell distribution
 #'
@@ -87,16 +29,39 @@
 #'
 #' @param x,q vector of (non-negative integer) quantiles.
 #' @param p vector of probabilities.
-#' @param n number of random values to return.
+#' @param n number of random values to return; if \code{length(n) != 1}, the length is
+#'   taken to be the number required (\code{numeric(0)} gives none), as in
+#'   \code{\link[stats]{rpois}}.
 #' @param theta vector of positive shape parameters.
 #' @param log,log.p logical; if \code{TRUE}, probabilities/densities \eqn{p} are
 #'   given as \eqn{\log(p)}.
 #' @param lower.tail logical; if \code{TRUE} (default), probabilities are
 #'   \eqn{P[X \le x]}, otherwise \eqn{P[X > x]}.
 #' @param max.value integer cap on the support searched by \code{qbell}
-#'   (default \code{1e5}).
+#'   (default \code{1e5}). A nonattaining cap returns \code{NA} with a warning. It does
+#'   not limit \code{rbell}, which samples exactly.
+#' @details Both tails are computed from sums of the PMF taken in the direction that
+#'   keeps full relative accuracy (the upper tail from the survivor itself), so
+#'   \code{lower.tail = FALSE} and \code{log.p = TRUE} stay accurate far into the tail.
+#'   Quantiles invert the distribution, not a table of rounded lower-tail
+#'   probabilities. Near one, distinct counts can have the same reported CDF,
+#'   and \code{qbell(pbell(k))} need not return \code{k}.
+#'   Invalid input follows \code{\link[stats]{dpois}}: an \code{NA} parameter gives
+#'   \code{NA}; an invalid one gives \code{NaN} with a warning, except that an \code{NA}
+#'   or \code{NaN} \code{x}, \code{q} or \code{p} is returned silently; \code{x} that is
+#'   negative or infinite has mass zero, and a non-integer \code{x} has mass zero with a
+#'   warning; probabilities outside \eqn{[0, 1]} give \code{NaN} with a warning. Quantile
+#'   endpoints are 0 and \code{Inf}.
+#'
+#'   Random generation is exact and has no cap. The probability generating function
+#'   \eqn{\exp(e^{\theta s} - e^\theta)} is that of a Neyman type A law, so
+#'   \code{rbell} draws \eqn{K \sim} Poisson\eqn{(e^\theta)} and then a Poisson count
+#'   with mean \eqn{\theta K}; equivalently, \eqn{Y} is a Poisson\eqn{(e^\theta - 1)}
+#'   sum of zero-truncated Poisson\eqn{(\theta)} counts.
 #' @return \code{dbell} gives the PMF, \code{pbell} the CDF, \code{qbell} the
-#'   quantile function, and \code{rbell} random deviates.
+#'   quantile function, and \code{rbell} random deviates; \code{dBELL}, \code{pBELL},
+#'   \code{qBELL} and \code{rBELL} give the same in the mean parameterisation, and
+#'   \code{BELL()} returns a \code{gamlss.family} object.
 #' @references Castellares, F., Ferrari, S. L. P. and Lemonte, A. J. (2018). On
 #'   the Bell distribution and its associated regression model for count data.
 #'   \emph{Applied Mathematical Modelling} 56, 172-185.
@@ -111,32 +76,35 @@ NULL
 #' @rdname bell
 #' @export
 dbell <- function(x, theta = 1, log = FALSE) {
-  out <- .bell_pmf_at(x, theta)
-  if (log) log(out) else out
+  .count_d(.bell_fam, x, list(theta = theta), log = log)
 }
 
 #' @rdname bell
 #' @export
 pbell <- function(q, theta = 1, lower.tail = TRUE, log.p = FALSE) {
-  out <- .bell_cdf_at(q, theta)
-  if (!lower.tail) out <- 1 - out
-  if (log.p) log(out) else out
+  .count_p(.bell_fam, q, list(theta = theta), lower.tail, log.p)
 }
 
 #' @rdname bell
 #' @export
 qbell <- function(p, theta = 1, lower.tail = TRUE, log.p = FALSE, max.value = 1e5) {
-  if (log.p) p <- exp(p)
-  if (!lower.tail) p <- 1 - p
-  z <- .bell_recycle(p = p, theta = theta)
-  mapply(.bell_q1, z$p, z$theta, MoreArgs = list(max.value = max.value))
+  .count_q(.bell_fam, p, list(theta = theta), lower.tail, log.p, max.value)
 }
 
 #' @rdname bell
 #' @export
 rbell <- function(n, theta = 1) {
-  if (length(n) > 1L) n <- length(n)
-  qbell(stats::runif(n), theta = theta)
+  .count_r_exact(.bell_fam, n, list(theta = theta), .rbell_exact)
+}
+
+## Exact Bell draws. The pgf exp(e^(theta s) - e^theta) is that of a Neyman type A law with
+## K ~ Poisson(e^theta) clusters of Poisson(theta) counts: E[exp(theta K (s - 1))] =
+## exp(e^theta (e^(theta (s - 1)) - 1)). (Dropping the empty clusters gives the compound
+## Poisson form, Poisson(e^theta - 1) clusters of zero-truncated Poisson(theta) counts.)
+## Given K the total is Poisson(theta K), so two Poisson draws give each count, at any theta.
+.rbell_exact <- function(p) {
+  m <- length(p$theta)
+  stats::rpois(m, p$theta * stats::rpois(m, exp(p$theta)))
 }
 
 
@@ -148,8 +116,14 @@ rbell <- function(n, theta = 1) {
 #'
 #' @inheritParams bell
 #' @param pi vector of zero-inflation probabilities in \eqn{[0, 1)}.
+#' @details Tails, quantiles and invalid input are handled as for \code{\link{bell}};
+#'   \code{pi} outside \eqn{[0, 1)} is invalid. Random generation draws the structural
+#'   zero with probability \code{pi} and otherwise an exact Bell draw (see
+#'   \code{\link{rbell}}).
 #' @return \code{dzibell} gives the PMF, \code{pzibell} the CDF, \code{qzibell}
-#'   the quantile function, and \code{rzibell} random deviates.
+#'   the quantile function, and \code{rzibell} random deviates; \code{dZIBELL},
+#'   \code{pZIBELL}, \code{qZIBELL} and \code{rZIBELL} give the same in the mean
+#'   parameterisation, and \code{ZIBELL()} returns a \code{gamlss.family} object.
 #' @seealso \code{\link{bell}} for the non-inflated version.
 #' @name zibell
 NULL
@@ -157,46 +131,24 @@ NULL
 #' @rdname zibell
 #' @export
 dzibell <- function(x, theta = 1, pi = 0.1, log = FALSE) {
-  z <- .bell_recycle(x = x, theta = theta, pi = pi)
-  base <- .bell_pmf_at(z$x, z$theta)
-  is0 <- is.finite(z$x) & z$x == 0
-  out <- (1 - z$pi) * base
-  out[is0] <- z$pi[is0] + (1 - z$pi[is0]) * base[is0]
-  if (log) log(out) else out
+  .count_d(.bell_fam, x, list(theta = theta), log = log, pi = pi)
 }
 
 #' @rdname zibell
 #' @export
 pzibell <- function(q, theta = 1, pi = 0.1, lower.tail = TRUE, log.p = FALSE) {
-  z <- .bell_recycle(q = q, theta = theta, pi = pi)
-  base <- .bell_cdf_at(z$q, z$theta)
-  out <- z$pi + (1 - z$pi) * base
-  out[is.finite(z$q) & floor(z$q) < 0] <- 0
-  if (!lower.tail) out <- 1 - out
-  if (log.p) log(out) else out
+  .count_p(.bell_fam, q, list(theta = theta), lower.tail, log.p, pi = pi)
 }
 
 #' @rdname zibell
 #' @export
 qzibell <- function(p, theta = 1, pi = 0.1, lower.tail = TRUE, log.p = FALSE,
                     max.value = 1e5) {
-  if (log.p) p <- exp(p)
-  if (!lower.tail) p <- 1 - p
-  z <- .bell_recycle(p = p, theta = theta, pi = pi)
-  ## invert the mixture: for p <= pi the quantile is 0, else invert the Bell
-  ## part at the rescaled probability (p - pi)/(1 - pi).
-  padj <- ifelse(z$p <= z$pi, 0, (z$p - z$pi) / (1 - z$pi))
-  mapply(function(pp, th) if (pp <= 0) 0L else .bell_q1(pp, th, max.value),
-         padj, z$theta)
+  .count_q(.bell_fam, p, list(theta = theta), lower.tail, log.p, max.value, pi = pi)
 }
 
 #' @rdname zibell
 #' @export
 rzibell <- function(n, theta = 1, pi = 0.1) {
-  if (length(n) > 1L) n <- length(n)
-  z0 <- stats::runif(n) < pi
-  out <- integer(n)
-  if (any(!z0))
-    out[!z0] <- qbell(stats::runif(sum(!z0)), theta = rep_len(theta, n)[!z0])
-  out
+  .count_r_exact(.bell_fam, n, list(theta = theta), .rbell_exact, pi = pi)
 }

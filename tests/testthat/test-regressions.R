@@ -72,6 +72,7 @@ test_that("ZIDEGPD model 4 quantiles use the fitted kappa-delta ordering", {
 })
 
 test_that("compact smooth fits keep expanded fitted values and convergence metadata", {
+  skip_on_cran()
   data(ny_complaints)
   df <- ny_complaints[rep(seq_len(nrow(ny_complaints)), each = 2), ]
 

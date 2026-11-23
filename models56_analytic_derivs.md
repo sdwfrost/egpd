@@ -1,8 +1,27 @@
 # Analytic derivatives for DEGPD models 5 & 6 — investigation + implementation
 
-**Status: IMPLEMENTED — model 5 and model 6 are now FULLY analytic in every family**
-(DEGPD, ZIDEGPD, EGPD). The model-6 κ-derivatives use a stable quadrature for
-`∂I(x;κ,κ)/∂κ` (below); no finite differences remain. Verified vs FD oracles:
+> **Current implementation (round 3).** The `∂I(x;κ,κ)/∂κ` quadrature described below
+> (`incbeta_kk_derivs`, `tb_kappa`, `tb_Gtheta`) has been **removed**: its `K₁ − I·β₁`
+> cancellation made the continuous EGPD model-6 log-κ gradient/Hessian wrong for
+> κ ≳ 30 (wrong sign at κ = 200; review finding N3). Model 6 is now written as
+> `g(F) = (1 − C s²)^(κ−1) / Z(κ)`, `C = (15/16)²`, `s = 1 − F` (the `B(κ,κ)` constant
+> and `4^(1−κ)` cancel), so `∂ log Z/∂κ = E[L]` and `∂² log Z/∂κ² = Var[L]` with
+> `L = log(1 − C s²)` under the normalised weight.
+> - DEGPD/ZIDEGPD (all carriers): stabilised log-space cells differentiated by
+>   second-order forward-mode AD (`src/degpd1_identity.cpp`, Jet core in
+>   `src/egpd_jet.h`); model 6 integrates the unnormalised density by adaptive
+>   Gauss–Kronrod.
+> - Continuous EGPD `egpd6d12`: closed-form σ/ξ terms plus `tb_normaliser()`
+>   (`src/gfunc_derivs.h`), which integrates `Z` and its `L`-moments directly.
+>   Rows where the generated closed forms are unreliable use exact Jet derivatives
+>   of the same objective (`egpd_cont_nll_jet`).
+>
+> Checked against 320-bit Rmpfr references for κ ∈ {2, …, 500}
+> (`tests/testthat/test-audit-native-r3.R`). The sections below are kept as history.
+
+**Status (historical): model 5 and model 6 analytic in every family**
+(DEGPD, ZIDEGPD, EGPD). The model-6 κ-derivatives used a quadrature for
+`∂I(x;κ,κ)/∂κ` (below). Verified at the time vs FD oracles:
 
 | family | model 5 (grad / Hess) | model 6 (grad / Hess) |
 |---|---|---|

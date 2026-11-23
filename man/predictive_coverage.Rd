@@ -29,6 +29,7 @@ predictive_coverage(fit, ...)
   method = c("parametric", "plug-in"),
   use_shortest = FALSE,
   data_fit = NULL,
+  bd = NULL,
   ...
 )
 
@@ -40,21 +41,26 @@ predictive_coverage(fit, ...)
   nsim = 2000,
   method = c("parametric", "plug-in"),
   use_shortest = FALSE,
+  offset = NULL,
   ...
 )
 }
 \arguments{
 \item{fit}{a fitted model object (class \code{"egpd"},
-\code{"gamlss"}, or \code{"bamlss"})}
+\code{"gamlss"}, or \code{"bamlss"}). For native \code{egpd}
+fits the supported families are \code{"egpd"}, \code{"degpd"} and
+\code{"zidegpd"}.}
 
 \item{...}{additional arguments (currently unused)}
 
-\item{y}{numeric vector of observed responses to evaluate coverage
-against}
+\item{y}{numeric vector of observed responses, one per prediction row
+in the same order: the rows used to fit the model when \code{newdata}
+is \code{NULL}, or the rows of \code{newdata} otherwise.}
 
 \item{newdata}{optional data frame of covariate values at which to
 compute predictions.  If \code{NULL} (the default), in-sample
-predictions are used.}
+predictions are used, which needs the fitting data (an \code{egpd}
+fit made with \code{removeData = TRUE} requires \code{newdata}).}
 
 \item{level}{nominal coverage level (default 0.95)}
 
@@ -64,12 +70,28 @@ predictions are used.}
 \item{method}{\code{"parametric"} (default) for parameter
 uncertainty, or \code{"plug-in"} for fixed-parameter prediction}
 
-\item{use_shortest}{logical: use shortest (HDR) interval for
-discrete families instead of equal-tailed?  Default \code{FALSE}.}
+\item{use_shortest}{logical: use the shortest empirical interval instead
+of the equal-tailed interval? Applies also to continuous and mixed
+responses. Default \code{FALSE}.}
 
 \item{data_fit}{(gamlss method only) optional data frame passed as
-\code{data} to \code{predictAll()}; needed when the original
+\code{data} to \code{predict()}; needed when the original
 fitting data cannot be recovered from the fit object.}
+
+\item{bd}{(gamlss binomial families only) number of trials at \code{newdata}:
+one non-negative integer per row, or one common size (strictly positive
+for the zero-adjusted \code{ZABI} and \code{ZABB} families). Supply this
+for grouped fits even if the fitted sizes were constant. For an ungrouped
+Bernoulli response the default at new rows is one trial. In sample,
+omit \code{bd}: the fitted sizes are used in fitting-row order. Supply
+\code{y} as success counts, not proportions or a two-column response.}
+
+\item{offset}{(bamlss method only) link-scale offsets at \code{newdata}
+for parameters with a saved fitting offset. Supply a named list of
+finite numeric vectors (one per parameter, of length one or the number
+of rows), or a numeric vector for a single offset. A constant fitted
+offset is reused if omitted; a varying fitted offset must be supplied.
+Omit this argument for in-sample coverage.}
 }
 \value{
 A list with components:
@@ -96,22 +118,76 @@ The algorithm has three steps:
     \describe{
       \item{\code{method = "plug-in"}}{Fitted parameters are held
         fixed at their point estimates.}
-      \item{\code{method = "parametric"}}{Parameters are perturbed
-        on the link scale using normal noise (scaled by standard
-        errors) and then back-transformed.  For \code{egpd} fits
-        this is a multivariate-normal draw from the joint
-        coefficient posterior; for \code{gamlss} fits the
-        perturbation is independent across parameters.}
+      \item{\code{method = "parametric"}}{Each simulated response uses its
+        own parameter draw.  For \code{egpd} fits this is a
+        multivariate-normal draw of the coefficients from their joint
+        posterior (\code{\link{simulate.egpd}}, using \code{Vc}); for
+        \code{gamlss} fits, independent normal perturbations of each
+        linear predictor scaled by its standard error, back-transformed.
+        In sample these are the standard errors of
+        \code{predict(fit, se.fit = TRUE)}; \pkg{gamlss} gives none at
+        \code{newdata}. There the covariance is the inverse observed
+        information of the free coefficients: the fitted, case-weighted log
+        likelihood is differentiated in their joint predictor directions
+        at steps calibrated to changes in log density, keeping fixed
+        parameters on the response scale and grouped binomial trial sizes
+        at their training values. The appropriate
+        covariance block and new design row give each marginal standard error;
+        predictor draws are still independent, not joint coefficient draws.
+        This requires saved parametric designs, a density that reproduces
+        the fitted likelihood, and finite positive-definite information
+        that is stable under step refinement.
+        It does not call \code{vcov.gamlss} or require attaching \pkg{egpd}.
+        A parameter with additive smoothing terms
+        (\code{pb()}, \code{cs()}, \code{lo()}, \code{random()}, ...) is an
+        error with \code{newdata} (use \code{method = "plug-in"} there).
+        A \code{gamlss} parameter fixed in the fit (\code{<p>.fix = TRUE}) is
+        held at its fitted value \code{fit$<p>.fv} by both methods (at
+        \code{newdata} it must be a single value), and the standard errors at
+        \code{newdata} are conditional on it.
+        For \code{bamlss} fits, the stored posterior (MCMC) samples: the
+        distributional parameters are predicted for each sample and one
+        response is simulated per sample (samples are drawn without
+        replacement when \code{nsim} does not exceed their number, and
+        with replacement otherwise).  A \code{bamlss} fit without
+        samples (e.g. \code{sampler = FALSE}) is an error.}
     }
   \item \strong{Response simulation.}
     \code{nsim} responses are drawn at each observation from the
     fitted distribution (using the appropriate \code{r*} function
-    from the egpd package).
+    from \pkg{egpd} or, for external GAMLSS families, \pkg{gamlss.dist}).
   \item \strong{Intervals and coverage.}
     Equal-tailed quantile intervals are computed from the simulated
-    responses.  For discrete families, \code{use_shortest = TRUE}
-    gives the shortest (highest-density-region) interval instead.
+    responses by default. For discrete, continuous, and mixed responses,
+    \code{use_shortest = TRUE} instead gives the shortest closed interval
+    attaining the requested simulated mass (ties select the lowest interval).
+    Its endpoints are simulated response values, hence integers for counts.
+    Discrete equal-tailed intervals use empirical integer quantiles.
+    Discreteness is taken from the family: \code{"degpd"}/\code{"zidegpd"}
+    for \code{egpd} and \code{bamlss} fits, and the family \code{type}
+    (\code{"Discrete"}) for \code{gamlss} fits.
+    Coverage is membership in the returned closed interval, without jitter;
+    discreteness can therefore make coverage exceed the nominal level.
 }
+Non-finite parameter draws or simulated responses cause an error rather
+than being silently replaced or omitted. Identity-linked shape draws may
+be zero or negative.
+For a \code{gamlss} fit with aliased coefficients, both methods require
+the same training-column dependencies to hold at \code{newdata}; otherwise
+the predictor is not estimable. Parametric terms are evaluated in the
+fitted basis (including saved knots and factor contrasts), with all
+formula offsets added. Plug-in prediction does not require likelihood
+curvature. With backfitted terms, a column named \code{source} need not
+be renamed or removed from \code{newdata}, including when selected by
+name in \code{ri(x.vars = ...)}.
+At \code{newdata}, both \code{bamlss} methods reconstruct the parametric
+design on the training basis and with the training factor contrasts. An
+unavailable or unreproducible saved design is an error. Smooth contributions
+are predicted using the fitted \code{bamlss} smooths. With posterior samples,
+the plug-in value is the mean on the parameter scale.
+BAMLSS coverage uses offsets actually supplied to the fitter through its
+\code{offset} argument. A formula \code{offset()} that the fitter did not
+use is not introduced at prediction time.
 }
 \examples{
 \dontrun{

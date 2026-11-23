@@ -5,21 +5,23 @@
 \title{Train a neural estimator for bivariate BEGPD}
 \usage{
 train_begpd(
-  savepath = "inst/models",
+  savepath = NULL,
   estimator = c("both", "npe", "nbe"),
   K = NULL,
   m = NULL,
   epochs = NULL,
   stopping_epochs = 10,
   quick = FALSE,
-  mc.cores = parallel::detectCores() - 1L,
+  mc.cores = NULL,
   seed = 1L,
   verbose = TRUE
 )
 }
 \arguments{
 \item{savepath}{character; directory to save trained model files (.bson).
-Created if it does not exist.}
+Created if it does not exist. The default \code{NULL} uses
+\code{file.path(tools::R_user_dir("egpd", "data"), "models")} and reports
+it in a message.}
 
 \item{estimator}{character; which estimator(s) to train: \code{"both"}
 (default), \code{"npe"}, or \code{"nbe"}.}
@@ -27,7 +29,8 @@ Created if it does not exist.}
 \item{K}{integer; number of training parameter sets to sample from the prior.}
 
 \item{m}{integer vector; range of sample sizes for simulated datasets
-(e.g., \code{1000:4000}).}
+(e.g., \code{1000:4000}). Recorded in the model sidecar; inference warns
+when the number of observations falls outside \code{range(m)}.}
 
 \item{epochs}{integer; maximum number of training epochs.}
 
@@ -38,9 +41,13 @@ improvement).}
 quick testing (K=20000, m=500:1000, epochs=10).}
 
 \item{mc.cores}{integer; number of parallel cores for data simulation.
-Forced to 1 on Windows.}
+\code{NULL} (default) uses \code{parallel::detectCores() - 1}. Forced to
+1 on Windows and capped at 2 when \code{_R_CHECK_LIMIT_CORES_} is set
+(as by \code{R CMD check --as-cran}).}
 
-\item{seed}{integer or \code{NULL}; random seed for reproducibility.}
+\item{seed}{integer or \code{NULL}; seeds R, per-dataset parallel
+simulations, and Julia's \code{Random.seed!}. Backend/version-specific
+nondeterminism may remain.}
 
 \item{verbose}{logical; if \code{TRUE}, print progress messages.}
 }
@@ -50,10 +57,22 @@ A named list of file paths to saved .bson model files (invisible).
 \description{
 Trains Neural Posterior Estimator (NPE) and/or Neural Bayesian Estimator
 (NBE) networks for bivariate BEGPD inference. Requires Julia (>= 1.11)
-with NeuralEstimators.jl and Flux.jl installed, plus the R packages
-\pkg{JuliaConnectoR} and \pkg{NeuralEstimators}.
+with NeuralEstimators.jl (>= 0.3 for training), Flux.jl, BSON.jl and
+Optimisers.jl installed (in Julia,
+\code{using Pkg; Pkg.add(["NeuralEstimators", "Flux", "BSON", "Optimisers"])}),
+plus the R packages \pkg{JuliaConnectoR} and \pkg{NeuralEstimators}.
 }
 \details{
+Newly trained models require their generated \code{.bson.metadata.rds}
+compatibility sidecars. No bundled .bson models are shipped; train
+compatible weights and pass \code{model.path}. Compatibility does not
+establish calibration. The sidecar also records the training sample-size
+range \code{range(m)} and the Julia, NeuralEstimators.jl, Flux.jl,
+NeuralEstimators (R) and egpd versions; \code{distfit(method =
+"neuralbayes")} warns when \code{nrow(x)} is outside the training range,
+when the data are outside the simulated support, or when the loaded
+NeuralEstimators.jl or Flux.jl version differs from the training one.
+
 The training procedure:
 \enumerate{
   \item Samples parameters from uniform priors.
@@ -62,7 +81,37 @@ The training procedure:
   \item Trains the neural network(s) using \code{NeuralEstimators::train()}.
   \item Saves trained states as .bson files.
 }
+
+The NPE is a likelihood-to-evidence ratio network, not the normalising
+flow of Alotaibi et al. (2025). \code{distfit()} turns it into posterior
+draws by adaptive importance sampling of prior times learned ratio (see
+\code{\link{distfit}}), reporting the effective sample size.
 }
+\section{Supported Julia/R versions}{
+
+The egpd Julia helpers (\code{inst/julia/begpd_architecture.jl}) were run
+directly with Julia 1.12.7, NeuralEstimators.jl 0.1.0 and Flux 0.14.25
+(network construction, NBE estimates, log-ratio evaluation, BSON
+save/load); the log-ratio helper was also run with the
+\code{RatioEstimator} code of NeuralEstimators.jl 0.1.3 and 0.1.4, which
+store the network in a \code{network} field. They follow the
+NeuralEstimators.jl 0.2.1 to 0.3.x APIs (\code{RatioEstimator} constructors
+and \code{logratio(estimator, Z; grid)}), checked against the upstream
+sources but not executed. NeuralEstimators.jl 0.2.0 is not supported: its
+\code{logratio()} has no \code{grid} keyword, so NPE inference fails.
+Training goes through \code{NeuralEstimators::train()}, and the R package
+NeuralEstimators 0.2.2 (the GitHub version) needs NeuralEstimators.jl 0.3 or
+later: its \code{train()} passes \code{shuffle}, which the training methods
+accept only from 0.3.0 (\code{device} from 0.2.1;
+\code{freeze_summary_network} is not accepted by 0.1.x). It also runs
+\code{using Optimisers: Adam}, so Optimisers.jl must be a direct dependency
+of the Julia environment. Its \code{loadstate()} and \code{savestate()}
+reference \code{LuxEstimator}, which 0.1.x does not define, so egpd saves
+and loads weights with its own Flux/BSON helpers (the same file format).
+Training with these functions therefore requires NeuralEstimators.jl 0.3 or
+later with R NeuralEstimators 0.2.2.
+}
+
 \examples{
 \dontrun{
 paths <- train_begpd(savepath = tempdir(), quick = TRUE)

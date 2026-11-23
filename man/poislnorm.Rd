@@ -36,17 +36,22 @@ rpoislnorm(n, mu = 1, sigma = 1)
 
 \item{p}{vector of probabilities}
 
-\item{max.value}{largest count searched when inverting the cdf}
+\item{max.value}{largest count searched when inverting the cdf; nonattaining
+caps return \code{NA} with a warning. Invalid probabilities return \code{NaN},
+with endpoints 0 and \code{Inf}.}
 
-\item{n}{number of draws}
+\item{n}{number of draws; if \code{length(n) != 1}, the length is taken to be
+the number required (\code{numeric(0)} gives none), as in \code{\link[stats]{rpois}}}
 }
 \value{
-a numeric vector
+a numeric vector. As with \code{\link[stats]{rpois}}, \code{rpoislnorm}
+  returns integers unless a draw exceeds \code{.Machine$integer.max}, when it
+  returns doubles.
 }
 \description{
 \code{Y | Z ~ Poisson(exp(Z))} with \code{Z ~ N(muz, sigma^2)} and
 \code{muz = log(mu) - sigma^2 / 2}, so \code{E[Y] = mu}. The pmf has no closed form and
-is evaluated by adaptive Gauss-Hermite quadrature centred on the mode of the integrand.
+is evaluated by adaptive Gauss-Kronrod quadrature centred on the mode of the integrand.
 The tail is lognormal-like: heavier than the negative binomial's, but still in the
 Gumbel domain (\code{xi = 0}), so this family models a heavy body rather than a heavy
 tail.

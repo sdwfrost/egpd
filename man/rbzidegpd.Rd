@@ -24,7 +24,8 @@ rbzidegpd(n, kappa, sigma, xi, thL, thU, thw, pi0)
 \item{pi0}{numeric in (0, 1); joint zero-inflation probability.}
 }
 \value{
-An \code{n} by 2 integer matrix with columns \code{Y1} and \code{Y2}.
+An \code{n} by 2 integer-valued matrix with columns \code{Y1} and
+  \code{Y2}; double storage is used outside the R integer range.
 }
 \description{
 Generates random samples from the Zero-Inflated Bivariate Discrete Extended
@@ -37,7 +38,8 @@ This function is \strong{experimental} and its interface may change.
 \examples{
 Y <- rbzidegpd(1000, kappa = 2, sigma = 1, xi = 0.1,
                thL = 5, thU = 5, thw = 0.2, pi0 = 0.3)
-mean(Y[,1] == 0 & Y[,2] == 0)  # approximately 0.3
+## at least pi0 = 0.3; here about 0.73, as rbdegpd() rows are often (0, 0) too
+mean(Y[,1] == 0 & Y[,2] == 0)
 
 }
 \seealso{

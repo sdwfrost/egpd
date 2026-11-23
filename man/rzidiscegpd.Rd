@@ -33,11 +33,22 @@ rzidiscegpd(
 
 \item{type}{integer 1-6 specifying G type}
 
-\item{unifsamp}{optional uniform samples}
+\item{unifsamp}{optional uniform samples; when supplied the draws are
+\code{qzidiscegpd(unifsamp, ...)}, i.e. inverse-CDF sampling of the whole
+zero-inflated law, so the zero indicator is also determined by
+\code{unifsamp} and no other random numbers are used. \code{unifsamp}
+and the parameters are recycled to (or truncated at) length \code{n}.}
 }
 \value{
 Random non-negative integer samples
 }
 \description{
 Random generation from the Zero-Inflated Discrete Extended GPD
+}
+\details{
+Parameters required by \code{type} (\code{pi}, the GPD \code{sigma} and \code{xi}
+  and the carrier parameters) must be supplied: a missing one is an error,
+  whereas supplied \code{NA} values give \code{NA} results.
+  For the random generators, \code{n} follows base R: if \code{length(n) > 1}
+  its length is used, so \code{numeric(0)} gives \code{numeric(0)}.
 }

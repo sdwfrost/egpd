@@ -9,8 +9,8 @@ distfit(
   x,
   type = 1,
   family = c("egpd", "degpd", "ziegpd", "zidegpd", "cpegpd", "cpdegpd", "pig", "zipig",
-    "gpig", "zigpig", "bell", "zibell", "begpd", "bdegpd", "bzidegpd", "mdgpd",
-    "zimdgpd"),
+    "gpig", "zigpig", "bell", "zibell", "gwaring", "begpd", "bdegpd", "bzidegpd",
+    "mdgpd", "zimdgpd"),
   method = c("mle", "bernstein", "neuralbayes"),
   start = NULL,
   fix.arg = NULL,
@@ -21,6 +21,7 @@ distfit(
   model.path = NULL,
   estimator = c("npe", "nbe"),
   nsamples = 1000L,
+  npe.control = list(),
   ...
 )
 
@@ -28,8 +29,8 @@ fitegpd(
   x,
   type = 1,
   family = c("egpd", "degpd", "ziegpd", "zidegpd", "cpegpd", "cpdegpd", "pig", "zipig",
-    "gpig", "zigpig", "bell", "zibell", "begpd", "bdegpd", "bzidegpd", "mdgpd",
-    "zimdgpd"),
+    "gpig", "zigpig", "bell", "zibell", "gwaring", "begpd", "bdegpd", "bzidegpd",
+    "mdgpd", "zimdgpd"),
   method = c("mle", "bernstein", "neuralbayes"),
   start = NULL,
   fix.arg = NULL,
@@ -40,13 +41,19 @@ fitegpd(
   model.path = NULL,
   estimator = c("npe", "nbe"),
   nsamples = 1000L,
+  npe.control = list(),
   ...
 )
 }
 \arguments{
 \item{x}{numeric vector of observations (univariate families), or an
 n-by-d numeric matrix/data.frame (multivariate families; d=2 for BEGPD,
-d >= 2 for MDGPD).}
+d >= 2 for MDGPD). Univariate data must lie in the support: positive
+values for \code{"egpd"} (the continuous EGPD has no mass at 0, so exact
+zeros are an error; use \code{"ziegpd"} or a discrete family for them),
+non-negative values for \code{"ziegpd"} and \code{"cpegpd"}, and
+non-negative integers for the discrete families; otherwise \code{distfit()}
+stops.}
 
 \item{type}{integer 1-6 specifying the G-transformation type (univariate only).}
 
@@ -56,7 +63,8 @@ d >= 2 for MDGPD).}
 Zhu & Joe 2009, native \code{(a, b, c)} parameterisation; \code{type}
 ignored), "zigpig" (zero-inflated GPIG), "bell" (Bell distribution of
 Castellares et al. 2018, native \code{theta} parameterisation; \code{type}
-ignored), "zibell" (zero-inflated Bell), "begpd" (bivariate EGPD),
+ignored), "zibell" (zero-inflated Bell), "gwaring" (generalised Waring;
+\code{type} ignored), "begpd" (bivariate EGPD),
 "bdegpd" (\[Experimental\] bivariate
 discrete EGPD), "bzidegpd" (\[Experimental\] zero-inflated bivariate
 discrete EGPD), "mdgpd" (\[Experimental\] multivariate MDGPD via
@@ -68,20 +76,116 @@ zero-inflated multivariate MDGPD, d >= 2).}
 Julia dependencies.}
 
 \item{start}{named list of starting values, or NULL for automatic
-(not used for method="neuralbayes").}
+(not used for method="neuralbayes"). Every value must carry the name of its
+parameter and be a single number inside that parameter's space; otherwise
+\code{distfit()} stops.}
 
-\item{fix.arg}{named list of fixed parameters (not used for method="neuralbayes").}
+\item{fix.arg}{named list of fixed parameters (not used for
+method="neuralbayes"), checked like \code{start}, except that a probability
+may also be fixed at 0 or 1 where its distribution allows it: GPIG
+\code{a} in (0, 1] and \code{c} in [0, 1], the zero-inflation \code{pi} of
+ZIPIG, ZIGPIG and ZIBELL in [0, 1), and the \code{pi} of ZIEGPD and ZIDEGPD
+and the type-6 \code{prob} in [0, 1]. In type 2 \code{kappa} can
+be fixed at its uniform-carrier limit of zero.}
 
-\item{optim.method}{optimization method passed to \code{\link{optim}}}
+\item{optim.method}{optimization method passed to \code{\link{optim}}.
+With finite optimizer bounds, use L-BFGS-B unless Brent is requested.
+For \code{method = "mle"}, if a feasible step materially improves an
+L-BFGS-B solution, the fit retries with smaller steps within the same
+bounds rather than accepting the optimizer's apparent convergence.}
 
-\item{hessian}{logical: compute standard errors via Hessian?}
+\item{hessian}{logical: compute standard errors via Hessian? MLE and Bernstein
+fits warn and leave standard errors unavailable if the Hessian is not
+positive definite or the estimate is on an optimizer bound.
+Fixed parameters are excluded from estimation and
+parameter counts. In exact subfamilies only identifiable coordinates
+are fitted: for GPIG with \code{a = 1} fixed and both \code{b} and
+\code{c} free, the fitted parameter is \code{mu = b*c} (starts in
+either the original coordinates or \code{mu} are accepted). With
+equal fixed type-6 powers, the mixture weight is not estimated; a
+component of fixed weight zero has no estimated power. For a type-1
+ZIDEGPD whose fixed endpoint implies support \eqn{\{0,1\}}, free
+\code{kappa} and \code{pi} identify only \code{p1 = P(Y = 1)}.
+The fit reports its interior Bernoulli MLE, not separate estimates
+or standard errors for the two native parameters. An all-zero or
+all-one sample has no interior two-cell estimate without an additional
+bound. For \code{cpdegpd}
+with two-cell jumps, free intensity and free jump probability, the
+aggregate is Poisson and only its mean \code{mu} is fitted. Other two-cell
+carriers with multiple unidentified parameters require further pins.
+More generally, a bounded count law with \eqn{K} support cells can
+identify at most \eqn{K-1} parameter combinations. A fixed endpoint
+with too many free parameters requires additional pins. If the
+endpoint is estimated this check uses the fitted support, not the
+set of observed counts. For \code{cpdegpd} it applies to the
+\emph{jump} support, not the aggregate counts: with two jump cells
+the aggregate law depends only on \eqn{\lambda P(J=1)}.
+On a fitted-support ridge the fit warns and withholds Wald inference;
+this is a ridge of the
+fitted likelihood, not a reduction of the entire model. See
+\code{reduction} in the result. MLE and Bernstein fits also warn when \code{optim} does not
+report convergence (e.g. its iteration limit was reached), and stop when no
+parameter value visited gives the data a positive likelihood (observations
+outside the support of every candidate distribution have log-likelihood
+\code{-Inf}).
+An all-zero Bell sample has no interior maximum; fitting stops instead
+of reporting a Wald SE at an arbitrary approximation to the boundary.
+When zero inflation is free it is profiled conditional on the base
+parameters. If the observed zero fraction is at or below the base
+probability of zero, the conditional MLE is exactly zero unless a
+finite logit bound excludes it. A natural or user-imposed boundary
+estimate has no ordinary Wald inference; an interior estimate uses
+the joint information including the other free parameters.
+For a free type-2 \code{kappa} or type-6 mixing weight \code{prob},
+fitting also checks the included natural endpoints. A competitive
+endpoint is refitted with the remaining parameters free and checked
+for an improving direction into the model. At a selected endpoint
+the estimate is exact and joint Wald inference is withheld. A power
+of a mixture component with fitted weight zero is not identified.
+In a continuous type-3 fit, \code{kappa = 0} is excluded. Without a
+positive lower bound on \code{kappa}, fitting stops if the likelihood
+at the fitted base parameters increases toward that limit.
+With two count or jump cells and only the type-6 weight free, the
+mean is affine in the weight. The fit uses the exact Bernoulli or
+thinned Poisson optimum and its natural-scale information.
+For a continuous EGPD with free shape, an interior regular solution
+is a local fit, not a guarantee of a global maximum over all shapes.
+With fixed or fitted \eqn{\xi < -1}, fitting stops if the continuous
+endpoint can approach the largest positive observation from above:
+the likelihood is then unbounded. At \eqn{\xi=-1}, if \eqn{u g(u)}
+increases for carrier density \eqn{g}, the likelihood increases as
+free scale approaches the sample maximum from above. This is checked
+for types 1--4 and 6, and for type 5 with \eqn{\delta\le1} or
+\eqn{\kappa\ge2}. Its boundary
+limit is not an interior MLE; fitting stops instead of inverting a
+Hessian across the support boundary. Neither check applies to floored counts.
+For floored counts with \eqn{\xi\le-1/2}, the likelihood need not be
+twice differentiable when the endpoint crosses the upper edge of the
+highest observed cell. If the numerical Hessian spans that edge, the fit
+retains its estimates, warns and omits ordinary Wald inference.
+For type-1 floored counts without zero inflation, with fixed
+\eqn{\xi=-1} and observations in and below the highest cell, scale
+is fitted at its conditional maximum for each power, subject to its
+bounds. This includes a maximum at the edge of the highest cell.
+For a compound fit the same check applies to changes of jump support at
+grid edges that contribute to an observed total.}
 
 \item{bernstein.m}{integer: Bernstein polynomial degree (method="bernstein" only)}
 
-\item{cpegpd.h}{numeric: discretization step for cpegpd family.}
+\item{cpegpd.h}{numeric: gauge resolution \eqn{h} of the cpegpd family. The
+cpegpd law is that of \eqn{S_h = \sum_i h \lceil X_i/h \rceil}, a compound
+Poisson sum of EGPD amounts each rounded up to a multiple of \eqn{h} (see
+\code{\link{dcpegpd}}); for continuous (off-lattice) data use an \eqn{h}
+much smaller than typical amounts, otherwise \code{distfit()} warns. The
+cpegpd log-likelihood uses the probability of an exact zero for zero
+observations and the bin probability divided by \code{cpegpd.h} (a density
+approximation) for positive ones, i.e. a likelihood with respect to a point
+mass at zero plus Lebesgue measure: comparable across \code{cpegpd.h}, but
+not AIC-comparable with continuous families that place a density, not a
+mass, at zero.}
 
-\item{model.path}{character: path to a pre-trained .bson model file
-(method="neuralbayes" only). If NULL, uses bundled model.}
+\item{model.path}{character: path to a trained \code{.bson} model file
+with its \code{.bson.metadata.rds} sidecar (\code{method="neuralbayes"}).}
 
 \item{estimator}{character: \code{"npe"} for Neural Posterior Estimation or
 \code{"nbe"} for Neural Bayesian Estimation (method="neuralbayes" only).}
@@ -89,7 +193,27 @@ Julia dependencies.}
 \item{nsamples}{integer: number of posterior samples for NPE
 (method="neuralbayes" with estimator="npe" only).}
 
-\item{...}{additional arguments passed to \code{\link{optim}}}
+\item{npe.control}{optional named list of controls for the adaptive
+importance sampler that draws NPE posterior samples
+(method="neuralbayes", estimator="npe"): \code{K} (proposal draws per
+stage, default 5000), \code{K0} (prior draws in the first stage, default
+20000), \code{ess_target} (effective sample size at which sampling stops,
+default \code{nsamples} clamped to [200, 1000]), \code{ess_floor}
+(minimum ESS kept by the tempering schedule, default
+\code{max(200, 25 d)}), \code{max_stages} (default 30), \code{df}
+(degrees of freedom of the multivariate-t proposal, default 5),
+\code{inflate} (proposal covariance inflation, default 1.5) and
+\code{defensive} (weight of the prior in the proposal mixture, default
+0.1). \code{K}, \code{K0} and \code{max_stages} must be whole numbers
+(\code{max_stages} may be 0), \code{ess_target} and \code{ess_floor} at
+least 1, \code{df} and \code{inflate} positive, \code{defensive} in
+\eqn{[0, 1)}, and \code{K} at least twice \code{ess_floor}; other values
+are an error.}
+
+\item{...}{additional arguments passed to \code{\link{optim}}. For the
+closed-form Bernoulli and thinned Poisson reductions, scalar \code{lower}
+and \code{upper} bound \eqn{\mathrm{logit}(p_1)} or \eqn{\log(\mu)},
+respectively. A constrained maximum on a bound has no ordinary Wald SE.}
 }
 \value{
 An object of class \code{"distfit"} with components:
@@ -107,6 +231,12 @@ An object of class \code{"distfit"} with components:
   \item{family}{the distribution family}
   \item{method}{the fitting method}
   \item{fix.arg}{list of fixed arguments}
+  \item{reduction}{for a reduced MLE, the reason and representative constants
+    used only for evaluating the distribution, not parameter estimates}
+  \item{support.ridge}{whether the fitted count or jump support is too
+    small to identify all free parameters (ordinary MLE fits)}
+  \item{support.change}{whether observed-information inference was withheld
+    because the fitted count support changes across the Hessian stencil}
   \item{convergence}{convergence code from optim (0 = success)}
   \item{optim}{full optim output}
   \item{call}{the matched call}
@@ -114,12 +244,17 @@ An object of class \code{"distfit"} with components:
   \item{bernstein.weights}{Bernstein weights (NULL for method="mle")}
 }
 
-For \code{family="begpd"}, additional fields:
+For the neural families (\code{method = "neuralbayes"}), additional fields:
 \describe{
   \item{estimator_type}{"npe" or "nbe"}
   \item{model.path}{path to the .bson model used}
-  \item{posterior_samples}{6 x nsamples matrix of posterior draws (NPE) or NULL (NBE)}
+  \item{posterior_samples}{parameter-by-\code{nsamples} matrix of posterior
+    draws (NPE) or NULL (NBE)}
   \item{nsamples}{number of posterior samples (NPE) or NULL (NBE)}
+  \item{importance_sampling}{NPE only: list with \code{ess},
+    \code{ess_target}, \code{K}, \code{stages}, \code{unique},
+    \code{nsamples} and \code{path} of the adaptive importance sampler; NPE
+    fits have class \code{c("distfit_npe", "distfit")}}
 }
 }
 \description{
@@ -130,6 +265,30 @@ EGPD, the composite-Pareto model, the mixed-Poisson count families
 the bivariate/multivariate EGPD families. Formerly named \code{fitegpd};
 that name is retained as a deprecated alias.
 }
+\details{
+For \code{method = "neuralbayes"} with \code{estimator = "npe"},
+  posterior draws are obtained by adaptive importance sampling of the prior
+  times the learned likelihood-to-evidence ratio: the first stage samples the
+  prior, later stages fit heavy-tailed proposals to the reweighted particles,
+  and the final draws are a systematic resample of the importance weights.
+  The effective sample size (ESS), number of stages and number of distinct
+  draws are reported, with a warning when the ESS is below 200 or there are
+  few distinct draws. Neural MDGPD estimation covers the homogeneous model
+  only (common \eqn{\sigma}, \eqn{\xi} and generator rate).
+
+  For \code{method = "bernstein"}, the log-likelihood is evaluated in log
+  space (no clipping of the GPD probabilities, so tiny observations are exact)
+  with its exact gradient. With the default Nelder-Mead optimiser, whose
+  simplex can collapse on the flat ridges of this likelihood, the solution is
+  refined by alternating BFGS (with the exact gradient) and fresh Nelder-Mead
+  simplices. When a cycle stalls, the best direction toward a single
+  mixture component is checked on the weight scale: a near-zero weight
+  can hide an improvement on the logit scale. \code{convergence} is 0
+  when neither refinement improves the fit materially and 1 if this
+  does not happen within 20 cycles. A single free
+  parameter is fitted by BFGS, as for \code{method = "mle"}. These
+  unbounded refinements are not used when box constraints are supplied.
+}
 \examples{
 \dontrun{
 # Univariate fitting
@@ -138,9 +297,11 @@ fit <- distfit(x, type = 1)
 summary(fit)
 plot(fit)
 
-# Bivariate BEGPD (requires Julia)
+# Bivariate BEGPD (requires Julia and a trained model: no models are bundled;
+# see train_begpd())
 Y <- rbegpd(1000, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0.2)
-fit_biv <- distfit(Y, family = "begpd", method = "neuralbayes")
+fit_biv <- distfit(Y, family = "begpd", method = "neuralbayes",
+                   model.path = "path/to/begpd_model.bson")
 summary(fit_biv)
 plot(fit_biv)
 }

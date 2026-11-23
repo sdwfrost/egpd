@@ -3,6 +3,13 @@
 Derive the IDENTITY-LINK m=1 discrete-EGPD (DEGPD model 1) negative log-likelihood
 gradient and Hessian, for use in src/degpd.cpp functions degpd1id0 / degpd1id12.
 
+Historical symbolic reference only: these expressions are unstable near xi=0.
+The native identity d0/d12 implementation now uses second-order automatic
+differentiation of log1p(z)/z with its analytic Taylor continuation, shared by
+all six carriers in src/degpd1_identity.cpp. Do not replace it with these CSE
+fragments. High-order symbolic expressions still live in derive_degpd_d34.py
+and explicitly request a numerical outer-solver fallback near zero.
+
 Unlike the existing degpd1d12 (parameterised in lxi = log(xi), so xi>0), here the
 shape xi uses an IDENTITY link: parameters are (lsigma, xi, lkappa) with xi real
 (may be negative -> bounded/short tail, finite upper endpoint -sigma/xi).

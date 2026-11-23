@@ -12,5 +12,6 @@ These objects are imported from other packages. Follow the links
 below to see their documentation.
 
 \describe{
-  \item{gamlss.dist}{\code{\link[gamlss.dist:PIG]{PIG}}, \code{\link[gamlss.dist:ZIPIG]{ZIPIG}}}
+  \item{gamlss.dist}{\code{\link[gamlss.dist:PIG]{PIG()}}, \code{\link[gamlss.dist:ZIPIG]{ZIPIG()}}}
 }}
+

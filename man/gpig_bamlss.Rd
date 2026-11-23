@@ -20,3 +20,8 @@ Poisson-inverse Gaussian distribution of Zhu & Joe (2009) with
 down-weighting \eqn{c\in(0,1)} (logit link). The distribution functions use
 the package recursion (there is no \code{gamlss.dist} GPIG).
 }
+\details{
+Quantile residuals randomize between the CDF at the preceding count and
+at the observed count. Response residuals subtract the component mean
+\code{mu}, or \eqn{(1-\pi)\mu} for a zero-inflated family.
+}

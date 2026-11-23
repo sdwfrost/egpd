@@ -59,16 +59,49 @@ test_that("distfit rejects neuralbayes with non-multivariate family", {
 
 
 ## ---- Julia-dependent tests ----
+## No neural weights are bundled (inst/models/COMPATIBILITY.dcf: "Bundled-Weights:
+## none"), so these tests train a tiny network (2 epochs on 200 parameter draws)
+## once per file and run inference with it. They check loading, estimation and the
+## S3 methods end to end with real weights, not estimation accuracy, and skip
+## unless Julia can be started through JuliaConnectoR and loads the required Julia
+## packages (the R-side neural code is tested with mocks elsewhere).
 
-test_that("NPE inference produces valid distfit object", {
+skip_if_no_julia <- function() {
+  skip_on_cran()
   skip_if_not_installed("JuliaConnectoR")
   skip_if_not_installed("NeuralEstimators")
-  skip_if(system.file("models", "NPE.bson", package = "egpd") == "",
-          "Bundled NPE.bson model not found")
+  skip_if_not(isTRUE(tryCatch(JuliaConnectoR::juliaSetupOk(), error = function(e) FALSE)),
+              "Julia cannot be started by JuliaConnectoR")
+  ## egpd and NeuralEstimators::train() load these with `using`, which needs each
+  ## to be a direct dependency of the Julia environment
+  pkgs <- c("NeuralEstimators", "Flux", "BSON", "Optimisers")
+  found <- tryCatch(JuliaConnectoR::juliaEval(paste0(
+    "[Base.find_package(p) !== nothing for p in [",
+    paste0('"', pkgs, '"', collapse = ", "), "]]")), error = function(e) NULL)
+  if (!is.logical(found) || length(found) != length(pkgs) || anyNA(found))
+    found <- rep(FALSE, length(pkgs))
+  skip_if_not(all(found), paste("Julia packages not loadable:",
+                                paste(pkgs[!found], collapse = ", ")))
+}
+
+tiny_begpd_models <- local({
+  paths <- NULL
+  function() {
+    if (is.null(paths))
+      paths <<- suppressMessages(train_begpd(
+        savepath = file.path(tempdir(), "egpd-test-begpd"), K = 200L, m = 300L:600L,
+        epochs = 2L, stopping_epochs = 1L, mc.cores = 1L, seed = 1L, verbose = FALSE))
+    paths
+  }
+})
+
+test_that("NPE inference produces valid distfit object", {
+  skip_if_no_julia()
 
   set.seed(42)
   Y <- rbegpd(500, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0.2)
-  fit <- distfit(Y, family = "begpd", method = "neuralbayes", estimator = "npe")
+  fit <- distfit(Y, family = "begpd", method = "neuralbayes", estimator = "npe",
+                 model.path = tiny_begpd_models()$npe)
 
   expect_s3_class(fit, "distfit")
   expect_equal(fit$family, "begpd")
@@ -85,14 +118,12 @@ test_that("NPE inference produces valid distfit object", {
 })
 
 test_that("NBE inference produces valid distfit object", {
-  skip_if_not_installed("JuliaConnectoR")
-  skip_if_not_installed("NeuralEstimators")
-  skip_if(system.file("models", "NBE.bson", package = "egpd") == "",
-          "Bundled NBE.bson model not found")
+  skip_if_no_julia()
 
   set.seed(42)
   Y <- rbegpd(500, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0.2)
-  fit <- distfit(Y, family = "begpd", method = "neuralbayes", estimator = "nbe")
+  fit <- distfit(Y, family = "begpd", method = "neuralbayes", estimator = "nbe",
+                 model.path = tiny_begpd_models()$nbe)
 
   expect_s3_class(fit, "distfit")
   expect_equal(fit$estimator_type, "nbe")
@@ -102,14 +133,12 @@ test_that("NBE inference produces valid distfit object", {
 })
 
 test_that("S3 methods work for begpd NPE fit", {
-  skip_if_not_installed("JuliaConnectoR")
-  skip_if_not_installed("NeuralEstimators")
-  skip_if(system.file("models", "NPE.bson", package = "egpd") == "",
-          "Bundled NPE.bson model not found")
+  skip_if_no_julia()
 
   set.seed(42)
   Y <- rbegpd(500, kappa = 2, sigma = 1, xi = 0.1, thL = 5, thU = 5, thw = 0.2)
-  fit <- distfit(Y, family = "begpd", method = "neuralbayes", estimator = "npe")
+  fit <- distfit(Y, family = "begpd", method = "neuralbayes", estimator = "npe",
+                 model.path = tiny_begpd_models()$npe)
 
   ## print
   expect_output(print(fit), "bivariate BEGPD")

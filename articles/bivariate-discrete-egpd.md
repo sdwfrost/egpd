@@ -14,7 +14,7 @@ This vignette covers:
     `rbzidegpd()`
 3.  **Exploring the parameter space** – how parameters affect the
     discrete bivariate distribution
-4.  **Neural Bayes estimation** – fitting via `fitegpd()`
+4.  **Neural Bayes estimation** – fitting via `distfit()`
 5.  **Training custom models** – `train_bdegpd()`
 
 ## 1. The BDEGPD model
@@ -50,7 +50,7 @@ $$(Y_1, Y_2) = \begin{cases}
 |----|----|----|----|
 | `kappa` | $\kappa$ | $(0, \infty)$ | EGPD shape (controls bulk) |
 | `sigma` | $\sigma$ | $(0, \infty)$ | GPD scale (intensity) |
-| `xi` | $\xi$ | $(0, \infty)$ | GPD shape (tail heaviness) |
+| `xi` | $\xi$ | $[0, \infty)$ | GPD shape (tail heaviness) |
 | `thL` | $\theta_L$ | $(0, \infty)$ | Lower tail dependence |
 | `thU` | $\theta_U$ | $(0, \infty)$ | Upper tail dependence |
 | `thw` | $\theta_\omega$ | $(0, 0.5)$ | Lower/upper mixing transition |
@@ -70,20 +70,33 @@ set.seed(42)
 Y <- rbdegpd(2000, kappa = 2, sigma = 1, xi = 0.1,
              thL = 5, thU = 5, thw = 0.2)
 head(Y)
-#>      Y1 Y2
-#> [1,]  1  2
-#> [2,]  2  1
-#> [3,]  0  0
-#> [4,]  1  1
-#> [5,]  1  0
-#> [6,]  0  0
-cat("Dimensions:", nrow(Y), "x", ncol(Y), "\n")
-#> Dimensions: 2000 x 2
-cat("Storage mode:", storage.mode(Y), "\n")
-#> Storage mode: integer
-cat("Range Y1:", range(Y[, 1]), "  Range Y2:", range(Y[, 2]), "\n")
-#> Range Y1: 0 9   Range Y2: 0 7
 ```
+
+         Y1 Y2
+    [1,]  1  1
+    [2,]  3  0
+    [3,]  0  0
+    [4,]  1  0
+    [5,]  0  1
+    [6,]  0  0
+
+``` r
+cat("Dimensions:", nrow(Y), "x", ncol(Y), "\n")
+```
+
+    Dimensions: 2000 x 2 
+
+``` r
+cat("Storage mode:", storage.mode(Y), "\n")
+```
+
+    Storage mode: integer 
+
+``` r
+cat("Range Y1:", range(Y[, 1]), "  Range Y2:", range(Y[, 2]), fill = TRUE)
+```
+
+    Range Y1: 0 6   Range Y2: 0 8
 
 Since the data are integers, scatter plots benefit from jittering to
 avoid overplotting on the grid:
@@ -95,12 +108,17 @@ plot(jitter(Y[, 1]), jitter(Y[, 2]), pch = 20, cex = 0.3,
      col = adjustcolor("steelblue", 0.4))
 ```
 
-![](bivariate-discrete-egpd_files/figure-gfm/scatter-basic-1.png)<!-- -->
+![](bivariate-discrete-egpd_files/figure-gfm/scatter-basic-1.png)
 
-### Marginal distributions
+### Marginal and radial distributions
 
-The marginal distributions of a BDEGPD are univariate discrete EGPD
-(DEGPD):
+Per Alotaibi et al. (2025, Section 2.3.1), the continuous radial sum
+$R = Y_1^* + Y_2^*$ follows a univariate
+$\mathrm{EGPD}(\kappa, \sigma, \xi)$, whereas each continuous coordinate
+$Y_j^* = R W_j$ is an angular fraction of $R$ and is **not** univariate
+EGPD. Consequently, the marginal distributions of a BDEGPD
+($Y_j = \lfloor Y_j^* \rfloor$) are **not** univariate discrete EGPD
+(DEGPD), although they inherit flexible bulk-to-tail behavior from $R$:
 
 ``` r
 op <- par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -114,7 +132,7 @@ barplot(table(Y[, 2]) / nrow(Y), main = expression("Marginal " * Y[2]),
         col = "lightblue", border = "grey")
 ```
 
-![](bivariate-discrete-egpd_files/figure-gfm/marginals-1.png)<!-- -->
+![](bivariate-discrete-egpd_files/figure-gfm/marginals-1.png)
 
 ``` r
 par(op)
@@ -128,11 +146,16 @@ Y_zi <- rbzidegpd(2000, kappa = 2, sigma = 1, xi = 0.1,
                    thL = 5, thU = 5, thw = 0.2, pi0 = 0.3)
 
 joint_zeros <- mean(Y_zi[, 1] == 0 & Y_zi[, 2] == 0)
-cat("Proportion of joint (0,0) rows:", round(joint_zeros, 3), "\n")
-#> Proportion of joint (0,0) rows: 0.725
-cat("(Expected >= pi0 = 0.3 due to natural zeros)\n")
-#> (Expected >= pi0 = 0.3 due to natural zeros)
+cat("Proportion of joint (0,0) rows:", round(joint_zeros, 3), fill = TRUE)
 ```
+
+    Proportion of joint (0,0) rows: 0.742
+
+``` r
+cat("(Expected >= pi0 = 0.3 due to natural zeros)\n")
+```
+
+    (Expected >= pi0 = 0.3 due to natural zeros)
 
 ## 3. Exploring the parameter space
 
@@ -144,10 +167,10 @@ set.seed(123)
 n <- 3000
 
 scenarios <- list(
-  "Light tails, weak dep.\n(kappa=3, xi=0.05, thL=thU=10)" = list(
+  "Light tails, concentrated angles\n(kappa=3, xi=0.05, thL=thU=10)" = list(
     kappa = 3, sigma = 1, xi = 0.05, thL = 10, thU = 10, thw = 0.25
   ),
-  "Heavy tails, strong dep.\n(kappa=1, xi=0.3, thL=thU=1)" = list(
+  "Heavy tails, dispersed angles\n(kappa=1, xi=0.3, thL=thU=1)" = list(
     kappa = 1, sigma = 2, xi = 0.3, thL = 1, thU = 1, thw = 0.25
   ),
   "Asymmetric tails\n(kappa=0.5, thU=0.5)" = list(
@@ -175,7 +198,7 @@ for (i in seq_along(scenarios)) {
 }
 ```
 
-![](bivariate-discrete-egpd_files/figure-gfm/scenarios-1.png)<!-- -->
+![](bivariate-discrete-egpd_files/figure-gfm/scenarios-1.png)
 
 ``` r
 par(op)
@@ -183,12 +206,13 @@ par(op)
 
 **Key observations:**
 
-- **Light tails + weak dependence** ($\theta_L = \theta_U = 10$): Most
-  mass near zero, observations are roughly independent.
-- **Heavy tails + strong dependence** ($\theta_L = \theta_U = 1$):
-  Larger values, strong clustering along the diagonal.
-- **Asymmetric tails** ($\theta_U = 0.5$): Upper tail exhibits strong
-  dependence (both components tend to be simultaneously large).
+- **Light tails + concentrated angles** ($\theta_L = \theta_U = 10$):
+  Angles tend towards equal splitting and hence positive dependence, not
+  independence.
+- **Heavy tails + dispersed angles** ($\theta_L = \theta_U = 1$): Larger
+  radial values, with angles more dispersed than in the first case.
+- **Asymmetric tails** ($\theta_U = 0.5$): Upper-regime angles tend
+  towards the axes rather than the diagonal.
 - **Zero-inflation** ($\pi_0 = 0.4$): Prominent spike at $(0, 0)$ beyond
   what the base model produces.
 
@@ -232,7 +256,7 @@ plot(xi_vals, cors_xi, type = "b", pch = 16,
      main = expression("Correlation vs " * xi * " (thL=thU=3)"))
 ```
 
-![](bivariate-discrete-egpd_files/figure-gfm/dependence-1.png)<!-- -->
+![](bivariate-discrete-egpd_files/figure-gfm/dependence-1.png)
 
 ``` r
 par(op)
@@ -261,9 +285,9 @@ Neural Bayes estimation requires Julia (\>= 1.11):
 install.packages("JuliaConnectoR")
 remotes::install_github("msainsburydale/NeuralEstimators")
 
-# Julia packages (run in Julia REPL)
+# Julia packages (run in Julia REPL; training needs NeuralEstimators.jl >= 0.3)
 # using Pkg
-# Pkg.add(["NeuralEstimators", "Flux"])
+# Pkg.add(["NeuralEstimators", "Flux", "BSON", "Optimisers"])
 ```
 
 ### Fitting BDEGPD with NPE
@@ -274,24 +298,9 @@ set.seed(42)
 Y <- rbdegpd(2000, kappa = 2, sigma = 1, xi = 0.1,
              thL = 5, thU = 5, thw = 0.2)
 
-fit <- fitegpd(Y, family = "bdegpd", method = "neuralbayes",
+fit <- distfit(Y, family = "bdegpd", method = "neuralbayes",
                estimator = "npe", nsamples = 2000)
-#> Starting Julia ...
 summary(fit)
-#> Fitting of bivariate discrete EGPD (BDEGPD) [Experimental]
-#> Method: neuralbayes (npe)  [2000 posterior samples]
-#> 
-#> Posterior summary:
-#>        Median Post.SD   2.5%   97.5%
-#> kappa  4.4639  2.9727 1.0497 11.6862
-#> sigma  0.6261  0.2907 0.2781  1.3928
-#> xi     0.1644  0.1089 0.0189  0.4086
-#> thL   10.4917  6.6457 0.4548 23.0985
-#> thU    5.9366  2.7500 2.1401 12.6880
-#> thw    0.2468  0.1380 0.0239  0.5062
-#> 
-#> Note: log-likelihood, AIC, and BIC are not available for neural estimation
-#> Number of observations:  2000
 ```
 
 The summary reports posterior medians, posterior standard deviations,
@@ -305,24 +314,9 @@ set.seed(42)
 Y_zi <- rbzidegpd(2000, kappa = 2, sigma = 1, xi = 0.1,
                    thL = 5, thU = 5, thw = 0.2, pi0 = 0.3)
 
-fit_zi <- fitegpd(Y_zi, family = "bzidegpd", method = "neuralbayes",
+fit_zi <- distfit(Y_zi, family = "bzidegpd", method = "neuralbayes",
                    estimator = "npe", nsamples = 2000)
 summary(fit_zi)
-#> Fitting of zero-inflated bivariate discrete EGPD (BZIDEGPD) [Experimental]
-#> Method: neuralbayes (npe)  [2000 posterior samples]
-#> 
-#> Posterior summary:
-#>       Median Post.SD   2.5%   97.5%
-#> kappa 4.4341  3.2375 0.9710 12.6590
-#> sigma 0.7140  0.3058 0.2854  1.4558
-#> xi    0.1525  0.1110 0.0117  0.3980
-#> thL   9.0558  5.7425 0.8138 21.7481
-#> thU   5.5631  3.5441 0.8188 14.0769
-#> thw   0.2448  0.1453 0.0265  0.5436
-#> pi0   0.2830  0.2022 0.0117  0.6952
-#> 
-#> Note: log-likelihood, AIC, and BIC are not available for neural estimation
-#> Number of observations:  2000
 ```
 
 The BZIDEGPD fit estimates seven parameters (the six BDEGPD parameters
@@ -333,8 +327,6 @@ plus $\pi_0$).
 ``` r
 plot(fit)
 ```
-
-![](bivariate-discrete-egpd_files/figure-gfm/plot-bdegpd-1.png)<!-- -->
 
 The diagnostic plot for BDEGPD/BZIDEGPD shows four panels:
 
@@ -350,41 +342,10 @@ All standard S3 methods work for BDEGPD fits:
 
 ``` r
 coef(fit)                # Posterior median estimates
-#>      kappa      sigma         xi        thL        thU        thw 
-#>  4.4639300  0.6260749  0.1643711 10.4916605  5.9365554  0.2467834
 confint(fit)             # 95% credible intervals
-#>            2.5 %     97.5 %
-#> kappa 1.04971638 11.6862043
-#> sigma 0.27810013  1.3928321
-#> xi    0.01886868  0.4086458
-#> thL   0.45483744 23.0984520
-#> thU   2.14010119 12.6879775
-#> thw   0.02393668  0.5061973
 confint(fit, level = 0.9) # 90% credible intervals
-#>              5 %       95 %
-#> kappa 1.22198088 10.5169256
-#> sigma 0.31291928  1.2293342
-#> xi    0.02834650  0.3765619
-#> thL   0.76952539 21.0396645
-#> thU   2.61902144 11.3828131
-#> thw   0.03510398  0.4657240
 vcov(fit)                # Posterior covariance matrix
-#>             kappa         sigma            xi         thL         thU
-#> kappa  8.83694998 -0.6899915894  0.1563770554  0.65377973  1.51793503
-#> sigma -0.68999159  0.0845259258 -0.0218447414  0.02538595 -0.09186620
-#> xi     0.15637706 -0.0218447414  0.0118674455 -0.04100380 -0.03227446
-#> thL    0.65377973  0.0253859484 -0.0410038023 44.16575482 -1.38543428
-#> thU    1.51793503 -0.0918661964 -0.0322744626 -1.38543428  7.56240692
-#> thw    0.01575441  0.0000171725  0.0004262695  0.07639732  0.04364460
-#>                thw
-#> kappa 0.0157544105
-#> sigma 0.0000171725
-#> xi    0.0004262695
-#> thL   0.0763973182
-#> thU   0.0436446047
-#> thw   0.0190420774
 nobs(fit)                # Number of observations
-#> [1] 2000
 ```
 
 Since neural estimation bypasses the likelihood, `logLik()`, `AIC()`,
@@ -428,7 +389,7 @@ plot(jitter(Y_disc[, 1]), jitter(Y_disc[, 2]), pch = 20, cex = 0.3,
      col = adjustcolor("firebrick", 0.4))
 ```
 
-![](bivariate-discrete-egpd_files/figure-gfm/compare-begpd-1.png)<!-- -->
+![](bivariate-discrete-egpd_files/figure-gfm/compare-begpd-1.png)
 
 ``` r
 par(op)
@@ -436,8 +397,27 @@ par(op)
 
 ## 7. Training custom models
 
-The bundled `.bson` models were trained on broad uniform priors. For
-specific applications you may want to train on a narrower prior.
+No pre-trained `.bson` models are bundled with `egpd`. Train compatible
+weights with `train_bdegpd()`, pass the saved `.bson` path via
+`model.path`, and retain the generated `.bson.metadata.rds` sidecars
+(contract v3). Do not relabel old weights. NPE uses a
+likelihood-to-evidence ratio network rather than a normalising flow;
+posterior draws come from adaptive importance sampling of prior $\times$
+learned ratio, and the effective sample size and number of distinct
+draws are printed with the fit (with a warning below an ESS of 200). The
+sidecar records the training sample-size range and backend versions, and
+`distfit()` warns when the data size, the data support (non-negative
+integers) or the loaded NeuralEstimators.jl version differ from training
+(see `?train_begpd` for supported Julia/R version pairings).
+Compatibility metadata does not establish calibration. The training
+priors are also the priors used by the importance sampler.
+
+The training `seed` controls R simulations across parallel core counts
+and explicitly calls Julia’s `Random.seed!`. Backend/version
+nondeterminism may remain; mocked R tests do not verify Julia runtime
+execution or calibration. Large finite discrete counts use
+integer-valued double storage instead of overflowing R’s 32-bit integer
+range.
 
 ``` r
 # Quick training (for testing)
@@ -450,7 +430,7 @@ paths <- train_bdegpd(
 )
 
 # Use the custom-trained model
-fit_custom <- fitegpd(Y, family = "bdegpd", method = "neuralbayes",
+fit_custom <- distfit(Y, family = "bdegpd", method = "neuralbayes",
                       model.path = paths$npe, estimator = "npe")
 
 # Train BZIDEGPD model
@@ -484,4 +464,4 @@ American Statistician*, 78(1), 1–14.
 
 Naveau, P., Huser, R., Ribereau, P., and Hannart, A. (2016). Modeling
 jointly low, moderate, and heavy rainfall intensities without a
-threshold selection. *Water Resources Research*, 52(4), 2897–2911.
+threshold selection. *Water Resources Research*, 52(4), 2753–2769.

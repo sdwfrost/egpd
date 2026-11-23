@@ -36,25 +36,28 @@ summary(fit)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
+                Estimate Std. Error z value Pr(>|z|)
     (Intercept)     0.68       0.06   10.92   <2e-16
 
     shape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.22       0.03    7.24 2.25e-13
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.22       0.03    7.24  4.5e-13
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
+                Estimate Std. Error z value Pr(>|z|)
     (Intercept)     0.39       0.05    8.39   <2e-16
 
     ** Smooth terms **
 
-Compare fitted parameters with truth on the response scale:
+Compare fitted parameters with truth on the response scale.
+`predict(type = "response")` returns one column per distributional
+parameter (`scale`, `shape`, `kappa`, …) plus an `xi` column that
+duplicates `shape`, so we select the columns by name:
 
 ``` r
 pars <- predict(fit, type = "response")[1, ]
 truth <- c(scale = sigma_true, shape = xi_true, kappa = kappa_true)
-cbind(true = truth, fitted = round(unlist(pars), 4))
+cbind(true = truth, fitted = round(unlist(pars[names(truth)]), 4))
 ```
 
           true fitted
@@ -105,22 +108,22 @@ summary(fit_smooth)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
+                Estimate Std. Error z value Pr(>|z|)
     (Intercept)     0.56       0.06   10.11   <2e-16
 
     shape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.08       0.03    2.87  0.00202
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.08       0.03    2.87  0.00405
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
+                Estimate Std. Error z value Pr(>|z|)
     (Intercept)     0.41       0.04    9.29   <2e-16
 
     ** Smooth terms **
 
     logscale
-          edf max.df  Chi.sq Pr(>|t|)
-    s(x) 9.63     14 2795.83   <2e-16
+          edf max.df Chi.sq p-value
+    s(x) 9.64     14 2795.9  <2e-16
 
 The `plot` method shows the estimated smooth effect. The true function
 is `0.5 + 1.5 * sin(2*pi*x)` on the log-scale, centered around the
@@ -174,15 +177,15 @@ summary(fit_d)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
+                Estimate Std. Error z value Pr(>|z|)
     (Intercept)     1.14       0.08   13.77   <2e-16
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
+                Estimate Std. Error z value Pr(>|z|)
     (Intercept)    -1.13        0.1  -11.01   <2e-16
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
+                Estimate Std. Error z value Pr(>|z|)
     (Intercept)     0.63       0.07    9.38   <2e-16
 
     ** Smooth terms **
@@ -190,7 +193,7 @@ summary(fit_d)
 ``` r
 pars_d <- predict(fit_d, type = "response")[1, ]
 truth_d <- c(scale = sigma_true, shape = xi_true, kappa = kappa_true)
-cbind(true = truth_d, fitted = round(unlist(pars_d), 4))
+cbind(true = truth_d, fitted = round(unlist(pars_d[names(truth_d)]), 4))
 ```
 
           true fitted
@@ -268,45 +271,67 @@ summary(fit_d2)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.23       0.36    0.65    0.259
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     1.28       0.07   17.69   <2e-16
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.84        0.1   -8.79   <2e-16
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -1.47       0.15   -9.81   <2e-16
 
     logkappa1
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.87       0.26     3.3 0.000492
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)      0.5       0.06    8.56   <2e-16
 
     logdkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     2.15        0.6    3.57 0.000179
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     7.67        0.6   12.88   <2e-16
 
     logitp
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)        0       0.28       0    0.499
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     5.08       0.39   13.08   <2e-16
 
     ** Smooth terms **
 
 Compare fitted parameters with truth on the response scale. Note the
 reparameterization: kappa2 = kappa1 + exp(ldkappa), so the model
-estimates `ldkappa` (log of the difference) rather than kappa2 directly.
+estimates `ldkappa` (log of the difference) rather than kappa2 directly,
+and `predict()` returns `kappa1` and the difference `dkappa`.
 
 ``` r
 pars_d2 <- predict(fit_d2, type = "response")[1, ]
 truth_d2 <- c(scale = sigma_true, shape = xi_true, kappa1 = kappa1_true,
               kappa2 = kappa2_true, p = prob_true)
-fitted_d2 <- round(unlist(pars_d2), 4)
-cbind(true = truth_d2, fitted = fitted_d2)
+fitted_d2 <- c(scale = pars_d2$scale, shape = pars_d2$shape,
+               kappa1 = pars_d2$kappa1,
+               kappa2 = pars_d2$kappa1 + pars_d2$dkappa,
+               p = pars_d2$p)
+cbind(true = truth_d2, fitted = round(fitted_d2, 4))
 ```
 
-           true fitted
-    scale   3.0 1.2624
-    shape   0.3 0.4299
-    kappa1  1.5 2.3865
-    kappa2  3.0 8.5558
-    p       0.6 0.4998
+           true    fitted
+    scale   3.0    3.5976
+    shape   0.3    0.2298
+    kappa1  1.5    1.6542
+    kappa2  3.0 2142.9440
+    p       0.6    0.9938
+
+``` r
+# Log-likelihood at the estimates and at the true parameters
+ll_true_d2 <- sum(log(ddiscegpd(y, sigma = sigma_true, xi = xi_true,
+                                kappa = kappa1_true, delta = kappa2_true,
+                                prob = prob_true, type = 6)))
+c(fitted = as.numeric(logLik(fit_d2)), truth = ll_true_d2)
+```
+
+       fitted     truth 
+    -5777.575 -5782.379 
+
+The fit gives the second power a much larger value and much less weight
+than the generating model. These quite different parameter combinations
+give similar log-likelihoods per observation: the sample provides little
+information about the second power. A higher likelihood than at the
+generating parameters does not establish that the fit is a global
+maximum.
 
 Q-Q plot of randomized quantile residuals for the Model 2 fit:
 
@@ -356,23 +381,23 @@ summary(fit_d5)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
+                Estimate Std. Error z value Pr(>|z|)
     (Intercept)     1.13       0.09   13.24   <2e-16
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
+                Estimate Std. Error z value Pr(>|z|)
     (Intercept)    -1.15       0.12   -9.55   <2e-16
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.52       0.26       2   0.0226
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.52       0.26       2   0.0452
 
     ** Smooth terms **
 
 ``` r
 pars_d5 <- predict(fit_d5, type = "response")[1, ]
 truth_d5 <- c(scale = sigma_true, shape = xi_true, kappa = kappa_true)
-cbind(true = truth_d5, fitted = round(unlist(pars_d5), 4))
+cbind(true = truth_d5, fitted = round(unlist(pars_d5[names(truth_d5)]), 4))
 ```
 
           true fitted
@@ -426,15 +451,15 @@ summary(fit_d6)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
+                Estimate Std. Error z value Pr(>|z|)
     (Intercept)     1.01       0.07   15.12   <2e-16
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
+                Estimate Std. Error z value Pr(>|z|)
     (Intercept)    -1.15        0.1  -11.11   <2e-16
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
+                Estimate Std. Error z value Pr(>|z|)
     (Intercept)     0.85       0.08   11.32   <2e-16
 
     ** Smooth terms **
@@ -442,7 +467,7 @@ summary(fit_d6)
 ``` r
 pars_d6 <- predict(fit_d6, type = "response")[1, ]
 truth_d6 <- c(scale = sigma_true, shape = xi_true, kappa = kappa_true)
-cbind(true = truth_d6, fitted = round(unlist(pars_d6), 4))
+cbind(true = truth_d6, fitted = round(unlist(pars_d6[names(truth_d6)]), 4))
 ```
 
           true fitted
@@ -453,11 +478,6 @@ cbind(true = truth_d6, fitted = round(unlist(pars_d6), 4))
 ``` r
 set.seed(1)
 r_d6 <- rqresid(fit_d6)
-```
-
-    Warning in qnorm(u): NaNs produced
-
-``` r
 qqnorm(r_d6, main = "Q-Q Plot (DEGPD-6)", pch = 20, col = "grey60")
 qqline(r_d6, col = "red")
 ```
@@ -490,22 +510,22 @@ summary(fit_ds)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
+                Estimate Std. Error z value Pr(>|z|)
     (Intercept)     1.98       0.07    27.9   <2e-16
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
+                Estimate Std. Error z value Pr(>|z|)
     (Intercept)    -1.11        0.1  -11.41   <2e-16
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.38       0.05    7.16 4.17e-13
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.38       0.05    7.16 8.34e-13
 
     ** Smooth terms **
 
     logscale
-         edf max.df Chi.sq Pr(>|t|)
-    s(x) 1.9      9 621.91   <2e-16
+         edf max.df Chi.sq p-value
+    s(x) 1.9      9 621.92  <2e-16
 
 ``` r
 plot(fit_ds)
@@ -569,20 +589,20 @@ summary(fit_zi)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     1.12       0.17    6.53 3.22e-11
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     1.12       0.17    6.53 6.44e-11
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -1.37       0.21   -6.53 3.22e-11
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -1.37       0.21   -6.53 6.44e-11
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.47       0.22    2.17   0.0149
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.47       0.22    2.17   0.0298
 
     logitpi
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.78       0.13   -6.16 3.56e-10
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.78       0.13   -6.16 7.11e-10
 
     ** Smooth terms **
 
@@ -590,7 +610,7 @@ summary(fit_zi)
 pars_zi <- predict(fit_zi, type = "response")[1, ]
 truth_zi <- c(scale = sigma_true, shape = xi_true, kappa = kappa_true,
               pi = pi_true)
-cbind(true = truth_zi, fitted = round(unlist(pars_zi), 4))
+cbind(true = truth_zi, fitted = round(unlist(pars_zi[names(truth_zi)]), 4))
 ```
 
           true fitted
@@ -628,8 +648,8 @@ data.frame(
 ```
 
                 Model    logLik      AIC
-    1 DEGPD-1 (no ZI) -4555.870 9117.741
-    2       ZIDEGPD-1 -4544.395 9096.789
+    1 DEGPD-1 (no ZI) -4553.114 9112.227
+    2       ZIDEGPD-1 -4540.719 9089.438
 
 The ZIDEGPD model correctly fits better, confirming that zero-inflation
 is present in the data.

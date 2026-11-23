@@ -5,6 +5,22 @@
 
 const double xieps = 0.0;
 
+// [[Rcpp::export]]
+Rcpp::NumericMatrix egpd_tb_moments_cpp(Rcpp::NumericVector kappa,
+                                        Rcpp::NumericVector lo, Rcpp::NumericVector hi) {
+  R_xlen_t n = kappa.size();
+  if ((lo.size() != n && lo.size() != 1) || (hi.size() != n && hi.size() != 1))
+    Rcpp::stop("Incompatible truncated-beta interval lengths");
+  Rcpp::NumericMatrix out(n, 2);
+  for (R_xlen_t i = 0; i < n; ++i) {
+    TBnorm m = tb_interval(std::log(kappa[i]), lo[lo.size() == 1 ? 0 : i],
+                           hi[hi.size() == 1 ? 0 : i]);
+    out(i, 0) = m.logZ;
+    out(i, 1) = m.mean;
+  }
+  return out;
+}
+
 // //' Extended generalized Pareto distribution of type 1 (eGPD1) negative log-likelihood
 // //'
 // //' @param pars a list of vectors of coefficients for each eGPD parameter
@@ -44,7 +60,6 @@ if (off2.n_elem > 0) lkappavec += off2;
 }
 
 double y, lpsi, xi, lkappa;
-double ee1, ee4;
 double nllh=0.0;
 
 for (int j=0; j < nobs; j++) {
@@ -54,16 +69,7 @@ lpsi = lpsivec[j];
 xi = xivec[j];
 lkappa = lkappavec[j];
 
-ee1 = 1.0 / xi;
-ee4 = xi * y / exp(lpsi);
-
-if (ee4 <= -1.0) {
-    nllh = 1e20;
-    break;
-}
-
-nllh += (1.0 - exp(lkappa)) * log(1.0 - 1.0 / R_pow(1.0 + ee4, ee1)) + 
-          (1.0 + ee1) * log1p(ee4) + lpsi - lkappa;
+nllh += egpd_cont_nll(y, {lpsi, xi, lkappa}, 1);
     
 }
 
@@ -110,6 +116,8 @@ lpsi = lpsivec[j];
 xi = xivec[j];
 lkappa = lkappavec[j];
 
+if (egpd_cont_try_special(y, {lpsi, xi, lkappa}, 1, false, out, j)) continue;
+
 ee1 = exp(lpsi);
 ee2 = xi * y;
 ee3 = ee2/ee1;
@@ -150,6 +158,7 @@ out(j, 6) =  - (((((ee16/ee8 + ee17) * ee16 + ee31/ee7)/xi +
    y * (1/R_pow(xi, 2) + ee28)/ee12);
 out(j, 7) = ee11 * ee16/(xi * ee8);
 out(j, 8) = -ee25;
+egpd_cont_finish_row(y, {lpsi, xi, lkappa}, 1, false, out, j);
 
 }
 
@@ -209,6 +218,8 @@ y = yvec[j];
 lpsi = lpsivec[j];
 xi = xivec[j];
 lkappa = lkappavec[j];
+
+if (egpd_cont_try_special(y, {lpsi, xi, lkappa}, 1, true, out, j)) continue;
 
 ee1 = exp(lpsi);
 ee2 = xi * y;
@@ -341,7 +352,7 @@ ee173 = ee123/(ee72 * ee1);
 out(j, 0) = y * (ee67 * ee166/ee16 - ee71 * ee152/ee5)/ee1;
 out(j, 1) = y * (ee138 * ee67/ee16 - (ee6 * (ee162 - 1) - ee163/xi)/ee5)/ee1;
 out(j, 2) = ee125;
-out(j, 3) = y * (2 * ((ee6 * ee114 - ee49)/R_pow(ee5, 2)) -
+out(j, 3) = y * (2 * (y/ee1) * (1 - y/ee1)/R_pow(ee5, 3) -
    ee129 * ee67/ee16)/ee1;
 out(j, 4) = ee171;
 out(j, 5) = ee173;
@@ -398,6 +409,7 @@ out(j, 21) = ee127 * ee40/ee69;
 out(j, 22) = ee131;
 out(j, 23) = ee160;
 out(j, 24) = ee124;
+egpd_cont_finish_row(y, {lpsi, xi, lkappa}, 1, true, out, j);
 
 }
 
@@ -455,7 +467,6 @@ if (off4.n_elem > 0) logitpvec += off4;
 
 double y, lpsi, xi, lkappa1, lkappa2, logitp;
 // double ee1, ee2, ee4, ee6, ee7, ee8, ee9;
-double ee1, ee4, ee7, ee8, ee9, ee10;
 double nllh=0.0;
 
 for (int j=0; j < nobs; j++) {
@@ -472,21 +483,7 @@ lkappa1 = lkappa1vec[j];
 }
 logitp = logitpvec[j];
 
-ee1 = 1/xi;
-ee4 = xi * y/exp(lpsi);
-
-if (ee4 <= -1.0) {
-    nllh = 1e20;
-    break;
-}
-
-ee7 = 1 - 1/R_pow(1 + ee4, ee1);
-ee8 = 1 + exp(-logitp);
-ee9 = exp(lkappa1);
-ee10 = exp(lkappa2);
-
-nllh += (1 + ee1) * log1p(ee4) + lpsi - log((1 - 1/ee8) * R_pow(ee7, ee10 - 1) * 
-ee10 + R_pow(ee7, ee9 - 1) * ee9/ee8);
+nllh += egpd_cont_nll(y, {lpsi, xi, lkappa1, ldkappavec[j], logitp}, 2);
 
 // ee1 = 1 + xi * y/exp(lpsi);
 // ee2 = 1/xi;
@@ -580,6 +577,8 @@ lkappa1 = lkappa1vec[j];
   lkappa2 = mx + log1p(exp(-std::abs(lkappa1 - ldk)));
 }
 logitp = logitpvec[j];
+
+if (egpd_cont_try_special(y, {lpsi, xi, lkappa1, ldkappavec[j], logitp}, 2, false, out, j)) continue;
 
 // ee1 = exp(lpsi);
 // ee2 = xi * y;
@@ -866,6 +865,7 @@ out(j, 19) = ((ee69 - 2) * ee11/ee12 + 1) * ee40 * ee11/ee53;
   out(j, 16) = H43 + H44p * r1;
   out(j, 18) = H44p * r2;
 }
+egpd_cont_finish_row(y, {lpsi, xi, lkappa1, ldkappavec[j], logitp}, 2, false, out, j);
 
 }
 
@@ -997,6 +997,8 @@ xi = xivec[j];
 lkappa1 = lkappa1vec[j];
 lkappa2 = lkappa2vec[j];
 logitp = logitpvec[j];
+
+if (egpd_cont_try_special(y, {lpsi, xi, lkappa1, lkappa2, logitp}, -2, true, out, j)) continue;
 
 ee1 = exp(lpsi);
 ee2 = xi * y;
@@ -1580,8 +1582,7 @@ out(j, 3) = -(y * (ee367 - (ee576 + ee349 * (ee739 - ee563)/ee1)/ee36) * ee22 * 
 out(j, 4) = -(y * (ee142 + (ee349 * (ee522 + 2 * ee203)/ee1 -
    ee538)/ee36 - ee376) * ee12/ee228);
 out(j, 5) =  - (y * ((ee395 + (ee78 * (2 * ee173 + 2 * ee176 -
-   ee618) * ee31 - ee442)/ee145)/ee36 - 2 * ((ee10 * ee616 -
-   ee155)/R_pow(ee5, 2)))/ee1);
+   ee618) * ee31 - ee442)/ee145)/ee36 - 2 * (y/ee1) * (1 - y/ee1)/R_pow(ee5, 3))/ee1);
 out(j, 6) = -(y * (((ee78 * ee733 - ee446) * ee31/xi - ee677)/ee36 +
    ee400 + ee374) * ee9/ee324);
 out(j, 7) = -(y * (((ee78 * ee620 - ee451) * ee31/xi - ee579)/ee36 +
@@ -1937,6 +1938,7 @@ out(j, 104) =  - ((((((ee65 * ((ee239 - (4 * ee232 + ee246))/ee36 -
    2 * (1 + ee758) + 4 * ee14 + 6 * ee245 - ((4 * (ee255 + ee758) +
    8 * ee282 - 64 * ee12)/ee14 + 8) * ee12)/ee14 + 2) * ee12/ee14 -
    1) * ee65 * ee12/ee180);
+egpd_cont_finish_row(y, {lpsi, xi, lkappa1, lkappa2, logitp}, -2, true, out, j);
 
 }
 
@@ -1983,7 +1985,6 @@ if (off2.n_elem > 0) ldeltavec += off2;
 }
 
 double y, lpsi, xi, ldelta;
-double ee1, ee2, ee3, ee4, ee6, ee7;
 double nllh=0.0;
 
 for (int j=0; j < nobs; j++) {
@@ -2003,15 +2004,7 @@ ldelta = ldeltavec[j];
 // nllh -= log(-((R_pow(ee7, ee1 - 1)/R_pow(ee3, 1 + 2/xi) - (1 - R_pow(ee7, ee1)/ee6) * 
 // ee6/(R_pow(ee3, 1 + ee4) * ee1))/ee2));
 
-ee1 = exp(ldelta);
-ee4 = xi * y/exp(lpsi);
-
-if (ee4 <= -1.0) {
-    nllh = 1e20;
-    break;
-}
-
-nllh += (1 + 1/xi) * log1p(ee4) + ldelta + lpsi - (log(1 - 1/R_pow(1 + ee4, ee1/xi)) + log1p(ee1));
+nllh += egpd_cont_nll(y, {lpsi, xi, ldelta}, 3);
     
 }
 
@@ -2074,6 +2067,8 @@ y = yvec[j];
 lpsi = lpsivec[j];
 xi = xivec[j];
 ldelta = ldeltavec[j];
+
+if (egpd_cont_try_special(y, {lpsi, xi, ldelta}, 3, false, out, j)) continue;
 
 // ee1 = exp(lpsi);
 // ee2 = xi * y;
@@ -2266,11 +2261,232 @@ out(j, 6) = ((((ee40/ee17 + ee11 * ee21/xi)/xi + y * ((ee32 -
 out(j, 7) = (ee31 - (1/(ee12 * R_pow(ee4, ee30)) + ee31) * ee5 * ee11/xi) * ee5 * ee21/ee22;
 out(j, 8) = (((1/(ee12 * R_pow(ee4, ee34)) + ee10) * ee5 * ee11/xi -
    ee10) * ee11/ee22 - (1 - ee5/ee26)/ee26) * ee5;
+egpd_cont_finish_row(y, {lpsi, xi, ldelta}, 3, false, out, j);
     
 }
 
 return out;
 
+}
+
+// Truncated Taylor polynomials in the carrier-3 predictors (lpsi, xi, ldelta) to
+// total degree 4: compositions of smooth scalar functions then carry exact third
+// and fourth derivatives (used for the carrier term of the d34 tail row below).
+namespace {
+const int C3T_N = 35;
+struct C3TTable {
+  int id[5][5][5];
+  std::vector<int> px, py, pz;  // coefficient products x[px] * y[py] -> (x * y)[pz]
+  C3TTable() {
+    int a[C3T_N], b[C3T_N], c[C3T_N], n = 0;
+    for (int i = 0; i <= 4; ++i)
+      for (int k = 0; i + k <= 4; ++k)
+        for (int l = 0; i + k + l <= 4; ++l) {
+          a[n] = i; b[n] = k; c[n] = l; id[i][k][l] = n++;
+        }
+    for (int x = 0; x < C3T_N; ++x)
+      for (int w = 0; w < C3T_N; ++w)
+        if (a[x] + a[w] + b[x] + b[w] + c[x] + c[w] <= 4) {
+          px.push_back(x); py.push_back(w);
+          pz.push_back(id[a[x] + a[w]][b[x] + b[w]][c[x] + c[w]]);
+        }
+  }
+};
+const C3TTable& c3t_table() { static const C3TTable t; return t; }
+struct C3T {
+  double v[C3T_N];
+  explicit C3T(double x = 0.0) {
+    v[0] = x;
+    for (int i = 1; i < C3T_N; ++i) v[i] = 0.0;
+  }
+};
+C3T operator+(const C3T& x, const C3T& w) {
+  C3T r;
+  for (int i = 0; i < C3T_N; ++i) r.v[i] = x.v[i] + w.v[i];
+  return r;
+}
+C3T operator*(double s, const C3T& x) {
+  C3T r;
+  for (int i = 0; i < C3T_N; ++i) r.v[i] = s * x.v[i];
+  return r;
+}
+C3T operator*(const C3T& x, const C3T& w) {
+  const C3TTable& t = c3t_table();
+  C3T r;
+  for (size_t q = 0; q < t.pz.size(); ++q) r.v[t.pz[q]] += x.v[t.px[q]] * w.v[t.py[q]];
+  return r;
+}
+// f(x) from f and its first four derivatives at the value of x, d[0..4].
+C3T c3t_compose(const C3T& x, const double d[5]) {
+  C3T u = x, r(d[0]), p = x;
+  u.v[0] = p.v[0] = 0.0;
+  const double inv_fact[5] = {1.0, 1.0, 0.5, 1.0 / 6.0, 1.0 / 24.0};
+  for (int k = 1; k <= 4; ++k) {
+    r = r + (d[k] * inv_fact[k]) * p;
+    if (k < 4) p = p * u;
+  }
+  return r;
+}
+}
+
+// log A = log(y) - lpsi + log r(v), v = xi*y/psi, r(v) = log1p(v)/v.
+// Relative increments avoid powers of v or 1 + v; the series includes xi = 0.
+static C3T egpd3_logA_taylor(double y, double lpsi, double xi) {
+  const C3TTable& t = c3t_table();
+  const double fact[5] = {1.0, 1.0, 2.0, 6.0, 24.0};
+  const double log1p0[5] = {0.0, 1.0, -1.0, 2.0, -6.0};   // log1p and derivatives at 0
+  double z0 = y * std::exp(-lpsi);
+  C3T z, xv(xi);
+  for (int k = 0; k <= 4; ++k) z.v[t.id[k][0][0]] = z0 * ((k % 2) ? -1.0 : 1.0) / fact[k];
+  xv.v[t.id[0][1][0]] = 1.0;
+  C3T v = xv * z, lr;                    // lr = log r(v)
+  double v0 = v.v[0];
+  if (std::abs(v0) < 0.5) {
+    C3T r(1.0 / 61.0);                   // 0.5^60/61 < 1e-19
+    for (int k = 59; k >= 0; --k) r = C3T(((k % 2) ? -1.0 : 1.0) / (k + 1.0)) + v * r;
+    double r0 = r.v[0];
+    lr = c3t_compose((1.0 / r0) * r, log1p0);
+    lr.v[0] = std::log(r0);
+  } else {
+    double L0 = std::log1p(v0);
+    C3T un = (1.0 / v0) * v;             // v/v0 - 1 (constant dropped by compose)
+    C3T L = c3t_compose((v0 / (1.0 + v0)) * un, log1p0);   // log1p(v) - L0
+    lr = c3t_compose((1.0 / L0) * L, log1p0) + (-1.0) * c3t_compose(un, log1p0);
+    lr.v[0] = std::log(L0 / v0);
+  }
+  lr.v[0] += std::log(y) - lpsi;
+  lr.v[t.id[1][0][0]] -= 1.0;
+  return lr;
+}
+
+// -log(1 - exp(-w)), w = delta A. Its log(w)-derivatives are combinations of
+// s_k = w^k q P_k(q)/m^k, q = exp(-w), m = 1 - q.
+static C3T egpd3_tail_carrier(double y, double lpsi, double xi, double ldelta) {
+  const C3TTable& t = c3t_table();
+  C3T l = egpd3_logA_taylor(y, lpsi, xi);
+  l.v[0] += ldelta;
+  l.v[t.id[0][0][1]] += 1.0;
+  double w = std::exp(l.v[0]), s1 = 0.0, s2 = 0.0, s3 = 0.0, s4 = 0.0;
+  if (w < 750.0) {
+    double q = std::exp(-w), wm = w / -std::expm1(-w);
+    s1 = q * wm;
+    s2 = s1 * wm;
+    s3 = (1.0 + q) * s2 * wm;
+    s4 = (1.0 + q * (4.0 + q)) * s2 * wm * wm;
+  }
+  // d^k/dl^k of -log(1 - exp(-exp(l))), k = 1..4
+  double dr[5] = {0.0, -s1, s2 - s1, -s3 + 3.0 * s2 - s1, s4 - 6.0 * s3 + 7.0 * s2 - s1};
+  return c3t_compose(l, dr);
+}
+
+static void egpd3_pack_d34(const C3T& R, double* res) {
+  const C3TTable& t = c3t_table();
+  const double fact[5] = {1.0, 1.0, 2.0, 6.0, 24.0};
+  int col = 0;
+  for (int i = 0; i < 3; ++i)
+    for (int k = i; k < 3; ++k)
+      for (int m = k; m < 3; ++m) {
+        int e[3] = {0, 0, 0};
+        ++e[i]; ++e[k]; ++e[m];
+        res[col++] = fact[e[0]] * fact[e[1]] * fact[e[2]] * R.v[t.id[e[0]][e[1]][e[2]]];
+      }
+  for (int i = 0; i < 3; ++i)
+    for (int k = i; k < 3; ++k)
+      for (int m = k; m < 3; ++m)
+        for (int n = m; n < 3; ++n) {
+          int e[3] = {0, 0, 0};
+          ++e[i]; ++e[k]; ++e[m]; ++e[n];
+          res[col++] = fact[e[0]] * fact[e[1]] * fact[e[2]] * R.v[t.id[e[0]][e[1]][e[2]]];
+        }
+}
+
+// For small w = delta A, differentiate the entire NLL in its regular form:
+// lpsi + (1 + xi) A - log A - log1p(delta) - log((1 - exp(-w))/w).
+// The last term is w/2 - w^2/24 + w^4/2880 - w^6/181440 + O(w^8).
+// At w <= .01 the omitted fourth log(w)-derivative is below 5e-20.
+static bool egpd3_d34_small_row(double y, double lpsi, double xi, double ldelta,
+                                arma::mat& out, int j) {
+  if (!(y > 0.0) || !std::isfinite(ldelta) || egpd_cont_oos(y, lpsi, xi)) return false;
+  double A = egpd_tail_exponent(y * std::exp(-lpsi), xi);
+  if (!std::isfinite(A) || !(ldelta + std::log(A) <= std::log(0.01))) return false;
+  const C3TTable& t = c3t_table();
+  C3T logA = egpd3_logA_taylor(y, lpsi, xi), one_plus_xi(1.0 + xi);
+  one_plus_xi.v[t.id[0][1][0]] = 1.0;
+  const double da[5] = {A, A, A, A, A};
+  C3T nll = one_plus_xi * c3t_compose(logA, da) + (-1.0) * logA;
+  C3T logw = logA;
+  logw.v[0] += ldelta;
+  logw.v[t.id[0][0][1]] = 1.0;
+  double w = std::exp(logw.v[0]);
+  if (!(w <= 0.01)) return false;
+  const double dw[5] = {w, w, w, w, w};
+  C3T W = c3t_compose(logw, dw), W2 = W * W;
+  nll = nll + 0.5 * W + W2 * (C3T(-1.0/24) + W2 * (C3T(1.0/2880) + (-1.0/181440) * W2));
+  double res[25];
+  egpd3_pack_d34(nll, res);
+  // Only the two pure log-delta entries also differentiate -log1p(delta).
+  double p = R::plogis(ldelta, 0.0, 1.0, true, false);
+  double pq = p * R::plogis(ldelta, 0.0, 1.0, false, false);
+  res[9] -= pq * (1.0 - 2.0*p);
+  res[24] -= pq * (1.0 - 6.0*pq);
+  for (int c = 0; c < 25; ++c) out(j, c) = res[c];
+  return out.row(j).is_finite();
+}
+
+// The generated carrier-3 d34 forms contain powers exp((delta - 4) A), A = -log of
+// the GPD survival: subnormal or zero beyond (4 - delta) A ~ 708, where the rows
+// lose accuracy (d4 2.5e-6 off at 720 with delta = 1e-3) and then overflow. Such
+// rows go to the tail row, except where exp(-delta A) is negligible (the tail
+// row's original case): there the generated forms stay accurate while finite.
+static bool egpd3_d34_far(double y, double lpsi, double xi, double ldelta) {
+  double A = egpd_tail_exponent(y * std::exp(-lpsi), xi);
+  double delta = std::exp(ldelta);
+  return (4.0 - delta) * A > 700.0 &&
+    !(delta * A - 4.0 * std::log(std::max(1.0, delta)) > 40.0);
+}
+
+// Carrier-3 d34 rows whose generated forms are non-finite or inaccurate (next to
+// the xi < 0 endpoint or far in the tail, see egpd3_d34_far); the predictor-scale
+// stencil that would otherwise replace them is swamped by the rounding of
+// 1 + xi y/psi (the fourth derivatives were 45-160% off for 1 + xi y/psi ~ 1e-6).
+// The row is the GPD part, taken from the carrier-1 forms at kappa = 1 (no delta
+// powers, accurate there), plus the log-delta derivatives of
+// log(delta) - log1p(delta), plus those of the carrier term -log(1 - exp(-delta A))
+// (egpd3_tail_carrier). Once exp(-delta A) max(1, delta)^4 < exp(-40) the carrier
+// term is negligible to double precision and is left out (mixed entries vanish).
+// Returns false (row unchanged) if the GPD part is non-finite.
+static bool egpd3_d34_tail_row(double y, double lpsi, double xi, double ldelta,
+                               arma::mat& out, int j) {
+  double A = egpd_tail_exponent(y * std::exp(-lpsi), xi);
+  double delta = std::exp(ldelta);
+  bool carrier = !(delta * A - 4.0 * std::log(std::max(1.0, delta)) > 40.0);
+  Rcpp::List pars = Rcpp::List::create(Rcpp::NumericVector::create(lpsi),
+                                       Rcpp::NumericVector::create(xi),
+                                       Rcpp::NumericVector::create(0.0));
+  Rcpp::List none = Rcpp::List::create(Rcpp::NumericVector(0), Rcpp::NumericVector(0),
+                                       Rcpp::NumericVector(0));
+  arma::mat one(1, 1, arma::fill::ones);
+  arma::vec yv(1);
+  yv[0] = y;
+  arma::uvec id(1, arma::fill::zeros);
+  arma::mat gpd = egpd1d34(pars, one, one, one, yv, id, 0, none);
+  if (!gpd.is_finite()) return false;
+  // .indices(3) order: d3 (111)(112)(113)(122)(123)(133)(222)(223)(233)(333),
+  // d4 (1111)(1112)(1113)(1122)(1123)(1133)(1222)(1223)(1233)(1333)(2222)...(3333);
+  // entries without parameter 3 (log delta) come from the GPD part, mixed ones vanish.
+  const int gpd_cols[9] = {0, 1, 3, 6, 10, 11, 13, 16, 20};
+  out.row(j).zeros();
+  for (int c = 0; c < 9; ++c) out(j, gpd_cols[c]) = gpd(0, gpd_cols[c]);
+  double s = 1.0 / (1.0 + std::exp(-ldelta));   // delta / (1 + delta)
+  double v = s * (1.0 - s);
+  out(j, 9) = -v * (1.0 - 2.0 * s);
+  out(j, 24) = -v * (1.0 - 6.0 * v);
+  if (carrier) {
+    double res[25];
+    egpd3_pack_d34(egpd3_tail_carrier(y, lpsi, xi, ldelta), res);
+    for (int c = 0; c < 25; ++c) out(j, c) += res[c];
+  }
+  return true;
 }
 
 // //' @rdname egpd3d0
@@ -2386,6 +2602,9 @@ y = yvec[j];
 lpsi = lpsivec[j];
 xi = xivec[j];
 ldelta = ldeltavec[j];
+
+if (egpd3_d34_small_row(y, lpsi, xi, ldelta, out, j) ||
+    egpd_cont_try_special(y, {lpsi, xi, ldelta}, 3, true, out, j)) continue;
 
 // ee1 = exp(lpsi);
 // ee2 = xi * y;
@@ -3088,7 +3307,7 @@ out(j, 2) =  - (y * (ee181 + ee6 * (y * (2 * (ee89/ee38) + 2 * (ee32/(ee67 * R_p
    ee191) * ee6/ee112);
 out(j, 3) = y * ((((ee195 + (2 * (ee98/ee17) + 2 * (ee189/(ee67 * R_pow(ee4, (ee248 -
    2)/xi + 1)))) * ee20) * ee6/ee29 +
-   ee193)/xi + ee196) * ee6/ee29 + 2 * (ee7 * ee245 - ee87)/R_pow(ee4, 2))/ee1;
+   ee193)/xi + ee196) * ee6/ee29 + 2 * (y/ee1) * (1 - y/ee1)/R_pow(ee4, 3))/ee1;
 out(j, 4) =  - (y * (((ee274/ee16 + (ee212 + 2 * (ee32/(ee67 * R_pow(ee4, ee286 +
    1))) - ee203) * ee20) * ee6/ee29 - ee198)/xi +
    ee210) * ee6/ee112);
@@ -3223,6 +3442,9 @@ out(j, 24) = ((((ee204 * ee90 + ((2 * (ee163/ee101) + 4 * (ee156/ee101) +
    ee71) * ee6 * ee8/xi) * ee6 * ee8/xi - ee24) * ee8/ee67 -
    (1 - (7 - ((2 * (1 + ee74) + 4 * ee153 - 8 * ee6)/ee153 +
    6) * ee6/ee153) * ee6/ee153)/ee153) * ee6;
+if (!out.row(j).is_finite() || egpd3_d34_far(y, lpsi, xi, ldelta))
+  egpd3_d34_tail_row(y, lpsi, xi, ldelta, out, j);
+egpd_cont_finish_row(y, {lpsi, xi, ldelta}, 3, true, out, j);
     
 }
 
@@ -3274,7 +3496,6 @@ if (off3.n_elem > 0) lkappavec += off3;
 }
 
 double y, lpsi, xi, ldelta, lkappa;
-double ee1, ee4, ee5, ee6, ee7, ee8;
 double nllh=0.0;
 
 for (int j=0; j < nobs; j++) {
@@ -3309,22 +3530,7 @@ ee1)) * R_pow(1 - ee8/(ee5 * ee1), ee9/2 - 1) * ee9/(2 * ee2)));
 // ee1)) + (1 + ee8) * log1p(ee4) + 0.693147180559945 + 
 // ldelta + lpsi - (lkappa + log(1 - 1/ee6) + log1p(ee1));
 
-ee1 = exp(ldelta);
-ee4 = xi * y/exp(lpsi);
-
-if (ee4 <= -1.0) {
-    nllh = 1e20;
-    break;
-}
-
-ee5 = 1 + ee4;
-ee6 = R_pow(ee5, ee1/xi);
-ee7 = 1 + ee1;
-ee8 = 1/xi;
-
-nllh += (1 - 0.5 * exp(lkappa)) * log(1 - (1 - 1/(ee7 * ee6)) * ee7/(R_pow(ee5, ee8) * 
-ee1)) + (1 + ee8) * log1p(ee4) + 0.693147180559945 + 
-ldelta + lpsi - (lkappa + log(1 - 1/ee6) + log1p(ee1));
+nllh += egpd_cont_nll(y, {lpsi, xi, ldelta, lkappa}, 4);
 
 }
 
@@ -3416,6 +3622,8 @@ lpsi = lpsivec[j];
 xi = xivec[j];
 ldelta = ldeltavec[j];
 lkappa = lkappavec[j];
+
+if (egpd_cont_try_special(y, {lpsi, xi, ldelta, lkappa}, 4, false, out, j)) continue;
 
 // ee1 = exp(lpsi);
 // ee2 = exp(ldelta);
@@ -3867,12 +4075,101 @@ out(j, 11) = (((1/(ee30 * R_pow(ee5, ee88)) + ee23) * ee1 * ee10/xi -
    2 * ee7)/ee12) * ee14/ee1) * ee41/ee28;
 out(j, 12) = 0.5 * (ee53 * ee31/ee28);
 out(j, 13) = -ee82;
+egpd_cont_finish_row(y, {lpsi, xi, ldelta, lkappa}, 4, false, out, j);
     
 
 }
 
 return out;
 
+}
+
+// Entry (2,2,3,3) = d^4 NLL / (d xi^2 d ldelta^2) of the generated egpd4d34
+// below was wrong; it is replaced by this SymPy-derived expression.
+// GENERATED by derive_egpd_d34.py (entry egpd4 2,2,3,3) -- do not edit by hand.
+static inline double egpd4_d4_2233(double y, double lpsi, double xi, double ldelta, double lkappa) {
+  const double q0 = 1.0/xi;
+  const double q1 = exp(2*ldelta);
+  const double q2 = y*exp(-lpsi);
+  const double q3 = q2*xi;
+  const double q4 = log1p(q3);
+  const double q5 = q0*q4;
+  const double q6 = -q5;
+  const double q7 = q3 + 1;
+  const double q8 = q2/q7;
+  const double q9 = q6 + q8;
+  const double q10 = pow(q9, 2);
+  const double q11 = q0*q10;
+  const double q12 = 4*q1*q11;
+  const double q13 = exp(ldelta);
+  const double q14 = q13*q5;
+  const double q15 = -q14;
+  const double q16 = expm1(q15);
+  const double q17 = exp(-2*q14)/pow(q16, 2);
+  const double q18 = exp(q15);
+  const double q19 = 1.0/q16;
+  const double q20 = q18*q19;
+  const double q21 = exp(3*ldelta);
+  const double q22 = pow(xi, -2);
+  const double q23 = q22*q4;
+  const double q24 = q21*q23;
+  const double q25 = exp(-3*q14)/pow(q16, 3);
+  const double q26 = q10*q17;
+  const double q27 = q10*q20;
+  const double q28 = pow(q4, 2);
+  const double q29 = q28/pow(xi, 3);
+  const double q30 = q29*exp(4*ldelta);
+  const double q31 = q10*q30;
+  const double q32 = 2*q23;
+  const double q33 = 2*q0;
+  const double q34 = -q32 + q33*q8 + pow(y, 2)*exp(-2*lpsi)/pow(q7, 2);
+  const double q35 = q18*q34;
+  const double q36 = q19*q35;
+  const double q37 = 3*q5;
+  const double q38 = q1*q37;
+  const double q39 = q17*q34;
+  const double q40 = q22*q28;
+  const double q41 = q21*q40;
+  const double q42 = 1 - q18;
+  const double q43 = q42*exp(-ldelta);
+  const double q44 = q42 + q43;
+  const double q45 = -q44;
+  const double q46 = exp(q6);
+  const double q47 = q43 + 1;
+  const double q48 = q46*q47 - 1;
+  const double q49 = exp(lkappa) - 2;
+  const double q50 = q18*q5;
+  const double q51 = q43 - q50;
+  const double q52 = q49*pow(q51, 2);
+  const double q53 = -q9;
+  const double q54 = q0*q53*q9;
+  const double q55 = q14*q18;
+  const double q56 = -q43 + q50;
+  const double q57 = q55 + q56;
+  const double q58 = -q57;
+  const double q59 = exp(-2*q5)/pow(q48, 2);
+  const double q60 = q49*q54;
+  const double q61 = q13*q18;
+  const double q62 = q40*q61 + q56;
+  const double q63 = exp(-q37)/pow(q48, 3);
+  const double q64 = q44*q63;
+  const double q65 = q49*q51;
+  const double q66 = q33*q53*q65*q9;
+  const double q67 = q1*q40;
+  const double q68 = q18*q67 - q55 + q62;
+  const double q69 = (1.0/2.0)*q49;
+  const double q70 = q59*q69;
+  const double q71 = q54*q70;
+  const double q72 = 2*q18;
+  const double q73 = -q11*q47 + q11*q61 + q11*q72 - q34*q47 + q35;
+  const double q74 = -q51;
+  const double q75 = pow(q53, 2);
+  const double q76 = q0*q75;
+  const double q77 = q18*q75;
+  const double q78 = q1*q23*q77;
+  const double q79 = q14*q35 + q32*q61*q75 - q61*q76;
+  const double q80 = -q62;
+  return q0*(10*q10*q24*q25 + q12*q17 - q12*q20 - q13*q36 - 15*q24*q26 + 5*q24*q27 - 12*q25*q31 - 2*q25*q34*q41 + 7*q26*q30 - q27*q30 + q36*q38 - q36*q41 - q38*q39 + 3*q39*q41 + 3*q44*q45*q52*q54*exp(-4*q5)/pow(q48, 4) + q44*q68*q71 + q45*q57*q63*q66 + q45*q60*q62*q64 - q45*q68*q71 - q46*q69*(-q1*q29*q72*q75 - q21*q29*q77 + q34*q80 - q35*q67 + q76*q80 + 3*q78 + q79)/q48 + q52*q63*q73 + q57*q58*q59*q60 + q58*q64*q66 - q59*q65*(q34*q74 + q74*q76 + q78 + q79) + q62*q70*q73 + 6*q31*exp(-4*q14)/pow(q16, 4));
 }
 
 // //' @rdname egpd4d0
@@ -4015,7 +4312,7 @@ double ee1054, ee1058;
 double ee1066, ee1068;
 double ee1073, ee1074, ee1075, ee1076, ee1077, ee1078;
 double ee1080, ee1081, ee1082, ee1083, ee1084, ee1085, ee1086, ee1087, ee1088, ee1089;
-double ee1090, ee1092, ee1093, ee1094, ee1095, ee1096, ee1097, ee1098, ee1099;
+double ee1090, ee1092, ee1093, ee1094, ee1095, ee1096, ee1097, ee1098;
 double ee1100, ee1101, ee1102, ee1103, ee1104, ee1105, ee1106, ee1107, ee1108, ee1109;
 double ee1110, ee1112, ee1113, ee1114, ee1115, ee1116, ee1117;
 double ee1120, ee1121, ee1122, ee1123, ee1124, ee1125, ee1126, ee1128;
@@ -4030,6 +4327,8 @@ lpsi = lpsivec[j];
 xi = xivec[j];
 ldelta = ldeltavec[j];
 lkappa = lkappavec[j];
+
+if (egpd_cont_try_special(y, {lpsi, xi, ldelta, lkappa}, 4, true, out, j)) continue;
 
 ee1 = exp(lpsi);
 ee2 = exp(ldelta);
@@ -4718,7 +5017,6 @@ ee1095 = ee21 - ee78 * (ee216 + 4/ee23 - ee289 * (ee814 +  4/ee86 - ee3 * ee84/e
 ee1096 = ee896 - ee386;
 ee1097 = ee101 + ee36;
 ee1098 = ee216 - (ee8 * ee216 * ee7 + ee3 * (ee8 * ee607 +  ee803)/ee1);
-ee1099 = ee25 + ee335;
 ee1100 = 2 * (ee833 * ee72);
 ee1101 = 2 * ee703;
 ee1102 = 2 * ee834;
@@ -4777,7 +5075,7 @@ out(j, 3) = ee1089;
 out(j, 4) =  - (y * (ee926 * ee296/ee72 - ((((ee764 + (2 * (ee358/ee66) +
    2 * (ee750/(ee317 * R_pow(ee5, (ee905 - 2)/xi +
    1)))) * ee74) * ee2/ee93 + ee759)/xi + ee773) * ee2/ee93 +
-   2 * ((ee26 * ee900 - ee196)/R_pow(ee5, 2))))/ee1);
+   2 * (y/ee1) * (1 - y/ee1)/R_pow(ee5, 3)))/ee1);
 out(j, 5) =  - (y * (ee921 * ee296/ee72 + (((ee1039/ee9 + (ee810 +
    2 * (ee15/(ee317 * R_pow(ee5, ee1074 + 1))) - ee797) * ee74) * ee2/ee93 -
    ee780)/xi + ee808) * ee2/ee93)/ee1);
@@ -5068,34 +5366,7 @@ out(j, 41) =  - ((((((ee755 + (ee120 * (ee1102 + ee1121 + ee908) * ee31/ee389 +
    (ee992 * ee2 + ee963 + 2 * (ee169 * ee594)) * ee74)/xi +
    ee539 * ee244) * ee2/ee93)/xi);
 out(j, 42) = 0.5 * (ee923 * ee197/ee389);
-out(j, 43) =  - ((((((((ee987 + ee430 * ee14 * ee2/ee48 - ee947) * ee31 +
-   2 * (ee374 * ee129) - (ee225 * ee80 + 2 * (ee399 * ee63/xi)) * ee7)/xi +
-   (2 * ((((ee76 - ee1099) * ee2 * ee7/xi +
-   ee335 - ee77) * ee7/xi + y * ((ee746 - ee67) * ee2 * ee7/xi +
-   ee58 - ee247)/ee1) * ee2 * ee7/xi + ((ee76 - ee108) * ee2 * ee7/xi +
-   ee25 - ee25) * ee50 + y * ((((ee699 - ee67) * ee2 * ee7/xi +
-   ee21 + ee58 - ee635) * ee7/xi + y * ((ee8 * (ee75 +
-   ee336 - ee216) - ee696) * ee7 + ee75 + ee184 - ee75)/ee1) * ee2 +
-   ee21 - ee21)/ee1) - 2 * ee399)/ee20) * ee12 -
-   ee186 * ee132)/ee2 + 2 * (ee483 * ee53/xi)) * ee34 + ((((ee116 * (ee1121 +
-   ee908) + 2 * (ee954 * ee31))/ee72 + 4 * ee832) * ee120 * ee31/ee72 +
-   2 * (ee831 * ee120 * ee31 + R_pow(ee327, 2)))/xi +
-   ee309 * ee1024 + 2 * (ee828 * ee116))/ee72 +
-   (ee190 * ee80 + (2 * (ee535 * ee60) - 2 * (ee553 * ee53/ee24)) * ee2)/ee12 +
-   ee186 * ee195 - (((((ee335 - (ee1099 -
-   ee42) * ee2 * ee7/xi) * ee7/xi - y * ee1126/ee1) * ee2 * ee7/xi +
-   ee349 * ee50)/xi + y * ((ee21 - (ee1058 - ee1156) * ee2)/xi +
-   ee44)/ee1 - ((((ee108 + ee77 - ee418) * ee7/xi - y * ee1096/ee1) * ee2 * ee7/xi +
-   ee520 * ee50)/xi + y * ((ee101 -
-   ((ee635 - ee386) * ee7/xi - ee1116) * ee2)/xi + ee1152)/ee1 -
-   2 * ee489) * ee2/ee12)/ee24 + 2 * (((ee537 * ee31 + 2 * (ee204 * ee205)) * ee2/ee12 +
-   ee573 * ee31/ee20)/xi))) * ee296/ee72 -
-   ((((ee340 * ee801 - 2 * (ee774/ee9)) * ee7 + (((2 * (ee688/ee431) +
-   8 * (ee15/(xi * R_pow(ee5, (ee1114 + ee95)/xi))) -
-   4 * (ee732/ee506))/ee93 - 4 * (ee244/ee506)) * ee2 * ee7/ee317 +
-   2 * (R_pow(ee244, 2) + ee744/ee66)) * ee182) * ee2/ee93 +
-   (((ee47 * (ee912 - ee634) - ee1115) * ee7/xi +
-   ee249 + ee249 + ee249) * ee2 + ee438) * ee182)/xi + ee169 * ee744) * ee2/ee93)/xi);
+out(j, 43) = egpd4_d4_2233(y, lpsi, xi, ldelta, lkappa);
 out(j, 44) = 0.5 * (ee931 * ee197/ee389);
 out(j, 45) = ee1082;
 out(j, 46) =  - (((((ee640 + ((ee120 * ee1104 * ee31 + 2 * (ee943 * ee72))/ee72 +
@@ -5147,6 +5418,7 @@ out(j, 51) = 0.5 * (ee986 * ee197/ee72);
 out(j, 52) = ee1083;
 out(j, 53) = ee1084;
 out(j, 54) = ee914;
+egpd_cont_finish_row(y, {lpsi, xi, ldelta, lkappa}, 4, true, out, j);
 
 }
 
@@ -5192,7 +5464,6 @@ if (off2.n_elem > 0) lkappavec += off2;
 }
 
 double y, lpsi, xi, lkappa;
-double kappa, psi, ee4, ee3, ee5, ee7, v2, denom, sqk;
 double nllh=0.0;
 
 for (int j=0; j < nobs; j++) {
@@ -5202,23 +5473,7 @@ lpsi = lpsivec[j];
 xi = xivec[j];
 lkappa = lkappavec[j];
 
-psi = exp(lpsi);
-kappa = exp(lkappa);
-ee4 = xi * y / psi;
-
-if (ee4 <= -1.0) {
-    nllh = 1e20;
-    break;
-}
-
-ee3 = 1.0 + ee4;
-ee5 = 1.0 / xi;
-ee7 = R_pow(ee3, ee5);
-v2 = 1.0 / (ee7 * ee7);
-sqk = sqrt(kappa);
-denom = 0.5 - R::pnorm(-sqk, 0.0, 1.0, 1, 0);
-
-nllh += -0.5 * lkappa + 0.5 * log(2.0 * M_PI) + 0.5 * kappa * v2 + log(denom) + lpsi + (1.0 + ee5) * log(ee3);
+nllh += egpd_cont_nll(y, {lpsi, xi, lkappa}, 5);
 
 }
 
@@ -5269,6 +5524,8 @@ lpsi = lpsivec[j];
 xi = xivec[j];
 lkappa = lkappavec[j];
 
+if (egpd_cont_try_special(y, {lpsi, xi, lkappa}, 5, false, out, j)) continue;
+
 psi = exp(lpsi);
 kappa = exp(lkappa);
 sqk = sqrt(kappa);
@@ -5276,7 +5533,7 @@ ee4 = xi * y / psi;
 ee3 = 1.0 + ee4;
 ee5 = 1.0 / xi;
 ee6 = 1.0 + ee5;
-ee10 = log(ee3);
+ee10 = log1p(ee4);
 
 // v = (1+xi*y/psi)^(-1/xi), v2 = v^2
 v = 1.0 / R_pow(ee3, ee5);
@@ -5328,7 +5585,7 @@ d2lv_dxi2 = (-2.0 * (ee10 - A) + A * ee4 / ee3) / (xi * xi * xi);
 // d(ee6*ee10)/d(lpsi) = ee6*(-A) = -ee6*A
 
 // denom and related:
-denom = 0.5 - R::pnorm(-sqk, 0.0, 1.0, 1, 0);
+denom = egpd_tn_norm(kappa);
 phisqk = R::dnorm(sqk, 0.0, 1.0, 0);
 // ratio = sqk*phisqk/(2*denom)
 ratio = sqk * phisqk / (2.0 * denom);
@@ -5422,6 +5679,7 @@ out(j, 5) = d2nll_lpsilk;
 out(j, 6) = d2nll_xi2;
 out(j, 7) = d2nll_xilk;
 out(j, 8) = d2nll_lk2;
+egpd_cont_finish_row(y, {lpsi, xi, lkappa}, 5, false, out, j);
 
 }
 
@@ -5467,12 +5725,7 @@ if (off2.n_elem > 0) lkappavec += off2;
 }
 
 double y, lpsi, xi, lkappa;
-double kappa, psi, ee4, ee3, ee5, ee7, F, t;
-double lo, hi, nf;
 double nllh=0.0;
-
-lo = 1.0 / 32.0;
-hi = 0.5;
 
 for (int j=0; j < nobs; j++) {
 
@@ -5481,24 +5734,7 @@ lpsi = lpsivec[j];
 xi = xivec[j];
 lkappa = lkappavec[j];
 
-psi = exp(lpsi);
-kappa = exp(lkappa);
-ee4 = xi * y / psi;
-
-if (ee4 <= -1.0) {
-    nllh = 1e20;
-    break;
-}
-
-ee3 = 1.0 + ee4;
-ee5 = 1.0 / xi;
-ee7 = R_pow(ee3, ee5);
-F = 1.0 - 1.0 / ee7;
-
-t = (hi - lo) * F + lo;
-nf = R::pbeta(hi, kappa, kappa, 1, 0) - R::pbeta(lo, kappa, kappa, 1, 0);
-
-nllh += -log(hi - lo) - log(R::dbeta(t, kappa, kappa, 0)) + log(nf) + lpsi + (1.0 + ee5) * log(ee3);
+nllh += egpd_cont_nll(y, {lpsi, xi, lkappa}, 6);
 
 }
 
@@ -5536,16 +5772,16 @@ double y, lpsi, xi, lkappa;
 double psi, kappa;
 double ee3, ee4, ee5, ee6, ee10;
 double v, A, F, t;
-double lo, hi, hml, nf, db;
+double lo, hi, hml;
 double dlv_dlpsi, dlv_dxi, d2lv_dlpsi2, d2lv_dxidlpsi, d2lv_dxi2;
 double dF_dlpsi, dF_dxi, d2F_dlpsi2, d2F_dxidlpsi, d2F_dxi2;
 double dt_dlpsi, dt_dxi, d2t_dlpsi2, d2t_dxidlpsi, d2t_dxi2;
 double dldb_dt, d2ldb_dt2;
 double nll_lpsi, nll_xi, nll_lk;
 double d2nll_lpsi2, d2nll_lpsixi, d2nll_lpsilk, d2nll_xi2, d2nll_xilk, d2nll_lk2;
-double h, nll_k_p, nll_k_m;
-double kp, km;
-double dldb_dk, d2ldb_dk2;
+double dldb_dk;
+double cached_lk = R_NaN;
+TBnorm tbz = {R_NaN, R_NaN, R_NaN};
 
 lo = 1.0 / 32.0;
 hi = 0.5;
@@ -5558,21 +5794,20 @@ lpsi = lpsivec[j];
 xi = xivec[j];
 lkappa = lkappavec[j];
 
+if (egpd_cont_try_special(y, {lpsi, xi, lkappa}, 6, false, out, j)) continue;
+
 psi = exp(lpsi);
 kappa = exp(lkappa);
 ee4 = xi * y / psi;
 ee3 = 1.0 + ee4;
 ee5 = 1.0 / xi;
 ee6 = 1.0 + ee5;
-ee10 = log(ee3);
+ee10 = log1p(ee4);
 
 v = 1.0 / R_pow(ee3, ee5);
 A = ee4 / ee3;
 F = 1.0 - v;
 t = hml * F + lo;
-
-nf = R::pbeta(hi, kappa, kappa, 1, 0) - R::pbeta(lo, kappa, kappa, 1, 0);
-db = R::dbeta(t, kappa, kappa, 0);
 
 // Derivatives of log(v) w.r.t. lpsi and xi (same as model 5)
 dlv_dlpsi = ee5 * A;
@@ -5625,28 +5860,23 @@ d2nll_xi2 = -(d2ldb_dt2 * dt_dxi * dt_dxi + dldb_dt * d2t_dxi2)
             + (-A * ee4 / (xi * ee3) - 2.0 * A / xi + 2.0 * ee10 / xi) / (xi * xi)
             - A * ee4 / (xi * xi * ee3);
 
-// For kappa derivatives, use numerical differentiation.
-// nll(kappa) contribution from kappa: -log(dbeta(t, k, k)) + log(nf(k))
-// where t depends on F (not on kappa), and nf depends on kappa.
-// Use central differences on the kappa-dependent part.
-// Analytic kappa derivatives of the kappa-dependent part -log(dbeta(t;k,k)) + log(nf),
-// nf = pbeta(hi,k,k) - pbeta(lo,k,k) (t fixed in kappa). d/dk pbeta via incbeta_kk_derivs
-// (adaptive Gauss-Kronrod quadrature). Replaces the previous central-difference kappa part.
-double b1_eg = 2.0 * (R::digamma(kappa) - R::digamma(2.0 * kappa));
-double b1p_eg = 2.0 * (R::trigamma(kappa) - 2.0 * R::trigamma(2.0 * kappa));
-double dI_hi_eg, d2I_hi_eg, dI_lo_eg, d2I_lo_eg;
-incbeta_kk_derivs(hi, kappa, dI_hi_eg, d2I_hi_eg);
-incbeta_kk_derivs(lo, kappa, dI_lo_eg, d2I_lo_eg);
-double Dk_eg = dI_hi_eg - dI_lo_eg, Dkk_eg = d2I_hi_eg - d2I_lo_eg;
-double nf_eg = nf < 1e-300 ? 1e-300 : nf;
-dldb_dk = -log(t * (1.0 - t)) + b1_eg + Dk_eg / nf_eg;
-d2ldb_dk2 = b1p_eg + Dkk_eg / nf_eg - (Dk_eg / nf_eg) * (Dk_eg / nf_eg);
+// kappa derivatives: the kappa-dependent part of the NLL is
+// -(kappa - 1) log(1 - C v^2) + log Z(kappa), C = (15/16)^2, v the GPD survival
+// (see tb_normaliser in gfunc_derivs.h), so with L_y = log(1 - C v^2)
+//   d/dlkappa   = kappa (E[L] - L_y),
+//   d2/dlkappa2 = kappa (E[L] - L_y) + kappa^2 Var[L].
+// The normaliser depends on kappa only, so it is cached across rows.
+if (!(lkappa == cached_lk)) {
+  tbz = tb_normaliser(lkappa);
+  cached_lk = lkappa;
+}
+dldb_dk = tbz.mean - log1p(-(225.0 / 256.0) * v * v);
 
 // d(nll)/d(lkappa) = kappa * d(nll)/d(kappa)
 nll_lk = kappa * dldb_dk;
 
-// d2(nll)/d(lkappa)^2 = kappa * dldb_dk + kappa^2 * d2ldb_dk2
-d2nll_lk2 = kappa * dldb_dk + kappa * kappa * d2ldb_dk2;
+// d2(nll)/d(lkappa)^2 = kappa * dldb_dk + kappa^2 * Var[L]
+d2nll_lk2 = nll_lk + kappa * kappa * tbz.var;
 
 // Cross derivatives d2(nll)/d(lpsi)d(lkappa) and d2(nll)/d(xi)d(lkappa):
 // The kappa-dependent part of the NLL that also depends on lpsi/xi is -log(dbeta(t,k,k)).
@@ -5678,6 +5908,7 @@ out(j, 5) = d2nll_lpsilk;
 out(j, 6) = d2nll_xi2;
 out(j, 7) = d2nll_xilk;
 out(j, 8) = d2nll_lk2;
+egpd_cont_finish_row(y, {lpsi, xi, lkappa}, 6, false, out, j);
 
 }
 

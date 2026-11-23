@@ -20,11 +20,13 @@ dcpdegpd(
 \arguments{
 \item{x}{numeric vector of non-negative integer quantiles}
 
-\item{lambda}{Poisson rate parameter (> 0)}
+\item{lambda}{Scalar Poisson rate (> 0). The distribution parameters
+describe one common severity and rate; they are not recycled over queries.}
 
 \item{prob}{G-transformation parameter (type 6 only)}
 
-\item{kappa}{G-transformation parameter}
+\item{kappa}{G-transformation parameter; for type 2, zero is the
+uniform-carrier limit (floored GPD severity).}
 
 \item{delta}{G-transformation parameter}
 
@@ -34,7 +36,8 @@ dcpdegpd(
 
 \item{type}{integer 1-6 specifying G-transformation type}
 
-\item{K}{grid size for Panjer recursion (default: max(max(x), 100) + 50)}
+\item{K}{grid size for Panjer recursion (default: covers finite queries
+with a grid margin; the quantile function defaults to 5000).}
 
 \item{log}{logical; if TRUE, return log-probabilities}
 }
@@ -52,6 +55,12 @@ The model is \eqn{S = X_1 + \cdots + X_N} where
 \eqn{X_i \sim \mathrm{Discrete\mbox{-}EGPD}(\sigma, \xi, \kappa, \ldots)}.
 Since the severity is already integer-valued, the Panjer recursion
 produces an exact compound distribution with no discretization error.
+Negative and noninteger inputs have mass zero; negative CDF queries
+return zero. Finite queries outside an explicit grid fail rather than
+being clipped to its endpoint. Parameters required by \code{type} must be
+supplied (a missing one is an error), whereas supplied \code{NA}
+(\code{NaN}) values give \code{NA} (\code{NaN}) results. Missing queries
+also preserve \code{NA} versus \code{NaN}. Other invalid parameters are errors.
 }
 \seealso{
 \code{\link{pcpdegpd}}, \code{\link{qcpdegpd}},

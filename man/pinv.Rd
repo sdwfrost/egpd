@@ -12,11 +12,22 @@ ginv.egpd(x, tol = sqrt(.Machine$double.eps))
 \arguments{
 \item{x}{a matrix}
 
-\item{tol}{a scalar tolerance}
+\item{tol}{a scalar tolerance. For \code{pinv()}, a negative value (the
+default) uses Armadillo's default tolerance and a non-negative value is an
+absolute cut-off on the singular values; for \code{ginv.egpd()} it is a
+relative tolerance (see Details).}
 }
 \value{
 A matrix
 }
 \description{
 Moore-Penrose pseudo-inverse of a matrix
+}
+\details{
+\code{ginv.egpd()} follows \code{MASS::ginv()}: \code{tol} is a
+  \emph{relative} tolerance, and singular values \code{d} with
+  \code{d <= tol * max(d)} are treated as zero, so the result does not
+  depend on the scale of \code{x}. \code{tol} must be a single non-negative
+  number. (\code{pinv()} with \code{tol >= 0} uses \code{tol} as an
+  absolute cut-off.)
 }

@@ -4,15 +4,22 @@
 \alias{vcov.egpd}
 \title{Variance-covariance matrix for egpd fits}
 \usage{
-\method{vcov}{egpd}(object, ...)
+\method{vcov}{egpd}(object, marginal = TRUE, ...)
 }
 \arguments{
 \item{object}{A fitted \code{egpd} object.}
 
+\item{marginal}{Logical; if \code{TRUE} (the default), return \code{object$Vc},
+which also accounts for smoothing-parameter uncertainty (it equals
+\code{object$Vp} for models without smooth terms); if \code{FALSE}, return
+the conditional Bayesian covariance \code{object$Vp}. The default matches
+\code{\link{predict.egpd}}, \code{\link{simulate.egpd}},
+\code{\link{confint.egpd}} and \code{\link{predictive_coverage}}.}
+
 \item{...}{Not used.}
 }
 \value{
-The variance-covariance matrix \code{object$Vp} with row and column
+The variance-covariance matrix with row and column
   names matching the coefficient names.
 }
 \description{

@@ -3,11 +3,12 @@
 ## PIG wrappers in R/pig_lik.R: each R wrapper splits the flat coefficient vector
 ## by parameter and calls the corresponding Rcpp routine in src/gpig.cpp.
 ##
-## GPIG is a three-parameter heavy-tailed count family (a in (0,1] tail exponent,
+## GPIG is a three-parameter count family (a in (0,1] shape,
 ## b > 0 level, c in [0,1] down-weighting). Two parameterisations are offered:
 ##   "gpig"    mean-based  (mu = mean, a, c); b implied by b = mu(1-c)^(1-a)/(ac)
 ##   "gpignat" native      (a, b, c) exactly as in the paper
 ## and likewise "zigpig" / "zigpignat" add a logit-link zero-inflation pi.
+## Only c=1, a<1 has a power-law tail; c<1 exponentially tempers it.
 ##
 ## The score is exact (paper eqs 3.4-3.5, with the two misprinted p0 base cases
 ## corrected); the Hessian is the empirical-Fisher / BHHH approximation -- see
@@ -20,6 +21,10 @@
   qgpig(v, a = a, b = b, c = c)
 }
 .iG_gpignat <- function(v, a, b, c) qgpig(v, a = a, b = b, c = c)
+## zero-inflated versions take pi after the base parameters
+.iG_zigpig <- function(v, mu, a, c, pi)
+  qzigpig(v, a = a, b = mu * (1 - c)^(1 - a) / (a * c), c = c, pi = pi)
+.iG_zigpignat <- function(v, a, b, c, pi) qzigpig(v, a = a, b = b, c = c, pi = pi)
 
 ## ---- GPIG, mean parameterisation (3 par: log mu, logit a, logit c) ----
 
@@ -69,7 +74,7 @@
              likdata$y[, 1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 .zigpig1fns <- list(d0 = .zigpig1.d0, d120 = .zigpig1.d12, d340 = NULL, m = 1,
-                    iG = .iG_gpig)
+                    iG = .iG_zigpig)
 
 ## ---- ZIGPIG, native parameterisation (4 par: logit a, log b, logit c, logit pi) ----
 
@@ -86,4 +91,4 @@
                 likdata$y[, 1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 .zigpignat1fns <- list(d0 = .zigpignat1.d0, d120 = .zigpignat1.d12, d340 = NULL,
-                       m = 1, iG = .iG_gpignat)
+                       m = 1, iG = .iG_zigpignat)

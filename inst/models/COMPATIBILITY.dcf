@@ -1,0 +1,16 @@
+Contract: 3
+Bundled-Weights: none
+Status: train-before-inference
+Reason: Stale unversioned bundled .bson weights were removed. The MDGPD
+    simulator supports signed shape xi (with neural prior xi ~ Uniform(-0.4, 0.5)
+    under an identity transform) and identifiable Poisson generator rate;
+    neural architectures use cross-version NeuralEstimators.jl constructors,
+    run with v0.1.0 (RatioEstimator methods of v0.1.3 and v0.1.4 also checked)
+    and written against the v0.2.1 to v0.3.x APIs (v0.2.0 is not supported).
+    Training through R NeuralEstimators 0.2.2 needs NeuralEstimators.jl 0.3
+    or later and Optimisers.jl (see ?train_begpd).
+Requirement: Train weights with train_begpd(), train_bdegpd(), or train_mdgpd(),
+    pass the saved .bson path via model.path, and retain the generated
+    .bson.metadata.rds sidecar. Do not relabel old weights or fabricate metadata.
+Calibration: Compatibility metadata does not establish posterior calibration.
+Runtime-Validation: Verify trained estimators in the target Julia environment.

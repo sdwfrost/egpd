@@ -4,30 +4,33 @@
 \alias{rmdgpd}
 \title{\[Experimental\] Random generation from the multivariate MDGPD}
 \usage{
-rmdgpd(n, sigma, xi, lambda, rho, d = 2L)
+rmdgpd(n, sigma, xi, lambda = NULL, rho = NULL, d = 2L, rate = NULL)
 }
 \arguments{
 \item{n}{integer; number of observations to generate.}
 
-\item{sigma}{positive numeric; GPD scale parameter (common across dimensions).}
+\item{sigma}{positive finite numeric scalar or length-\code{d} vector;
+GPD scale parameter(s).}
 
-\item{xi}{non-negative numeric; GPD shape parameter. When \code{xi = 0}
-the marginals reduce to scaled geometric.}
+\item{xi}{finite numeric scalar or length-\code{d} vector; GPD shape
+parameter(s) (may be negative, zero, or positive).}
 
-\item{lambda}{positive numeric; Poisson rate for the generator components.
-Controls the spread of the dependence structure.}
-
-\item{rho}{numeric in \[0, 1); equicorrelation of the \code{d}-dimensional
-Poisson generator. Higher values give stronger positive dependence:
-\code{rho -> 1} gives near-perfect dependence, \code{rho = 0} gives
-weakest dependence for the given \code{lambda}.}
+\item{lambda, rho}{obsolete generator arguments; supplying either is an
+error. Migrate explicitly to \code{rate = (1 - rho) * lambda}.}
 
 \item{d}{integer >= 2; dimension of the multivariate distribution
 (default \code{2L}).}
+
+\item{rate}{non-negative finite numeric; rate of independent Poisson generator
+components (\code{rate = 0} gives the exact comonotonic limit). This is
+the identifiable combination of the former \code{lambda} and \code{rho};
+smaller rates give more nearly equal components.}
 }
 \value{
-An \code{n} by \code{d} integer matrix with columns
-  \code{Y1}, \code{Y2}, \ldots, \code{Yd}.
+An \code{n} by \code{d} integer-valued matrix with columns
+  \code{Y1}, \code{Y2}, \ldots, \code{Yd}. Storage is double when counts
+  exceed the R integer range. Components may be negative (threshold excesses);
+  every row has a strictly positive maximum.
 }
 \description{
 Generates random samples from the \code{d}-dimensional Multivariate Discrete
@@ -41,20 +44,38 @@ The construction follows Aka, Kratz & Naveau (2025), generalised to
 dimension \code{d}:
 \enumerate{
   \item Generate \code{d}-dimensional equicorrelated Poisson generator
-    \eqn{T_j = X_j + Z} where \eqn{Z \sim Poisson(\rho\lambda)} (common)
-    and \eqn{X_j \sim Poisson((1-\rho)\lambda)} (independent), for
-    \eqn{j = 1, \ldots, d}.
-  \item For each component \eqn{i}, compute the spectral difference
-    \eqn{\Delta_i = T_i - \max_{j \neq i} T_j}.
-  \item Generate \eqn{G \sim Geometric(1 - e^{-1})}, independently.
-  \item Standard MDGPD: \eqn{N_i = G + \min(\Delta_i, 0)}.
-  \item Non-standard transform to discrete GPD marginals:
-    \eqn{M_i = \lfloor \sigma (e^{\xi \max(N_i, 0)} - 1) / \xi \rfloor}.
+    \eqn{T_j \sim Poisson(rate)} independently, for \eqn{j=1,\ldots,d}
+    (with \eqn{T_j \equiv 0} when \code{rate = 0}).
+  \item Set \eqn{S_i = T_i - \max_j T_j}.
+  \item Independently generate \eqn{E \sim Exp(1)}. Then
+    \eqn{G=\lceil E\rceil} has positive geometric support \eqn{1,2,\ldots}.
+  \item Standard MDGPD: \eqn{N_i=S_i+G} (Theorem 2.1, Eq. (7)).
+  \item For general scale \eqn{\sigma_i > 0} and shape
+    \eqn{\xi_i \in \mathbb{R}}, return
+    \eqn{M_i=\lceil \sigma_i\,\mathrm{expm1}(\xi_i(E+S_i))/\xi_i\rceil},
+    with limit \eqn{\lceil\sigma_i(E+S_i)\rceil} at zero shape.
+    When \eqn{\xi_i < 0}, \eqn{M_i \le \lceil -\sigma_i/\xi_i\rceil} has a
+    finite upper endpoint. When \eqn{\xi_i>0}, the unrounded lower endpoint
+    \eqn{-\sigma_i/\xi_i} is open: even an integer endpoint is never
+    attained by the ceiling. If resolving that endpoint would require
+    distinguishing adjacent integers beyond \eqn{2^{53}}, simulation stops.
+    This realizes Definition 2.1, not a transform of
+    the rounded \eqn{N}.
 }
 
-The parameter \code{rho} controls dependence strength: when \code{rho}
-is close to 1, all components tend to be equal. The parameter
-\code{lambda} controls the spread of the spectral differences.
+A common Poisson component cancels in \eqn{T-\max(T)}, so its rate
+cannot be inferred. Only \code{rate} is fitted. Neural estimation
+(\code{\link{train_mdgpd}}) covers the homogeneous model with scalar
+\code{sigma} and \code{xi} only; vector values can be simulated but not
+estimated.
+Marginal invariance is \emph{conditional}: for standard parameters,
+\eqn{P(N_i>k\mid N_i>0)=e^{-k}} for nonnegative integers \eqn{k}.
+In general \eqn{P(M_i>k\mid M_i>0)=(1+\xi_i k/\sigma_i)_+^{-1/\xi_i}}
+(exponential limit at zero shape). Unconditional marginals are not GPDs.
+
+This replaces the former censored, zero-based geometric simulator.
+Both the support and distribution have changed; old fits and bundled
+MDGPD neural assets are incompatible and must be retrained, not relabeled.
 
 For \code{d = 2}, the spectral difference reduces to
 \eqn{\Delta = T_1 - T_2} and the construction matches the bivariate
@@ -64,11 +85,14 @@ This function is \strong{experimental} and its interface may change.
 }
 \examples{
 # Bivariate (default)
-Y2 <- rmdgpd(1000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5)
+Y2 <- rmdgpd(1000, sigma = 2, xi = 0.2, rate = 0.5)
 plot(jitter(Y2[,1]), jitter(Y2[,2]), pch = ".", main = "Bivariate MDGPD")
 
+# Negative shape (bounded upper tail, e.g. dry-spell lengths)
+Y_neg <- rmdgpd(1000, sigma = c(3, 4), xi = c(-0.18, -0.25), rate = 0.5)
+
 # Trivariate
-Y3 <- rmdgpd(1000, sigma = 2, xi = 0.2, lambda = 1, rho = 0.5, d = 3)
+Y3 <- rmdgpd(1000, sigma = 2, xi = 0.2, rate = 0.5, d = 3)
 pairs(Y3 + runif(length(Y3), -0.3, 0.3), pch = ".", main = "Trivariate MDGPD")
 
 }

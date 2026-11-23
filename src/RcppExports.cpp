@@ -404,6 +404,48 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// plnorm_lcdf_cpp
+Rcpp::NumericVector plnorm_lcdf_cpp(Rcpp::NumericVector q, double mu, double sigma, bool lower);
+RcppExport SEXP _egpd_plnorm_lcdf_cpp(SEXP qSEXP, SEXP muSEXP, SEXP sigmaSEXP, SEXP lowerSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type q(qSEXP);
+    Rcpp::traits::input_parameter< double >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< double >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< bool >::type lower(lowerSEXP);
+    rcpp_result_gen = Rcpp::wrap(plnorm_lcdf_cpp(q, mu, sigma, lower));
+    return rcpp_result_gen;
+END_RCPP
+}
+// gwaring_lcdf_cpp
+Rcpp::NumericVector gwaring_lcdf_cpp(Rcpp::NumericVector q, double mu, double k, double rho, bool lower);
+RcppExport SEXP _egpd_gwaring_lcdf_cpp(SEXP qSEXP, SEXP muSEXP, SEXP kSEXP, SEXP rhoSEXP, SEXP lowerSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type q(qSEXP);
+    Rcpp::traits::input_parameter< double >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< double >::type k(kSEXP);
+    Rcpp::traits::input_parameter< double >::type rho(rhoSEXP);
+    Rcpp::traits::input_parameter< bool >::type lower(lowerSEXP);
+    rcpp_result_gen = Rcpp::wrap(gwaring_lcdf_cpp(q, mu, k, rho, lower));
+    return rcpp_result_gen;
+END_RCPP
+}
+// count_lcse_cpp
+Rcpp::NumericVector count_lcse_cpp(Rcpp::NumericVector lp, bool reverse, double ltail);
+RcppExport SEXP _egpd_count_lcse_cpp(SEXP lpSEXP, SEXP reverseSEXP, SEXP ltailSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type lp(lpSEXP);
+    Rcpp::traits::input_parameter< bool >::type reverse(reverseSEXP);
+    Rcpp::traits::input_parameter< double >::type ltail(ltailSEXP);
+    rcpp_result_gen = Rcpp::wrap(count_lcse_cpp(lp, reverse, ltail));
+    return rcpp_result_gen;
+END_RCPP
+}
 // cf_bounds_cpp
 Rcpp::List cf_bounds_cpp();
 RcppExport SEXP _egpd_cf_bounds_cpp() {
@@ -671,6 +713,44 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// degpd1d34
+arma::mat degpd1d34(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max);
+RcppExport SEXP _egpd_degpd1d34(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X3(X3SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    Rcpp::traits::input_parameter< double >::type xi_max(xi_maxSEXP);
+    rcpp_result_gen = Rcpp::wrap(degpd1d34(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max));
+    return rcpp_result_gen;
+END_RCPP
+}
+// degpd1id34
+arma::mat degpd1id34(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max);
+RcppExport SEXP _egpd_degpd1id34(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type pars(parsSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X2(X2SEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X3(X3SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type yvec(yvecSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec >::type dupid(dupidSEXP);
+    Rcpp::traits::input_parameter< int >::type dcate(dcateSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
+    Rcpp::traits::input_parameter< double >::type xi_max(xi_maxSEXP);
+    rcpp_result_gen = Rcpp::wrap(degpd1id34(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max));
+    return rcpp_result_gen;
+END_RCPP
+}
 // degpd1id0
 double degpd1id0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max);
 RcppExport SEXP _egpd_degpd1id0(SEXP parsSEXP, SEXP X1SEXP, SEXP X2SEXP, SEXP X3SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP, SEXP xi_maxSEXP) {
@@ -706,6 +786,19 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Rcpp::List& >::type offsets(offsetsSEXP);
     Rcpp::traits::input_parameter< double >::type xi_max(xi_maxSEXP);
     rcpp_result_gen = Rcpp::wrap(degpd1id12(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max));
+    return rcpp_result_gen;
+END_RCPP
+}
+// egpd_tb_moments_cpp
+Rcpp::NumericMatrix egpd_tb_moments_cpp(Rcpp::NumericVector kappa, Rcpp::NumericVector lo, Rcpp::NumericVector hi);
+RcppExport SEXP _egpd_egpd_tb_moments_cpp(SEXP kappaSEXP, SEXP loSEXP, SEXP hiSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type kappa(kappaSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type lo(loSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type hi(hiSEXP);
+    rcpp_result_gen = Rcpp::wrap(egpd_tb_moments_cpp(kappa, lo, hi));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -1027,6 +1120,29 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::mat >::type x(xSEXP);
     Rcpp::traits::input_parameter< double >::type tol(tolSEXP);
     rcpp_result_gen = Rcpp::wrap(armaginv(x, tol));
+    return rcpp_result_gen;
+END_RCPP
+}
+// hurdle_logodds_gap_cpp
+Rcpp::NumericVector hurdle_logodds_gap_cpp(Rcpp::NumericVector eta, double p);
+RcppExport SEXP _egpd_hurdle_logodds_gap_cpp(SEXP etaSEXP, SEXP pSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type eta(etaSEXP);
+    Rcpp::traits::input_parameter< double >::type p(pSEXP);
+    rcpp_result_gen = Rcpp::wrap(hurdle_logodds_gap_cpp(eta, p));
+    return rcpp_result_gen;
+END_RCPP
+}
+// gpd_endpoint_gap_cpp
+Rcpp::NumericVector gpd_endpoint_gap_cpp(Rcpp::NumericVector x, Rcpp::NumericVector sigma, Rcpp::NumericVector xi);
+RcppExport SEXP _egpd_gpd_endpoint_gap_cpp(SEXP xSEXP, SEXP sigmaSEXP, SEXP xiSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type xi(xiSEXP);
+    rcpp_result_gen = Rcpp::wrap(gpd_endpoint_gap_cpp(x, sigma, xi));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -1427,6 +1543,19 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// pig_logpmf_ladder_cpp
+Rcpp::NumericVector pig_logpmf_ladder_cpp(int N, double mu, double sigma);
+RcppExport SEXP _egpd_pig_logpmf_ladder_cpp(SEXP NSEXP, SEXP muSEXP, SEXP sigmaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type N(NSEXP);
+    Rcpp::traits::input_parameter< double >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< double >::type sigma(sigmaSEXP);
+    rcpp_result_gen = Rcpp::wrap(pig_logpmf_ladder_cpp(N, mu, sigma));
+    return rcpp_result_gen;
+END_RCPP
+}
 // prl1d0
 double prl1d0(const Rcpp::List& pars, const arma::mat& X1, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets);
 RcppExport SEXP _egpd_prl1d0(SEXP parsSEXP, SEXP X1SEXP, SEXP yvecSEXP, SEXP dupidSEXP, SEXP dcateSEXP, SEXP offsetsSEXP) {
@@ -1490,6 +1619,40 @@ BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     rcpp_result_gen = Rcpp::wrap(prl_bounds_cpp());
+    return rcpp_result_gen;
+END_RCPP
+}
+// profile_zero_odds_cpp
+double profile_zero_odds_cpp(double zeros, double n, double sigma, double xi, double kappa, double delta, double weight);
+RcppExport SEXP _egpd_profile_zero_odds_cpp(SEXP zerosSEXP, SEXP nSEXP, SEXP sigmaSEXP, SEXP xiSEXP, SEXP kappaSEXP, SEXP deltaSEXP, SEXP weightSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< double >::type zeros(zerosSEXP);
+    Rcpp::traits::input_parameter< double >::type n(nSEXP);
+    Rcpp::traits::input_parameter< double >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< double >::type xi(xiSEXP);
+    Rcpp::traits::input_parameter< double >::type kappa(kappaSEXP);
+    Rcpp::traits::input_parameter< double >::type delta(deltaSEXP);
+    Rcpp::traits::input_parameter< double >::type weight(weightSEXP);
+    rcpp_result_gen = Rcpp::wrap(profile_zero_odds_cpp(zeros, n, sigma, xi, kappa, delta, weight));
+    return rcpp_result_gen;
+END_RCPP
+}
+// two_cell_weight_cpp
+Rcpp::NumericVector two_cell_weight_cpp(double total, double n, double sigma, double xi, double kappa, double delta, double lambda, double pi, bool compound);
+RcppExport SEXP _egpd_two_cell_weight_cpp(SEXP totalSEXP, SEXP nSEXP, SEXP sigmaSEXP, SEXP xiSEXP, SEXP kappaSEXP, SEXP deltaSEXP, SEXP lambdaSEXP, SEXP piSEXP, SEXP compoundSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< double >::type total(totalSEXP);
+    Rcpp::traits::input_parameter< double >::type n(nSEXP);
+    Rcpp::traits::input_parameter< double >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< double >::type xi(xiSEXP);
+    Rcpp::traits::input_parameter< double >::type kappa(kappaSEXP);
+    Rcpp::traits::input_parameter< double >::type delta(deltaSEXP);
+    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< double >::type pi(piSEXP);
+    Rcpp::traits::input_parameter< bool >::type compound(compoundSEXP);
+    rcpp_result_gen = Rcpp::wrap(two_cell_weight_cpp(total, n, sigma, xi, kappa, delta, lambda, pi, compound));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -1755,6 +1918,9 @@ static const R_CallMethodDef CallEntries[] = {
     {"_egpd_gpois_logpmf_cpp", (DL_FUNC) &_egpd_gpois_logpmf_cpp, 3},
     {"_egpd_gwaring_logpmf_cpp", (DL_FUNC) &_egpd_gwaring_logpmf_cpp, 4},
     {"_egpd_plnorm_logpmf_cpp", (DL_FUNC) &_egpd_plnorm_logpmf_cpp, 3},
+    {"_egpd_plnorm_lcdf_cpp", (DL_FUNC) &_egpd_plnorm_lcdf_cpp, 4},
+    {"_egpd_gwaring_lcdf_cpp", (DL_FUNC) &_egpd_gwaring_lcdf_cpp, 5},
+    {"_egpd_count_lcse_cpp", (DL_FUNC) &_egpd_count_lcse_cpp, 3},
     {"_egpd_cf_bounds_cpp", (DL_FUNC) &_egpd_cf_bounds_cpp, 0},
     {"_egpd_cf_grad_cpp", (DL_FUNC) &_egpd_cf_grad_cpp, 3},
     {"_egpd_degpd1d0", (DL_FUNC) &_egpd_degpd1d0, 9},
@@ -1769,8 +1935,11 @@ static const R_CallMethodDef CallEntries[] = {
     {"_egpd_degpd5d12", (DL_FUNC) &_egpd_degpd5d12, 10},
     {"_egpd_degpd6d0", (DL_FUNC) &_egpd_degpd6d0, 10},
     {"_egpd_degpd6d12", (DL_FUNC) &_egpd_degpd6d12, 10},
+    {"_egpd_degpd1d34", (DL_FUNC) &_egpd_degpd1d34, 9},
+    {"_egpd_degpd1id34", (DL_FUNC) &_egpd_degpd1id34, 9},
     {"_egpd_degpd1id0", (DL_FUNC) &_egpd_degpd1id0, 9},
     {"_egpd_degpd1id12", (DL_FUNC) &_egpd_degpd1id12, 9},
+    {"_egpd_egpd_tb_moments_cpp", (DL_FUNC) &_egpd_egpd_tb_moments_cpp, 3},
     {"_egpd_egpd1d0", (DL_FUNC) &_egpd_egpd1d0, 8},
     {"_egpd_egpd1d12", (DL_FUNC) &_egpd_egpd1d12, 8},
     {"_egpd_egpd1d34", (DL_FUNC) &_egpd_egpd1d34, 8},
@@ -1789,6 +1958,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_egpd_egpd6d12", (DL_FUNC) &_egpd_egpd6d12, 8},
     {"_egpd_armapinv", (DL_FUNC) &_egpd_armapinv, 2},
     {"_egpd_armaginv", (DL_FUNC) &_egpd_armaginv, 2},
+    {"_egpd_hurdle_logodds_gap_cpp", (DL_FUNC) &_egpd_hurdle_logodds_gap_cpp, 2},
+    {"_egpd_gpd_endpoint_gap_cpp", (DL_FUNC) &_egpd_gpd_endpoint_gap_cpp, 3},
     {"_egpd_gpig_set_opts", (DL_FUNC) &_egpd_gpig_set_opts, 8},
     {"_egpd_gpig_get_opts", (DL_FUNC) &_egpd_gpig_get_opts, 0},
     {"_egpd_gpig_logS_cpp", (DL_FUNC) &_egpd_gpig_logS_cpp, 3},
@@ -1812,11 +1983,14 @@ static const R_CallMethodDef CallEntries[] = {
     {"_egpd_pig1d12", (DL_FUNC) &_egpd_pig1d12, 7},
     {"_egpd_zipig1d0", (DL_FUNC) &_egpd_zipig1d0, 8},
     {"_egpd_zipig1d12", (DL_FUNC) &_egpd_zipig1d12, 8},
+    {"_egpd_pig_logpmf_ladder_cpp", (DL_FUNC) &_egpd_pig_logpmf_ladder_cpp, 3},
     {"_egpd_prl1d0", (DL_FUNC) &_egpd_prl1d0, 6},
     {"_egpd_prl1d12", (DL_FUNC) &_egpd_prl1d12, 6},
     {"_egpd_prl_logpmf_cpp", (DL_FUNC) &_egpd_prl_logpmf_cpp, 2},
     {"_egpd_prl_grad_cpp", (DL_FUNC) &_egpd_prl_grad_cpp, 2},
     {"_egpd_prl_bounds_cpp", (DL_FUNC) &_egpd_prl_bounds_cpp, 0},
+    {"_egpd_profile_zero_odds_cpp", (DL_FUNC) &_egpd_profile_zero_odds_cpp, 7},
+    {"_egpd_two_cell_weight_cpp", (DL_FUNC) &_egpd_two_cell_weight_cpp, 9},
     {"_egpd_zidegpd1d0", (DL_FUNC) &_egpd_zidegpd1d0, 9},
     {"_egpd_zidegpd1d12", (DL_FUNC) &_egpd_zidegpd1d12, 9},
     {"_egpd_zidegpd2d0", (DL_FUNC) &_egpd_zidegpd2d0, 11},

@@ -76,11 +76,7 @@ fit10_m1 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
 fit10_m2 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa1 = ~ 1, ldkappa = ~ 1,
                       logitp = ~ 1),
                  data = df10, family = "degpd", degpd.args = list(m = 2))
-```
 
-    Final Hessian of negative penalized log-likelihood not numerically positive definite.
-
-``` r
 fit10_m3 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, ldelta = ~ 1),
                  data = df10, family = "degpd", degpd.args = list(m = 3))
 
@@ -105,12 +101,12 @@ aic10
 ```
 
         Model npar    logLik      AIC
-    1 DEGPD-1    3 -1126.689 2259.378
-    2 DEGPD-2    5 -1128.527 2267.054
-    3 DEGPD-3    3 -1126.477 2258.955
-    4 DEGPD-4    4 -1126.537 2261.075
-    5 DEGPD-5    3 -1126.936 2259.872
-    6 DEGPD-6    3 -1126.736 2259.472
+    1 DEGPD-1    3 -1123.932 2253.864
+    2 DEGPD-2    5 -1120.377 2250.754
+    3 DEGPD-3    3 -1123.720 2253.441
+    4 DEGPD-4    4 -1122.862 2253.723
+    5 DEGPD-5    3 -1124.179 2254.358
+    6 DEGPD-6    3 -1123.979 2253.958
 
 ``` r
 summary(fit10_m1)
@@ -120,16 +116,16 @@ summary(fit10_m1)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
+                Estimate Std. Error z value Pr(>|z|)
     (Intercept)     2.26       0.17   13.38   <2e-16
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -2.23       0.84   -2.66  0.00391
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -2.23       0.84   -2.66  0.00781
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.08       0.12     0.7    0.243
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.08       0.12     0.7    0.486
 
     ** Smooth terms **
 
@@ -166,11 +162,7 @@ fit20_m1 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
 fit20_m2 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa1 = ~ 1, ldkappa = ~ 1,
                       logitp = ~ 1),
                  data = df20, family = "degpd", degpd.args = list(m = 2))
-```
 
-    Final Hessian of negative penalized log-likelihood not numerically positive definite.
-
-``` r
 fit20_m3 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, ldelta = ~ 1),
                  data = df20, family = "degpd", degpd.args = list(m = 3))
 
@@ -179,11 +171,7 @@ fit20_m4 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, ldelta = ~ 1, lkappa = ~ 1),
 
 fit20_m5 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
                  data = df20, family = "degpd", degpd.args = list(m = 5))
-```
 
-    Final Hessian of negative penalized log-likelihood not numerically positive definite.
-
-``` r
 fit20_m6 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
                  data = df20, family = "degpd", degpd.args = list(m = 6))
 
@@ -199,12 +187,16 @@ aic20
 ```
 
         Model npar    logLik      AIC
-    1 DEGPD-1    3 -942.2068 1890.414
-    2 DEGPD-2    5 -944.0447 1898.089
-    3 DEGPD-3    3 -941.1046 1888.209
-    4 DEGPD-4    4 -940.8346 1889.669
-    5 DEGPD-5    3 -942.4606 1890.921
-    6 DEGPD-6    3 -942.3979 1890.796
+    1 DEGPD-1    3 -939.4500 1884.900
+    2 DEGPD-2    5 -935.0527 1880.105
+    3 DEGPD-3    3 -938.3478 1882.696
+    4 DEGPD-4    4 -937.1588 1882.318
+    5 DEGPD-5    3 -939.7038 1885.408
+    6 DEGPD-6    3 -939.6410 1885.282
+
+At the 20th-percentile threshold the two-power mixture improves the
+log-likelihood over DEGPD-1 by 4.40. Even with the penalty for its two
+extra parameters, its AIC is 4.79 lower.
 
 ## Goodness of fit
 
@@ -256,11 +248,6 @@ qqnorm(r10_5, main = "Q-Q Plot (DEGPD-5, u = 10th pctl)", pch = 20, col = "grey6
 qqline(r10_5, col = "red")
 
 r10_6 <- rqresid(fit10_m6)
-```
-
-    Warning in qnorm(u): NaNs produced
-
-``` r
 qqnorm(r10_6, main = "Q-Q Plot (DEGPD-6, u = 10th pctl)", pch = 20, col = "grey60")
 qqline(r10_6, col = "red")
 ```
@@ -298,11 +285,6 @@ qqnorm(r20_5, main = "Q-Q Plot (DEGPD-5, u = 20th pctl)", pch = 20, col = "grey6
 qqline(r20_5, col = "red")
 
 r20_6 <- rqresid(fit20_m6)
-```
-
-    Warning in qnorm(u): NaNs produced
-
-``` r
 qqnorm(r20_6, main = "Q-Q Plot (DEGPD-6, u = 20th pctl)", pch = 20, col = "grey60")
 qqline(r20_6, col = "red")
 ```
@@ -316,14 +298,16 @@ par(mfrow = c(1, 1))
 ## Threshold sensitivity
 
 Comparing fitted parameters across thresholds gives insight into model
-stability.
+stability. `predict(type = "response")` also returns an `xi` column that
+duplicates `shape`, so we select the parameter columns by name.
 
 ``` r
-p10 <- predict(fit10_m1, type = "response")[1, ]
-p20 <- predict(fit20_m1, type = "response")[1, ]
+par_cols <- c("scale", "shape", "kappa")
+p10 <- predict(fit10_m1, type = "response")[1, par_cols]
+p20 <- predict(fit20_m1, type = "response")[1, par_cols]
 rbind("u = 10th pctl" = unlist(p10), "u = 20th pctl" = unlist(p20))
 ```
 
                      scale     shape    kappa
-    u = 10th pctl 9.603810 0.1075324 1.085790
+    u = 10th pctl 9.603818 0.1075317 1.085790
     u = 20th pctl 9.270029 0.1345322 1.100231

@@ -16,6 +16,7 @@
 }
 
 .setup.family.egpd <- function(family, egpd, degpd, zidegpd, comppareto, formula, likfns) {
+  nat <- NULL
   if (family == "egpd") {
     if (is.null(egpd$m))
       egpd$m <- 1
@@ -300,10 +301,14 @@
     npar <- comp.info$npar
     nms <- comp.info$nms
     nms2 <- comp.info$nms2
+    nat <- .comppareto_body_info(lik.fns$spec)$response_names
   } else {
     if (length(likfns)) {
       lik.fns <- likfns
       family <- "custom"
+      ## one parameter per formula; a bare formula is one formula (length() of a
+      ## formula object is 3, which set up three parameters and failed in Armadillo)
+      if (inherits(formula, "formula")) formula <- list(formula)
       npar <- length(formula)
       if (is.null(names(formula))) {
         nms <- paste("par", seq_along(formula), sep = "_")
@@ -315,5 +320,22 @@
       stop(paste("Family '", family, "' not supported. Use 'egpd', 'degpd', 'zidegpd', 'pig', 'gpig', 'bell', 'gpois', 'gwaring', 'ztgwaring', 'ztdegpd', 'plnorm', 'prl', 'cmp', or 'comppareto'.", sep=""))
     }
   }
-  out <- list(npar=npar, npar2=npar, lik.fns=lik.fns, nms=nms, family=family, nms2 = nms2)
+  if (!identical(family, "custom") && is.null(nat)) {
+    nat <- unname(.natural_param_names[nms])
+    if (anyNA(nat))
+      stop("internal error: no natural name for parameter(s) ",
+           paste(nms[is.na(nat)], collapse = ", "), call. = FALSE)
+  }
+  out <- list(npar=npar, npar2=npar, lik.fns=lik.fns, nms=nms, family=family, nms2 = nms2,
+              nat = nat, ptab = .param_table(nms, nms2, nat))
 }
+
+## Natural (response-scale) name of every link-prefixed parameter name used by the
+## built-in families. Names users give in a formula list or in `fixed` are matched
+## against these and their exact link-prefixed forms (see .param_table), rather than
+## by stripping prefixes, which turned gpois's "logitlambda" into "ambda".
+.natural_param_names <- c(
+  lpsi = "psi", lsigma = "sigma", lxi = "xi", xi = "xi", lkappa = "kappa",
+  lkappa1 = "kappa1", ldkappa = "dkappa", logitp = "p", ldelta = "delta",
+  logitpi = "pi", lmu = "mu", logita = "a", logitc = "c", lb = "b",
+  ltheta = "theta", lnu = "nu", logitlambda = "lambda", lk = "k", lrho = "rho")

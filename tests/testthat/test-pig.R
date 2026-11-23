@@ -86,10 +86,15 @@ test_that("native egpd() PIG recovers parameters and matches direct MLE", {
   expect_equal(unname(co), unname(o$par), tolerance = 1e-2)
 })
 
+## Stratify both parts of the mixture so recovery does not depend on sampling noise.
+zipig_reference_counts <- function(n, mu, sigma, nu) {
+  n0 <- round(n * nu)
+  c(rep(0L, n0), gamlss.dist::qPIG(stats::ppoints(n - n0), mu = mu, sigma = sigma))
+}
+
 test_that("native egpd() ZIPIG recovers parameters", {
   skip_on_cran()
-  set.seed(11)
-  yz <- gamlss.dist::rZIPIG(4000, mu = 4, sigma = 0.7, nu = 0.3)
+  yz <- zipig_reference_counts(4000, mu = 4, sigma = 0.7, nu = 0.3)
   fz <- egpd(list(yz ~ 1, ~ 1, ~ 1), data = data.frame(yz = yz), family = "zipig", trace = 0)
   cz <- coef(fz)
   expect_equal(exp(cz[[1]]), 4,   tolerance = 0.15)
@@ -113,8 +118,7 @@ test_that("distfit() PIG MLE matches gamlss.dist and yields working methods", {
 
 test_that("distfit() ZIPIG MLE recovers the zero-inflation probability", {
   skip_on_cran()
-  set.seed(3)
-  yz <- gamlss.dist::rZIPIG(3000, mu = 3.5, sigma = 0.8, nu = 0.25)
+  yz <- zipig_reference_counts(3000, mu = 3.5, sigma = 0.8, nu = 0.25)
   fz <- distfit(yz, family = "zipig")
   expect_named(fz$estimate, c("mu", "sigma", "pi"))
   expect_equal(fz$estimate[["pi"]], 0.25, tolerance = 0.06)
@@ -183,44 +187,56 @@ test_that("native ZIPIG likelihood is a proper PMF and matches gamlss.dist::dZIP
   }
 })
 
+## Independent closed form of the PIG pmf (gamlss.dist::PIG documentation):
+##   f(y) = (2 al/pi)^(1/2) mu^y e^(1/s) K_{y-1/2}(al) / ((al s)^y y!),  al^2 = 1/s^2 + 2 mu/s
+pig_bessel_log <- function(y, mu, s) {
+  al <- sqrt(1 / s^2 + 2 * mu / s)
+  0.5 * log(2 * al / pi) + y * log(mu) + 1 / s +
+    log(besselK(al, y - 0.5, expon.scaled = TRUE)) - al - y * log(al * s) - lgamma(y + 1)
+}
+
 test_that("PIG/ZIPIG d, p, q are mutually consistent (as used by the frontends)", {
   mu <- 3.2; sg <- 0.7; pi0 <- 0.25; qs <- 0:80
   ## CDF equals the cumulative sum of the PMF
-  expect_equal(gamlss.dist::pPIG(qs, mu, sg),
-               cumsum(gamlss.dist::dPIG(qs, mu, sg)), tolerance = 1e-8)
-  expect_equal(gamlss.dist::pZIPIG(qs, mu, sg, nu = pi0),
-               cumsum(gamlss.dist::dZIPIG(qs, mu, sg, nu = pi0)), tolerance = 1e-8)
+  expect_equal(ppig(qs, mu, sg), cumsum(dpig(qs, mu, sg)), tolerance = 1e-12)
+  expect_equal(pzipig(qs, mu, sg, pi = pi0), cumsum(dzipig(qs, mu, sg, pi = pi0)),
+               tolerance = 1e-12)
   ## quantile function inverts the CDF: q(p(k)) == k
-  expect_equal(gamlss.dist::qPIG(gamlss.dist::pPIG(qs, mu, sg), mu, sg), qs)
-  expect_equal(gamlss.dist::qZIPIG(gamlss.dist::pZIPIG(qs, mu, sg, nu = pi0), mu, sg, nu = pi0),
-               qs)
-  ## the native prediction/quantile helper (.iG_pig) agrees with qPIG
-  iG <- get(".iG_pig", envir = asNamespace("egpd"))
+  expect_equal(qpig(ppig(qs, mu, sg), mu, sg), qs)
+  expect_equal(qzipig(pzipig(qs, mu, sg, pi = pi0), mu, sg, pi = pi0), qs)
+  ## the native prediction/quantile helpers agree with the quantile functions, incl. pi
   u <- c(0.05, 0.25, 0.5, 0.75, 0.95)
-  expect_equal(iG(u, mu = rep(mu, length(u)), sigma = rep(sg, length(u))),
-               gamlss.dist::qPIG(u, mu, sg))
+  iG <- get(".iG_pig", envir = asNamespace("egpd"))
+  expect_equal(iG(u, mu = rep(mu, length(u)), sigma = rep(sg, length(u))), qpig(u, mu, sg))
+  iGz <- get(".zipig1fns", envir = asNamespace("egpd"))$iG
+  expect_equal(iGz(u, mu = mu, sigma = sg, pi = 0.6), qzipig(u, mu, sg, pi = 0.6))
 })
 
-test_that("dpig/ppig/qpig/rpig wrappers delegate to gamlss.dist and are consistent", {
+test_that("dpig/ppig/qpig/rpig are native and agree with the Bessel closed form", {
+  for (pr in list(c(2.6, 0.8), c(0.5, 5), c(100, 10), c(5, 0.3))) {
+    mu <- pr[1]; sg <- pr[2]; y <- c(0:40, 100)      # besselK overflows far beyond
+    expect_equal(dpig(y, mu, sg, log = TRUE), pig_bessel_log(y, mu, sg), tolerance = 1e-12)
+    ## an independent reference implementation as well
+    expect_equal(dpig(0:40, mu, sg), gamlss.dist::dPIG(0:40, mu, sg), tolerance = 1e-12)
+  }
   mu <- 2.6; sg <- 0.8
-  expect_equal(dpig(0:40, mu, sg), gamlss.dist::dPIG(0:40, mu, sg))
-  expect_equal(ppig(0:40, mu, sg), gamlss.dist::pPIG(0:40, mu, sg))
-  expect_equal(qpig(c(.1, .5, .9), mu, sg), gamlss.dist::qPIG(c(.1, .5, .9), mu, sg))
-  expect_equal(dpig(3, mu, sg, log = TRUE), log(dpig(3, mu, sg)))
-  expect_equal(ppig(5, mu, sg, lower.tail = FALSE), 1 - ppig(5, mu, sg))
-  ## d / p / q mutually consistent through the egpd-native names
-  expect_equal(ppig(0:40, mu, sg), cumsum(dpig(0:40, mu, sg)), tolerance = 1e-8)
-  expect_equal(qpig(ppig(0:40, mu, sg), mu, sg), 0:40)
+  ref <- cumsum(exp(pig_bessel_log(0:40, mu, sg)))
+  expect_equal(ppig(0:40, mu, sg), ref, tolerance = 1e-12)
+  expect_equal(ppig(5, mu, sg, lower.tail = FALSE), 1 - ref[6], tolerance = 1e-12)
+  ## generalised inverse of the closed-form cdf
+  p <- c(.1, .5, .9, .999)
+  expect_equal(qpig(p, mu, sg), vapply(p, function(pp) which(ref >= pp)[1] - 1, 0))
   set.seed(1); expect_length(rpig(50, mu, sg), 50)
 })
 
-test_that("dzipig/pzipig/qzipig/rzipig wrappers delegate and are consistent", {
+test_that("dzipig/pzipig/qzipig/rzipig mix the native PIG with the zero mass", {
   mu <- 3; sg <- 0.7; pv <- 0.3
-  expect_equal(dzipig(0:40, mu, sg, pi = pv), gamlss.dist::dZIPIG(0:40, mu, sg, nu = pv))
-  expect_equal(pzipig(0:40, mu, sg, pi = pv), gamlss.dist::pZIPIG(0:40, mu, sg, nu = pv))
-  expect_equal(dzipig(0, mu, sg, pi = pv), pv + (1 - pv) * dpig(0, mu, sg))  # zero mixture
-  expect_equal(pzipig(0:40, mu, sg, pi = pv), cumsum(dzipig(0:40, mu, sg, pi = pv)),
-               tolerance = 1e-8)
+  base <- exp(pig_bessel_log(0:40, mu, sg))
+  ref <- (1 - pv) * base; ref[1] <- ref[1] + pv
+  expect_equal(dzipig(0:40, mu, sg, pi = pv), ref, tolerance = 1e-12)
+  expect_equal(pzipig(0:40, mu, sg, pi = pv), cumsum(ref), tolerance = 1e-12)
+  expect_equal(dzipig(0:40, mu, sg, pi = pv), gamlss.dist::dZIPIG(0:40, mu, sg, nu = pv),
+               tolerance = 1e-12)
   expect_equal(qzipig(pzipig(0:40, mu, sg, pi = pv), mu, sg, pi = pv), 0:40)
   set.seed(1); expect_length(rzipig(50, mu, sg, pi = pv), 50)
 })

@@ -22,20 +22,32 @@ navbar:
           href: articles/doctor-visits.html
         - text: "Threshold Exceedance Modeling with DEGPD"
           href: articles/gaming-offenses.html
-        - text: "Simulation Examples"
-          href: articles/simulation.html
         - text: "Continuous EGPD Models for Temperature Extremes"
           href: articles/temperature-extremes.html
-        - text: "Fitting Continuous Distributions with fitegpd"
-          href: articles/fitegpd-continuous.html
-        - text: "Fitting Discrete Distributions with fitegpd"
-          href: articles/fitegpd-discrete.html
+        - text: "Simulation Examples"
+          href: articles/simulation.html
+        - text: "Fitting Continuous Distributions with distfit"
+          href: articles/distfit-continuous.html
+        - text: "Fitting Discrete Distributions with distfit"
+          href: articles/distfit-discrete.html
         - text: "Blended Generalized Pareto Distributions"
           href: articles/blended-gp.html
         - text: "Composite Pareto Distributions and GAMs"
           href: articles/composite-pareto.html
         - text: "Multiscale Aggregated EGPD Models"
           href: articles/aggregated-egpd.html
+        - text: "Bell Distribution Models for Overdispersed Counts"
+          href: articles/bell-counts.html
+        - text: "Poisson-Inverse Gaussian Models for Overdispersed Counts"
+          href: articles/pig-counts.html
+        - text: "Generalised Poisson-Inverse Gaussian Models for Heavy-Tailed Counts"
+          href: articles/gpig-counts.html
+        - text: "Bivariate BEGPD via Neural Bayes Estimation"
+          href: articles/multivariate-egpd.html
+        - text: "Bivariate Discrete EGPD via Neural Bayes Estimation"
+          href: articles/bivariate-discrete-egpd.html
+        - text: "Multivariate Discrete Generalized Pareto Distributions"
+          href: articles/mdgpd.html
         - text: "Comparing egpd and bamlss Fits"
           href: articles/bamlss-comparison.html
         - text: "Comparing egpd and gamlss Fits"
@@ -44,12 +56,6 @@ navbar:
           href: articles/predictive-coverage.html
         - text: "Parameter Estimate Coverage Assessment"
           href: articles/parameter-coverage.html
-        - text: "Bivariate BEGPD via Neural Bayes Estimation"
-          href: articles/multivariate-egpd.html
-        - text: "Bivariate Discrete EGPD via Neural Bayes Estimation"
-          href: articles/bivariate-discrete-egpd.html
-        - text: "Multivariate Discrete GPD (MDGPD) via Neural Bayes Estimation"
-          href: articles/mdgpd.html
 
 reference:
   - title: "Package Overview"
@@ -64,18 +70,21 @@ reference:
   - title: "Univariate Fitting"
     desc: "Maximum likelihood and Bernstein polynomial fitting of univariate EGPD distributions."
     contents:
-      - fitegpd
-      - plot.fitegpd
+      - distfit
+      - plot.distfit
+      - confint.distfit
 
   - title: "Multiscale Aggregated Models"
-    desc: "Composite-likelihood fitting across aggregation durations for continuous and discrete compound Poisson EGPD models."
+    desc: "Composite-likelihood fitting across aggregation durations for continuous and discrete compound Poisson EGPD models, with a moving-block bootstrap."
     contents:
-      - fit_aggregate_egpd
+      - matches("aggregate_egpd")
 
-  - title: "Spliced Count Models"
-    desc: "Bulk quantile regression plus DEGPD tail modeling for discrete forecast distributions."
+  - title: "Spliced, Threshold and Hurdle Count Models"
+    desc: "Bulk quantile regression plus DEGPD tail modeling, discrete-GPD peaks over threshold, and hurdle count GAMs."
     contents:
       - fit_spliced_degpd
+      - fit_degpd_pot
+      - matches("hurdle")
 
   - title: "Prediction and Methods"
     desc: "S3 methods for fitted egpd objects."
@@ -158,6 +167,22 @@ reference:
       - qcpdegpd
       - rcpdegpd
 
+  - title: "Overdispersed Count Distributions"
+    desc: "Count families that can be fitted with egpd(), distfit(), gamlss and bamlss."
+    contents:
+      - bell
+      - zibell
+      - pig
+      - zipig
+      - gpig
+      - zigpig
+      - gpig_control
+      - cmp
+      - prl
+      - gpois
+      - gwaring
+      - poislnorm
+
   - title: "Bivariate BEGPD"
     desc: "Bivariate Extended Generalized Pareto Distribution and discrete extensions via neural Bayes estimation."
     contents:
@@ -202,12 +227,18 @@ reference:
       - ZIDEGPD6
 
   - title: "bamlss Families"
-    desc: "Family constructors for fitting EGPD models with bamlss."
+    desc: "Family constructors for fitting EGPD and count models with bamlss."
     contents:
       - egpd_bamlss
       - ziegpd_bamlss
       - degpd_bamlss
       - zidegpd_bamlss
+      - bell_bamlss
+      - zibell_bamlss
+      - pig_bamlss
+      - zipig_bamlss
+      - gpig_bamlss
+      - zigpig_bamlss
 
   - title: "G-function Utilities"
     desc: "Transformation functions for the EGPD G-function (types 1--6)."

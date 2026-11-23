@@ -73,6 +73,13 @@ cat("Log-likelihood:", logLik(fit2), "\n")
 cat("AIC:", AIC(fit2), "\n")
 ```
 
+The mixture weight `p` allocates non-structural observations between the two
+power components; it is distinct from the structural-zero probability `pi`.
+Allowing two powers gains
+`r sprintf("%.2f", as.numeric(logLik(fit2)) - as.numeric(logLik(fit1)))`
+log-likelihood units over model 1. The AIC comparison below accounts for the
+two additional parameters.
+
 ### ZIDEGPD Model 3: Incomplete beta with zero-inflation
 
 Four parameters: sigma, xi, delta, pi.

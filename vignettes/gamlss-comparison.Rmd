@@ -36,16 +36,17 @@ These map to EGPD parameters as follows:
 
 ## Fitting notes
 
-- **gamlss convergence**: The EGPD families use numerical derivatives,
-  which can require more iterations than the gamlss default (`n.cyc = 20`).
+- **gamlss convergence**: Some EGPD families fall back to numerical
+  derivatives for some parameters, and fits can require more iterations
+  than the gamlss default (`n.cyc = 20`).
   We recommend setting `n.cyc = 200` via `gamlss.control()` to ensure
   convergence.
-- **Penalised vs raw log-likelihood**: `egpd()` uses penalised likelihood
-  estimation (as in `mgcv`), so `logLik()` on an egpd object returns the
-  penalised log-likelihood, which is slightly lower than the raw
-  log-likelihood. The gamlss `logLik()` returns the raw log-likelihood.
-  Despite this difference in objective function, both approaches recover
-  very similar parameter estimates.
+- **Penalised estimation, unpenalised log-likelihood**: `egpd()` estimates
+  smooth terms by penalised likelihood (as in `mgcv`), but `logLik()` on an
+  egpd object returns the unpenalised log-likelihood of the data at those
+  penalised estimates, as the gamlss `logLik()` does. Despite the different
+  objective functions and smoothing-parameter selection, both approaches
+  recover very similar parameter estimates.
 
 ## Discrete EGPD Model 1
 
@@ -70,10 +71,14 @@ cat("Range of y:", range(y), "\n")
 
 ### egpd fit
 
+`predict(type = "response")` returns one column per distributional parameter
+(`scale`, `shape`, `kappa`, ...) plus an `xi` column that duplicates `shape`,
+so we select the columns we need by name.
+
 ```{r degpd1-egpd}
 fit_egpd <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
                  data = df, family = "degpd", degpd.args = list(m = 1))
-pars_egpd <- predict(fit_egpd, type = "response")[1, ]
+pars_egpd <- predict(fit_egpd, type = "response")[1, c("scale", "shape", "kappa")]
 ```
 
 ### gamlss fit
@@ -127,7 +132,7 @@ cat("Proportion of zeros:", mean(y == 0), "\n")
 ```{r zidegpd1-egpd}
 fit_zidegpd <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1, logitpi = ~ 1),
                     data = df, family = "zidegpd", zidegpd.args = list(m = 1))
-pars_zidegpd <- predict(fit_zidegpd, type = "response")[1, ]
+pars_zidegpd <- predict(fit_zidegpd, type = "response")[1, c("scale", "shape", "kappa", "pi")]
 ```
 
 ### gamlss fit
@@ -178,7 +183,7 @@ df <- data.frame(y = y, x = rep(1, n))
 ```{r egpd1-egpd}
 fit_egpd_c <- egpd(list(lpsi = y ~ 1, xi = ~ 1, lkappa = ~ 1),
                    data = df, family = "egpd", egpd.args = list(m = 1))
-pars_egpd_c <- predict(fit_egpd_c, type = "response")[1, ]
+pars_egpd_c <- predict(fit_egpd_c, type = "response")[1, c("scale", "shape", "kappa")]
 ```
 
 ### gamlss fit

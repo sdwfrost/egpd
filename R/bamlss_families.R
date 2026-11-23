@@ -5,23 +5,75 @@
 ## Distribution functions are reused from the egpd package; no
 ## external distribution packages are needed.
 
-## internal helper (mirrors bamlss:::parse.links)
-.parse_links <- function(links, default.links, ...) {
-  dots <- list(...)
+## internal helper (mirrors bamlss:::parse.links with safe named matching)
+.parse_links <- function(default.links, ...) {
   nl <- names(default.links)
-  if (length(dots))
-    links <- as.character(dots)
-  if (is.null(names(links)))
-    names(links) <- rep(nl, length.out = length(links))
-  links <- as.list(links)
-  for (j in nl) {
-    if (is.null(links[[j]]))
-      links[[j]] <- default.links[j]
+  out <- as.character(default.links)
+  names(out) <- nl
+  dots <- list(...)
+  if (!length(dots)) return(out)
+
+  apply_named <- function(nms, vals) {
+    if (any(is.na(nms) | !nzchar(nms)))
+      stop("Link overrides must be either all named or all unnamed.", call. = FALSE)
+    if (anyDuplicated(nms))
+      stop("Duplicate link parameter(s): ",
+           paste(unique(nms[duplicated(nms)]), collapse = ", "), call. = FALSE)
+    bad <- setdiff(nms, nl)
+    if (length(bad) > 0L)
+      stop("Unknown link parameter(s): ", paste(bad, collapse = ", "),
+           ". Valid parameters: ", paste(nl, collapse = ", "), ".", call. = FALSE)
+    for (i in seq_along(nms)) {
+      v <- vals[[i]]
+      if (!is.character(v) || length(v) != 1L || is.na(v))
+        stop("Link for '", nms[i], "' must be a single character string.", call. = FALSE)
+      out[nms[i]] <<- v
+    }
   }
-  links <- links[nl]
-  links <- as.character(links)
-  names(links) <- nl
-  links
+
+  if (!is.null(names(dots))) {
+    apply_named(names(dots), dots)
+  } else if (length(dots) == 1L && is.character(dots[[1L]]) && !is.null(names(dots[[1L]]))) {
+    v <- dots[[1L]]
+    apply_named(names(v), as.list(v))
+  } else {
+    if (!all(vapply(dots, is.character, logical(1))))
+      stop("Unnamed link overrides must be character strings.", call. = FALSE)
+    v <- unlist(dots, use.names = FALSE)
+    if (length(v) != length(nl) || anyNA(v))
+      stop("Unnamed link specification must have length ", length(nl),
+           " matching (", paste(nl, collapse = ", "), ").", call. = FALSE)
+    out[] <- v
+  }
+  out
+}
+
+.bamlss_init_sd <- function(y, floor = 1e-6) {
+  yk <- y[!is.na(y)]
+  s0 <- if (length(yk) >= 2L) stats::sd(yk) else 1
+  if (!is.finite(s0)) s0 <- 1
+  max(s0, floor)
+}
+
+.bamlss_init_sd_pos <- function(y, floor = 1e-6) {
+  ypos <- y[!is.na(y) & y > 0]
+  s0 <- if (length(ypos) >= 2L) stats::sd(ypos) else 1
+  if (!is.finite(s0)) s0 <- 1
+  max(s0, floor)
+}
+
+.bamlss_init_mean <- function(y, mult = 1, floor = 1e-6) {
+  yk <- y[!is.na(y)]
+  m0 <- if (length(yk) >= 1L) mean(yk) else 1
+  if (!is.finite(m0)) m0 <- 1
+  max(mult * m0, floor)
+}
+
+.bamlss_init_pi <- function(y, hi = 0.99) {
+  yk <- y[!is.na(y)]
+  p0 <- if (length(yk) >= 1L) mean(yk == 0) else 0.1
+  if (!is.finite(p0)) p0 <- 0.1
+  min(max(p0, 0.01), hi)
 }
 
 ## m -> internal type mapping (same as families.R)
@@ -32,13 +84,27 @@
 #'
 #' Creates a \code{family.bamlss} object for fitting continuous
 #' Extended Generalized Pareto Distribution models with \code{bamlss()}.
+#' @details
+#' Quantile residuals use the fitted CDF, randomized over its jumps for
+#' count responses and at zero for zero-inflated continuous responses.
+#' Response residuals subtract the distributional mean, not the GPD scale.
+#' EGPD means integrate the survivor in GPD hazard coordinates to resolve
+#' concentration near a finite endpoint. Discrete means sum the survivor at
+#' positive integers, with a tail integral and a relative error bound of
+#' \eqn{10^{-7}} (an error is reported if the bound is not reached).
+#' Zero inflation scales the mean by \eqn{1-\pi} before conversion from
+#' log units, so the component mean need not itself fit in a double. For
+#' \eqn{\xi\ge1} with a nonzero component weight, the mean is infinite
+#' and a response residual is undefined.
 #'
-#' @param m integer 1--4 selecting the G transformation:
+#' @param m integer 1--6 selecting the G transformation:
 #'   \describe{
 #'     \item{1}{Power: \eqn{G(u) = u^\kappa}}
 #'     \item{2}{Mixture: \eqn{G(u) = p u^{\kappa} + (1-p) u^{\delta}}}
 #'     \item{3}{Incomplete beta}
 #'     \item{4}{Power-beta}
+#'     \item{5}{Truncated normal}
+#'     \item{6}{Truncated beta}
 #'   }
 #' @param ... arguments passed to link specification
 #'
@@ -69,7 +135,7 @@ egpd_bamlss <- function(m = 1, ...) {
   rval <- list(
     "family" = paste0("egpd", m),
     "names"  = params,
-    "links"  = .parse_links(default_links, default_links, ...),
+    "links"  = .parse_links(default_links, ...),
 
     "d" = function(y, par, log = FALSE) {
       degpd_density(y,
@@ -86,7 +152,7 @@ egpd_bamlss <- function(m = 1, ...) {
         kappa = if (!is.null(par$kappa)) par$kappa else NA,
         delta = if (!is.null(par$delta)) par$delta else NA,
         prob  = if (!is.null(par$prob))  par$prob  else NA,
-        type = dtype)
+        type = dtype, ...)
     },
 
     "q" = function(p, par, ...) {
@@ -95,7 +161,7 @@ egpd_bamlss <- function(m = 1, ...) {
         kappa = if (!is.null(par$kappa)) par$kappa else NA,
         delta = if (!is.null(par$delta)) par$delta else NA,
         prob  = if (!is.null(par$prob))  par$prob  else NA,
-        type = dtype)
+        type = dtype, ...)
     },
 
     "r" = function(n, par) {
@@ -111,35 +177,34 @@ egpd_bamlss <- function(m = 1, ...) {
   ## initialization
   if (m %in% c(1, 5, 6)) {
     rval$initialize <- list(
-      sigma = function(y, ...) rep(max(sd(y), 1e-6), length(y)),
+      sigma = function(y, ...) rep(.bamlss_init_sd(y), length(y)),
       xi    = function(y, ...) rep(0.3, length(y)),
-      kappa = function(y, ...) rep(max(mean(y), 1e-6), length(y))
+      kappa = function(y, ...) rep(.bamlss_init_mean(y), length(y))
     )
   } else if (m == 2) {
     rval$initialize <- list(
-      sigma = function(y, ...) rep(max(sd(y), 1e-6), length(y)),
+      sigma = function(y, ...) rep(.bamlss_init_sd(y), length(y)),
       xi    = function(y, ...) rep(0.3, length(y)),
-      kappa = function(y, ...) rep(max(mean(y), 1e-6), length(y)),
-      delta = function(y, ...) rep(max(sd(y), 1e-6), length(y)),
+      kappa = function(y, ...) rep(.bamlss_init_mean(y), length(y)),
+      delta = function(y, ...) rep(.bamlss_init_sd(y), length(y)),
       prob  = function(y, ...) rep(0.5, length(y))
     )
   } else if (m == 3) {
     rval$initialize <- list(
-      sigma = function(y, ...) rep(max(sd(y), 1e-6), length(y)),
+      sigma = function(y, ...) rep(.bamlss_init_sd(y), length(y)),
       xi    = function(y, ...) rep(0.3, length(y)),
-      delta = function(y, ...) rep(max(0.5 * mean(y), 1e-6), length(y))
+      delta = function(y, ...) rep(.bamlss_init_mean(y, 0.5), length(y))
     )
   } else {
     rval$initialize <- list(
-      sigma = function(y, ...) rep(max(sd(y), 1e-6), length(y)),
+      sigma = function(y, ...) rep(.bamlss_init_sd(y), length(y)),
       xi    = function(y, ...) rep(0.3, length(y)),
-      delta = function(y, ...) rep(max(0.5 * mean(y), 1e-6), length(y)),
-      kappa = function(y, ...) rep(max(mean(y), 1e-6), length(y))
+      delta = function(y, ...) rep(.bamlss_init_mean(y, 0.5), length(y)),
+      kappa = function(y, ...) rep(.bamlss_init_mean(y), length(y))
     )
   }
 
-  class(rval) <- "family.bamlss"
-  rval
+  .bamlss_residual_family(rval, "continuous", dtype)
 }
 
 
@@ -148,8 +213,9 @@ egpd_bamlss <- function(m = 1, ...) {
 #' Creates a \code{family.bamlss} object for fitting continuous
 #' zero-inflated Extended Generalized Pareto Distribution models
 #' with \code{bamlss()}.
+#' @inherit egpd_bamlss details
 #'
-#' @param m integer 1--4 selecting the G transformation (see
+#' @param m integer 1--6 selecting the G transformation (see
 #'   \code{\link{egpd_bamlss}} for details)
 #' @param ... arguments passed to link specification
 #'
@@ -181,7 +247,7 @@ ziegpd_bamlss <- function(m = 1, ...) {
   rval <- list(
     "family" = paste0("ziegpd", m),
     "names"  = params,
-    "links"  = .parse_links(default_links, default_links, ...),
+    "links"  = .parse_links(default_links, ...),
 
     "d" = function(y, par, log = FALSE) {
       dziegpd(y,
@@ -200,7 +266,7 @@ ziegpd_bamlss <- function(m = 1, ...) {
         kappa = if (!is.null(par$kappa)) par$kappa else NA,
         delta = if (!is.null(par$delta)) par$delta else NA,
         prob  = if (!is.null(par$prob))  par$prob  else NA,
-        type = dtype)
+        type = dtype, ...)
     },
 
     "q" = function(p, par, ...) {
@@ -210,7 +276,7 @@ ziegpd_bamlss <- function(m = 1, ...) {
         kappa = if (!is.null(par$kappa)) par$kappa else NA,
         delta = if (!is.null(par$delta)) par$delta else NA,
         prob  = if (!is.null(par$prob))  par$prob  else NA,
-        type = dtype)
+        type = dtype, ...)
     },
 
     "r" = function(n, par) {
@@ -225,36 +291,34 @@ ziegpd_bamlss <- function(m = 1, ...) {
   )
 
   ## initialization
-  npar <- length(params)
-  pi_init <- function(y, ...) rep(max(mean(y == 0), 0.01), length(y))
+  pi_init <- function(y, ...) rep(.bamlss_init_pi(y), length(y))
   base <- list(
-    sigma = function(y, ...) rep(max(sd(y[y > 0]), 1e-6), length(y)),
+    sigma = function(y, ...) rep(.bamlss_init_sd_pos(y), length(y)),
     xi    = function(y, ...) rep(0.3, length(y))
   )
 
   if (m %in% c(1, 5, 6)) {
     rval$initialize <- c(base, list(
-      kappa = function(y, ...) rep(max(mean(y), 1e-6), length(y)),
+      kappa = function(y, ...) rep(.bamlss_init_mean(y), length(y)),
       pi = pi_init))
   } else if (m == 2) {
     rval$initialize <- c(base, list(
-      kappa = function(y, ...) rep(max(mean(y), 1e-6), length(y)),
-      delta = function(y, ...) rep(max(sd(y), 1e-6), length(y)),
+      kappa = function(y, ...) rep(.bamlss_init_mean(y), length(y)),
+      delta = function(y, ...) rep(.bamlss_init_sd(y), length(y)),
       prob  = function(y, ...) rep(0.5, length(y)),
       pi = pi_init))
   } else if (m == 3) {
     rval$initialize <- c(base, list(
-      delta = function(y, ...) rep(max(0.5 * mean(y), 1e-6), length(y)),
+      delta = function(y, ...) rep(.bamlss_init_mean(y, 0.5), length(y)),
       pi = pi_init))
   } else {
     rval$initialize <- c(base, list(
-      delta = function(y, ...) rep(max(0.5 * mean(y), 1e-6), length(y)),
-      kappa = function(y, ...) rep(max(mean(y), 1e-6), length(y)),
+      delta = function(y, ...) rep(.bamlss_init_mean(y, 0.5), length(y)),
+      kappa = function(y, ...) rep(.bamlss_init_mean(y), length(y)),
       pi = pi_init))
   }
 
-  class(rval) <- "family.bamlss"
-  rval
+  .bamlss_residual_family(rval, "mixed", dtype)
 }
 
 
@@ -262,8 +326,9 @@ ziegpd_bamlss <- function(m = 1, ...) {
 #'
 #' Creates a \code{family.bamlss} object for fitting discrete
 #' Extended Generalized Pareto Distribution models with \code{bamlss()}.
+#' @inherit egpd_bamlss details
 #'
-#' @param m integer 1--4 selecting the G transformation (see
+#' @param m integer 1--6 selecting the G transformation (see
 #'   \code{\link{egpd_bamlss}} for details)
 #' @param ... arguments passed to link specification
 #'
@@ -294,17 +359,15 @@ degpd_bamlss <- function(m = 1, ...) {
   rval <- list(
     "family" = paste0("degpd", m),
     "names"  = params,
-    "links"  = .parse_links(default_links, default_links, ...),
+    "links"  = .parse_links(default_links, ...),
 
     "d" = function(y, par, log = FALSE) {
-      d <- ddiscegpd(y,
+      ddiscegpd(y,
         sigma = par$sigma, xi = par$xi,
         kappa = if (!is.null(par$kappa)) par$kappa else NA,
         delta = if (!is.null(par$delta)) par$delta else NA,
         prob  = if (!is.null(par$prob))  par$prob  else NA,
-        type = dtype)
-      if (log) d <- ifelse(d > 0, log(d), -Inf)
-      d
+        type = dtype, log = log)
     },
 
     "p" = function(y, par, ...) {
@@ -313,7 +376,7 @@ degpd_bamlss <- function(m = 1, ...) {
         kappa = if (!is.null(par$kappa)) par$kappa else NA,
         delta = if (!is.null(par$delta)) par$delta else NA,
         prob  = if (!is.null(par$prob))  par$prob  else NA,
-        type = dtype)
+        type = dtype, ...)
     },
 
     "q" = function(p, par, ...) {
@@ -322,7 +385,7 @@ degpd_bamlss <- function(m = 1, ...) {
         kappa = if (!is.null(par$kappa)) par$kappa else NA,
         delta = if (!is.null(par$delta)) par$delta else NA,
         prob  = if (!is.null(par$prob))  par$prob  else NA,
-        type = dtype)
+        type = dtype, ...)
     },
 
     "r" = function(n, par) {
@@ -338,35 +401,34 @@ degpd_bamlss <- function(m = 1, ...) {
   ## initialization
   if (m %in% c(1, 5, 6)) {
     rval$initialize <- list(
-      sigma = function(y, ...) rep(max(sd(y), 1e-6), length(y)),
+      sigma = function(y, ...) rep(.bamlss_init_sd(y), length(y)),
       xi    = function(y, ...) rep(0.3, length(y)),
-      kappa = function(y, ...) rep(max(mean(y), 1e-6), length(y))
+      kappa = function(y, ...) rep(.bamlss_init_mean(y), length(y))
     )
   } else if (m == 2) {
     rval$initialize <- list(
-      sigma = function(y, ...) rep(max(sd(y), 1e-6), length(y)),
+      sigma = function(y, ...) rep(.bamlss_init_sd(y), length(y)),
       xi    = function(y, ...) rep(0.3, length(y)),
-      kappa = function(y, ...) rep(max(mean(y), 1e-6), length(y)),
-      delta = function(y, ...) rep(max(sd(y), 1e-6), length(y)),
+      kappa = function(y, ...) rep(.bamlss_init_mean(y), length(y)),
+      delta = function(y, ...) rep(.bamlss_init_sd(y), length(y)),
       prob  = function(y, ...) rep(0.5, length(y))
     )
   } else if (m == 3) {
     rval$initialize <- list(
-      sigma = function(y, ...) rep(max(sd(y), 1e-6), length(y)),
+      sigma = function(y, ...) rep(.bamlss_init_sd(y), length(y)),
       xi    = function(y, ...) rep(0.3, length(y)),
-      delta = function(y, ...) rep(max(0.5 * mean(y), 1e-6), length(y))
+      delta = function(y, ...) rep(.bamlss_init_mean(y, 0.5), length(y))
     )
   } else {
     rval$initialize <- list(
-      sigma = function(y, ...) rep(max(sd(y), 1e-6), length(y)),
+      sigma = function(y, ...) rep(.bamlss_init_sd(y), length(y)),
       xi    = function(y, ...) rep(0.3, length(y)),
-      delta = function(y, ...) rep(max(0.5 * mean(y), 1e-6), length(y)),
-      kappa = function(y, ...) rep(max(mean(y), 1e-6), length(y))
+      delta = function(y, ...) rep(.bamlss_init_mean(y, 0.5), length(y)),
+      kappa = function(y, ...) rep(.bamlss_init_mean(y), length(y))
     )
   }
 
-  class(rval) <- "family.bamlss"
-  rval
+  .bamlss_residual_family(rval, "count", dtype)
 }
 
 
@@ -375,8 +437,9 @@ degpd_bamlss <- function(m = 1, ...) {
 #' Creates a \code{family.bamlss} object for fitting zero-inflated
 #' discrete Extended Generalized Pareto Distribution models with
 #' \code{bamlss()}.
+#' @inherit egpd_bamlss details
 #'
-#' @param m integer 1--4 selecting the G transformation (see
+#' @param m integer 1--6 selecting the G transformation (see
 #'   \code{\link{egpd_bamlss}} for details)
 #' @param ... arguments passed to link specification
 #'
@@ -408,18 +471,16 @@ zidegpd_bamlss <- function(m = 1, ...) {
   rval <- list(
     "family" = paste0("zidegpd", m),
     "names"  = params,
-    "links"  = .parse_links(default_links, default_links, ...),
+    "links"  = .parse_links(default_links, ...),
 
     "d" = function(y, par, log = FALSE) {
-      d <- dzidiscegpd(y,
+      dzidiscegpd(y,
         pi    = par$pi,
         sigma = par$sigma, xi = par$xi,
         kappa = if (!is.null(par$kappa)) par$kappa else NA,
         delta = if (!is.null(par$delta)) par$delta else NA,
         prob  = if (!is.null(par$prob))  par$prob  else NA,
-        type = dtype)
-      if (log) d <- ifelse(d > 0, log(d), -Inf)
-      d
+        type = dtype, log = log)
     },
 
     "p" = function(y, par, ...) {
@@ -429,7 +490,7 @@ zidegpd_bamlss <- function(m = 1, ...) {
         kappa = if (!is.null(par$kappa)) par$kappa else NA,
         delta = if (!is.null(par$delta)) par$delta else NA,
         prob  = if (!is.null(par$prob))  par$prob  else NA,
-        type = dtype)
+        type = dtype, ...)
     },
 
     "q" = function(p, par, ...) {
@@ -439,7 +500,7 @@ zidegpd_bamlss <- function(m = 1, ...) {
         kappa = if (!is.null(par$kappa)) par$kappa else NA,
         delta = if (!is.null(par$delta)) par$delta else NA,
         prob  = if (!is.null(par$prob))  par$prob  else NA,
-        type = dtype)
+        type = dtype, ...)
     },
 
     "r" = function(n, par) {
@@ -454,35 +515,34 @@ zidegpd_bamlss <- function(m = 1, ...) {
   )
 
   ## initialization
-  pi_init <- function(y, ...) rep(max(mean(y == 0), 0.01), length(y))
+  pi_init <- function(y, ...) rep(.bamlss_init_pi(y), length(y))
   base <- list(
-    sigma = function(y, ...) rep(max(sd(y[y > 0]), 1e-6), length(y)),
+    sigma = function(y, ...) rep(.bamlss_init_sd_pos(y), length(y)),
     xi    = function(y, ...) rep(0.3, length(y))
   )
 
   if (m %in% c(1, 5, 6)) {
     rval$initialize <- c(base, list(
-      kappa = function(y, ...) rep(max(mean(y), 1e-6), length(y)),
+      kappa = function(y, ...) rep(.bamlss_init_mean(y), length(y)),
       pi = pi_init))
   } else if (m == 2) {
     rval$initialize <- c(base, list(
-      kappa = function(y, ...) rep(max(mean(y), 1e-6), length(y)),
-      delta = function(y, ...) rep(max(sd(y), 1e-6), length(y)),
+      kappa = function(y, ...) rep(.bamlss_init_mean(y), length(y)),
+      delta = function(y, ...) rep(.bamlss_init_sd(y), length(y)),
       prob  = function(y, ...) rep(0.5, length(y)),
       pi = pi_init))
   } else if (m == 3) {
     rval$initialize <- c(base, list(
-      delta = function(y, ...) rep(max(0.5 * mean(y), 1e-6), length(y)),
+      delta = function(y, ...) rep(.bamlss_init_mean(y, 0.5), length(y)),
       pi = pi_init))
   } else {
     rval$initialize <- c(base, list(
-      delta = function(y, ...) rep(max(0.5 * mean(y), 1e-6), length(y)),
-      kappa = function(y, ...) rep(max(mean(y), 1e-6), length(y)),
+      delta = function(y, ...) rep(.bamlss_init_mean(y, 0.5), length(y)),
+      kappa = function(y, ...) rep(.bamlss_init_mean(y), length(y)),
       pi = pi_init))
   }
 
-  class(rval) <- "family.bamlss"
-  rval
+  .bamlss_residual_family(rval, "count", dtype)
 }
 
 
@@ -491,7 +551,12 @@ zidegpd_bamlss <- function(m = 1, ...) {
 #' Creates a \code{family.bamlss} object for fitting Poisson-inverse Gaussian
 #' (PIG) count models with \code{bamlss()}. PIG is a mixed-Poisson distribution
 #' (\code{mu} = mean, \code{sigma} = dispersion; Var = mu + sigma * mu^2). The
-#' distribution functions are taken from \code{gamlss.dist}.
+#' distribution functions use the package's Poisson-limit-stabilised
+#' \code{\link{dpig}} family.
+#' @details
+#' Quantile residuals randomize between the CDF at the preceding count and
+#' at the observed count. Response residuals subtract the component mean
+#' \code{mu}, or \eqn{(1-\pi)\mu} for a zero-inflated family.
 #'
 #' @param ... arguments passed to link specification
 #' @return An object of class \code{family.bamlss}
@@ -500,24 +565,26 @@ pig_bamlss <- function(...) {
   rval <- list(
     "family" = "pig",
     "names"  = c("mu", "sigma"),
-    "links"  = .parse_links(c(mu = "log", sigma = "log"),
-                            c(mu = "log", sigma = "log"), ...),
+    "links"  = .parse_links(c(mu = "log", sigma = "log"), ...),
     "d" = function(y, par, log = FALSE)
-      gamlss.dist::dPIG(y, mu = par$mu, sigma = par$sigma, log = log),
+      dpig(y, mu = par$mu, sigma = par$sigma, log = log),
     "p" = function(y, par, ...)
-      gamlss.dist::pPIG(y, mu = par$mu, sigma = par$sigma),
+      ppig(y, mu = par$mu, sigma = par$sigma, ...),
     "q" = function(p, par, ...)
-      gamlss.dist::qPIG(p, mu = par$mu, sigma = par$sigma),
+      qpig(p, mu = par$mu, sigma = par$sigma, ...),
     "r" = function(n, par)
-      gamlss.dist::rPIG(n, mu = par$mu, sigma = par$sigma)
+      rpig(n, mu = par$mu, sigma = par$sigma)
   )
   rval$initialize <- list(
-    mu    = function(y, ...) rep(max(mean(y), 1e-3), length(y)),
-    sigma = function(y, ...)
-      rep(min(max((stats::var(y) - mean(y)) / max(mean(y)^2, 1e-8), 0.1), 10), length(y))
+    mu    = function(y, ...) rep(.bamlss_init_mean(y, floor = 1e-3), length(y)),
+    sigma = function(y, ...) {
+      yk <- y[!is.na(y)]
+      m0 <- if (length(yk) >= 1L) mean(yk) else 1
+      v0 <- if (length(yk) >= 2L) stats::var(yk) else m0 + 0.1 * m0^2
+      rep(min(max((v0 - m0) / max(m0^2, 1e-8), 0.1), 10), length(y))
+    }
   )
-  class(rval) <- "family.bamlss"
-  rval
+  .bamlss_residual_family(rval, "count")
 }
 
 
@@ -525,9 +592,9 @@ pig_bamlss <- function(...) {
 #'
 #' Creates a \code{family.bamlss} object for fitting zero-inflated
 #' Poisson-inverse Gaussian (ZIPIG) count models with \code{bamlss()}. Adds a
-#' logit-link zero-inflation probability \code{pi} to \code{\link{pig_bamlss}}.
-#' The distribution functions are taken from \code{gamlss.dist} (whose ZIPIG
-#' zero-inflation argument is named \code{nu}).
+#' logit-link zero-inflation probability \code{pi} to \code{\link{pig_bamlss}},
+#' using the package's Poisson-limit-stabilised \code{\link{dzipig}} family.
+#' @inherit pig_bamlss details
 #'
 #' @param ... arguments passed to link specification
 #' @return An object of class \code{family.bamlss}
@@ -536,25 +603,27 @@ zipig_bamlss <- function(...) {
   rval <- list(
     "family" = "zipig",
     "names"  = c("mu", "sigma", "pi"),
-    "links"  = .parse_links(c(mu = "log", sigma = "log", pi = "logit"),
-                            c(mu = "log", sigma = "log", pi = "logit"), ...),
+    "links"  = .parse_links(c(mu = "log", sigma = "log", pi = "logit"), ...),
     "d" = function(y, par, log = FALSE)
-      gamlss.dist::dZIPIG(y, mu = par$mu, sigma = par$sigma, nu = par$pi, log = log),
+      dzipig(y, mu = par$mu, sigma = par$sigma, pi = par$pi, log = log),
     "p" = function(y, par, ...)
-      gamlss.dist::pZIPIG(y, mu = par$mu, sigma = par$sigma, nu = par$pi),
+      pzipig(y, mu = par$mu, sigma = par$sigma, pi = par$pi, ...),
     "q" = function(p, par, ...)
-      gamlss.dist::qZIPIG(p, mu = par$mu, sigma = par$sigma, nu = par$pi),
+      qzipig(p, mu = par$mu, sigma = par$sigma, pi = par$pi, ...),
     "r" = function(n, par)
-      gamlss.dist::rZIPIG(n, mu = par$mu, sigma = par$sigma, nu = par$pi)
+      rzipig(n, mu = par$mu, sigma = par$sigma, pi = par$pi)
   )
   rval$initialize <- list(
-    mu    = function(y, ...) rep(max(mean(y), 1e-3), length(y)),
-    sigma = function(y, ...)
-      rep(min(max((stats::var(y) - mean(y)) / max(mean(y)^2, 1e-8), 0.1), 10), length(y)),
-    pi    = function(y, ...) rep(min(max(mean(y == 0), 0.01), 0.5), length(y))
+    mu    = function(y, ...) rep(.bamlss_init_mean(y, floor = 1e-3), length(y)),
+    sigma = function(y, ...) {
+      yk <- y[!is.na(y)]
+      m0 <- if (length(yk) >= 1L) mean(yk) else 1
+      v0 <- if (length(yk) >= 2L) stats::var(yk) else m0 + 0.1 * m0^2
+      rep(min(max((v0 - m0) / max(m0^2, 1e-8), 0.1), 10), length(y))
+    },
+    pi    = function(y, ...) rep(.bamlss_init_pi(y, hi = 0.5), length(y))
   )
-  class(rval) <- "family.bamlss"
-  rval
+  .bamlss_residual_family(rval, "count")
 }
 
 
@@ -566,6 +635,7 @@ zipig_bamlss <- function(...) {
 #' \code{sigma} = tail exponent \eqn{a\in(0,1)} (logit link) and \code{nu} =
 #' down-weighting \eqn{c\in(0,1)} (logit link). The distribution functions use
 #' the package recursion (there is no \code{gamlss.dist} GPIG).
+#' @inherit pig_bamlss details
 #'
 #' @param ... arguments passed to link specification
 #' @return An object of class \code{family.bamlss}
@@ -574,24 +644,22 @@ gpig_bamlss <- function(...) {
   rval <- list(
     "family" = "gpig",
     "names"  = c("mu", "sigma", "nu"),
-    "links"  = .parse_links(c(mu = "log", sigma = "logit", nu = "logit"),
-                            c(mu = "log", sigma = "logit", nu = "logit"), ...),
+    "links"  = .parse_links(c(mu = "log", sigma = "logit", nu = "logit"), ...),
     "d" = function(y, par, log = FALSE)
       dGPIG(y, mu = par$mu, sigma = par$sigma, nu = par$nu, log = log),
     "p" = function(y, par, ...)
-      pGPIG(y, mu = par$mu, sigma = par$sigma, nu = par$nu),
+      pGPIG(y, mu = par$mu, sigma = par$sigma, nu = par$nu, ...),
     "q" = function(p, par, ...)
-      qGPIG(p, mu = par$mu, sigma = par$sigma, nu = par$nu),
+      qGPIG(p, mu = par$mu, sigma = par$sigma, nu = par$nu, ...),
     "r" = function(n, par)
       rGPIG(n, mu = par$mu, sigma = par$sigma, nu = par$nu)
   )
   rval$initialize <- list(
-    mu    = function(y, ...) rep(max(mean(y), 1e-3), length(y)),
+    mu    = function(y, ...) rep(.bamlss_init_mean(y, floor = 1e-3), length(y)),
     sigma = function(y, ...) rep(0.5, length(y)),
     nu    = function(y, ...) rep(0.7, length(y))
   )
-  class(rval) <- "family.bamlss"
-  rval
+  .bamlss_residual_family(rval, "count")
 }
 
 
@@ -600,6 +668,7 @@ gpig_bamlss <- function(...) {
 #' Adds a logit-link zero-inflation probability \code{pi} to
 #' \code{\link{gpig_bamlss}} (mapped to the \code{tau} argument of the
 #' underlying ZIGPIG functions).
+#' @inherit pig_bamlss details
 #'
 #' @param ... arguments passed to link specification
 #' @return An object of class \code{family.bamlss}
@@ -608,25 +677,23 @@ zigpig_bamlss <- function(...) {
   rval <- list(
     "family" = "zigpig",
     "names"  = c("mu", "sigma", "nu", "pi"),
-    "links"  = .parse_links(c(mu = "log", sigma = "logit", nu = "logit", pi = "logit"),
-                            c(mu = "log", sigma = "logit", nu = "logit", pi = "logit"), ...),
+    "links"  = .parse_links(c(mu = "log", sigma = "logit", nu = "logit", pi = "logit"), ...),
     "d" = function(y, par, log = FALSE)
       dZIGPIG(y, mu = par$mu, sigma = par$sigma, nu = par$nu, tau = par$pi, log = log),
     "p" = function(y, par, ...)
-      pZIGPIG(y, mu = par$mu, sigma = par$sigma, nu = par$nu, tau = par$pi),
+      pZIGPIG(y, mu = par$mu, sigma = par$sigma, nu = par$nu, tau = par$pi, ...),
     "q" = function(p, par, ...)
-      qZIGPIG(p, mu = par$mu, sigma = par$sigma, nu = par$nu, tau = par$pi),
+      qZIGPIG(p, mu = par$mu, sigma = par$sigma, nu = par$nu, tau = par$pi, ...),
     "r" = function(n, par)
       rZIGPIG(n, mu = par$mu, sigma = par$sigma, nu = par$nu, tau = par$pi)
   )
   rval$initialize <- list(
-    mu    = function(y, ...) rep(max(mean(y), 1e-3), length(y)),
+    mu    = function(y, ...) rep(.bamlss_init_mean(y, floor = 1e-3), length(y)),
     sigma = function(y, ...) rep(0.5, length(y)),
     nu    = function(y, ...) rep(0.7, length(y)),
-    pi    = function(y, ...) rep(min(max(mean(y == 0), 0.01), 0.5), length(y))
+    pi    = function(y, ...) rep(.bamlss_init_pi(y, hi = 0.5), length(y))
   )
-  class(rval) <- "family.bamlss"
-  rval
+  .bamlss_residual_family(rval, "count")
 }
 
 
@@ -638,6 +705,7 @@ zigpig_bamlss <- function(...) {
 #' W_0(\mu)}). Bell is a one-parameter family, so \code{mu} is the only
 #' parameter. The distribution functions use the package closed form (there is
 #' no \code{gamlss.dist} Bell).
+#' @inherit pig_bamlss details
 #'
 #' @param ... arguments passed to link specification
 #' @return An object of class \code{family.bamlss}
@@ -646,21 +714,20 @@ bell_bamlss <- function(...) {
   rval <- list(
     "family" = "bell",
     "names"  = c("mu"),
-    "links"  = .parse_links(c(mu = "log"), c(mu = "log"), ...),
+    "links"  = .parse_links(c(mu = "log"), ...),
     "d" = function(y, par, log = FALSE)
       dBELL(y, mu = par$mu, log = log),
     "p" = function(y, par, ...)
-      pBELL(y, mu = par$mu),
+      pBELL(y, mu = par$mu, ...),
     "q" = function(p, par, ...)
-      qBELL(p, mu = par$mu),
+      qBELL(p, mu = par$mu, ...),
     "r" = function(n, par)
       rBELL(n, mu = par$mu)
   )
   rval$initialize <- list(
-    mu = function(y, ...) rep(max(mean(y), 1e-3), length(y))
+    mu = function(y, ...) rep(.bamlss_init_mean(y, floor = 1e-3), length(y))
   )
-  class(rval) <- "family.bamlss"
-  rval
+  .bamlss_residual_family(rval, "count")
 }
 
 
@@ -669,6 +736,7 @@ bell_bamlss <- function(...) {
 #' Adds a logit-link zero-inflation probability \code{pi} to
 #' \code{\link{bell_bamlss}} (mapped to the \code{sigma} argument of the
 #' underlying ZIBELL functions).
+#' @inherit pig_bamlss details
 #'
 #' @param ... arguments passed to link specification
 #' @return An object of class \code{family.bamlss}
@@ -677,21 +745,19 @@ zibell_bamlss <- function(...) {
   rval <- list(
     "family" = "zibell",
     "names"  = c("mu", "pi"),
-    "links"  = .parse_links(c(mu = "log", pi = "logit"),
-                            c(mu = "log", pi = "logit"), ...),
+    "links"  = .parse_links(c(mu = "log", pi = "logit"), ...),
     "d" = function(y, par, log = FALSE)
       dZIBELL(y, mu = par$mu, sigma = par$pi, log = log),
     "p" = function(y, par, ...)
-      pZIBELL(y, mu = par$mu, sigma = par$pi),
+      pZIBELL(y, mu = par$mu, sigma = par$pi, ...),
     "q" = function(p, par, ...)
-      qZIBELL(p, mu = par$mu, sigma = par$pi),
+      qZIBELL(p, mu = par$mu, sigma = par$pi, ...),
     "r" = function(n, par)
       rZIBELL(n, mu = par$mu, sigma = par$pi)
   )
   rval$initialize <- list(
-    mu = function(y, ...) rep(max(mean(y), 1e-3), length(y)),
-    pi = function(y, ...) rep(min(max(mean(y == 0), 0.01), 0.5), length(y))
+    mu = function(y, ...) rep(.bamlss_init_mean(y, floor = 1e-3), length(y)),
+    pi = function(y, ...) rep(.bamlss_init_pi(y, hi = 0.5), length(y))
   )
-  class(rval) <- "family.bamlss"
-  rval
+  .bamlss_residual_family(rval, "count")
 }

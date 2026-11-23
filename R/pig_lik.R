@@ -5,9 +5,9 @@
 ##
 ## PIG is a mixed-Poisson count model (not an EGPD): mu > 0 is the mean and
 ## sigma > 0 the dispersion, with Var = mu + sigma * mu^2. ZIPIG adds a
-## logit-link zero-inflation probability. The score is exact; the Hessian is
-## the empirical-Fisher / BHHH approximation (Fisher scoring), matching
-## gamlss.dist::PIG -- see the header of src/pig.cpp.
+## logit-link zero-inflation probability. Both the score and the observed-
+## information Hessian are exact, computed analytically via forward-mode
+## automatic differentiation (PigJet) in src/pig.cpp.
 
 ## ---- PIG (2 parameters: log mu, log sigma) ----
 
@@ -25,8 +25,10 @@
           likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
-## quantile-type inverse transform (mean-scale); used for prediction/simulation.
-.iG_pig <- function(v, mu, sigma) gamlss.dist::qPIG(v, mu = mu, sigma = sigma)
+## quantile-type inverse transforms (mean scale), taking the family's response
+## parameters in order; the zero-inflated one includes pi.
+.iG_pig   <- function(v, mu, sigma)     qpig(v, mu = mu, sigma = sigma)
+.iG_zipig <- function(v, mu, sigma, pi) qzipig(v, mu = mu, sigma = sigma, pi = pi)
 
 .pig1fns <- list(d0 = .pig1.d0, d120 = .pig1.d12, d340 = NULL, m = 1, iG = .iG_pig)
 
@@ -46,4 +48,4 @@
             likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
-.zipig1fns <- list(d0 = .zipig1.d0, d120 = .zipig1.d12, d340 = NULL, m = 1, iG = .iG_pig)
+.zipig1fns <- list(d0 = .zipig1.d0, d120 = .zipig1.d12, d340 = NULL, m = 1, iG = .iG_zipig)

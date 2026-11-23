@@ -24,6 +24,10 @@ all three fitting approaches --- `egpd()`, `gamlss()`, and `bamlss()` ---
 and shows how to construct calibration plots that compare nominal and
 empirical coverage across a range of levels.
 
+Supply one observed response in `y` for each prediction row. For in-sample
+coverage, use the rows retained by the fit, in fitting order. For held-out
+coverage, use the responses in the same order as the rows of `newdata`.
+
 ## Setup
 
 ```{r load-packages, message = FALSE, warning = FALSE}
@@ -82,8 +86,11 @@ fit_b <- bamlss(list(y ~ 1, ~ 1, ~ 1),
 
 ### Parameter estimates
 
+`predict(type = "response")` returns one column per distributional parameter
+plus an `xi` column that duplicates `shape`, so we select the columns by name.
+
 ```{r compare-pars}
-pars_e <- predict(fit_e, type = "response")[1, ]
+pars_e <- predict(fit_e, type = "response")[1, c("scale", "shape", "kappa")]
 mu_g    <- exp(coef(fit_g, what = "mu"))
 sigma_g <- exp(coef(fit_g, what = "sigma"))
 nu_g    <- exp(coef(fit_g, what = "nu"))
@@ -104,8 +111,14 @@ data.frame(
 ## 3. Predictive coverage at the 95% level
 
 We evaluate both **plug-in** prediction (parameters fixed at their point
-estimates) and **parametric** prediction (parameters perturbed on the link
-scale to account for estimation uncertainty).
+estimates) and **parametric** prediction, which accounts for estimation
+uncertainty by giving each simulated response its own parameter draw: a
+multivariate normal draw of the coefficients for `egpd`, normal
+perturbations of each linear predictor for `gamlss`, and the posterior
+(MCMC) samples for `bamlss`, with one response simulated per posterior
+draw.  The `bamlss` fits therefore keep the default sampler: a fit made
+with `sampler = FALSE` has no samples, and `method = "parametric"` stops
+with an error for it.
 
 ```{r coverage-95, cache = TRUE}
 set.seed(1)
@@ -314,11 +327,16 @@ cat("Test x range:", round(range(df_test$x), 3), "\n")
 
 ### Fit models on training data only
 
+The gamlss model uses the parametric formula `y ~ x`, which is correctly
+specified here ($\log\sigma$ is linear in $x$): parametric coverage at new
+data needs a parametric gamlss formula, because additive smoothers such as
+`pb()` have no standard errors at new covariate values.
+
 ```{r forecast-fit, warning = FALSE, results = "hide"}
 fit_e_tr <- egpd(list(lsigma = y ~ s(x, k = 10), lxi = ~ 1, lkappa = ~ 1),
                  data = df_train, family = "degpd", degpd.args = list(m = 1))
 
-fit_g_tr <- gamlss(y ~ pb(x), sigma.formula = ~ 1, nu.formula = ~ 1,
+fit_g_tr <- gamlss(y ~ x, sigma.formula = ~ 1, nu.formula = ~ 1,
                    data = df_train, family = DEGPD1(),
                    control = gamlss.control(n.cyc = 200, trace = FALSE))
 
@@ -495,21 +513,26 @@ the covariate range.
 
 For discrete data, equal-tailed intervals may not be optimal because the
 probability mass is concentrated on integers.  The `use_shortest = TRUE`
-option computes the shortest (highest density region) interval instead.
+option computes the shortest contiguous integer interval with at least the
+nominal mass instead (the lowest one when several intervals of that width
+qualify). This need not be the highest-density region (HDR), even for a
+unimodal pmf: with probabilities 0.25, 0.26, 0.27 and 0.22 on 0, 1, 2, 3 and
+level 0.5, the interval returned is {0, 1}, whereas the HDR is {1, 2}. For a
+multimodal pmf (e.g. zero-inflated) the HDR need not be an interval at all.
 
 ```{r shortest-vs-equal, cache = TRUE}
 set.seed(4)
 
 cov_eq  <- predictive_coverage(fit_e, y, level = 0.95, nsim = 3000,
                                 method = "plug-in", use_shortest = FALSE)
-cov_hdr <- predictive_coverage(fit_e, y, level = 0.95, nsim = 3000,
-                                method = "plug-in", use_shortest = TRUE)
+cov_short <- predictive_coverage(fit_e, y, level = 0.95, nsim = 3000,
+                                  method = "plug-in", use_shortest = TRUE)
 
 data.frame(
-  interval_type    = c("Equal-tailed", "Shortest (HDR)"),
-  coverage         = round(c(cov_eq$coverage, cov_hdr$coverage), 4),
+  interval_type    = c("Equal-tailed", "Shortest contiguous"),
+  coverage         = round(c(cov_eq$coverage, cov_short$coverage), 4),
   mean_width       = round(c(mean(cov_eq$U - cov_eq$L),
-                              mean(cov_hdr$U - cov_hdr$L)), 2),
+                              mean(cov_short$U - cov_short$L)), 2),
   row.names        = NULL
 )
 ```
@@ -532,7 +555,7 @@ supported frameworks.  Key takeaways:
   confirming that the models generalise well.
 - Prediction interval plots show how the interval widens in regions of
   higher variability, and highlight outlying observations.
-- For discrete data, the **shortest (HDR)** interval is more efficient
+- For discrete data, the **shortest contiguous** interval is more efficient
   than equal-tailed intervals.
 - Calibration plots are a useful diagnostic: deviations from the diagonal
   signal model misspecification or inadequate uncertainty quantification.

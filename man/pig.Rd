@@ -12,7 +12,7 @@ dpig(x, mu = 1, sigma = 1, log = FALSE)
 
 ppig(q, mu = 1, sigma = 1, lower.tail = TRUE, log.p = FALSE)
 
-qpig(p, mu = 1, sigma = 1, lower.tail = TRUE, log.p = FALSE, ...)
+qpig(p, mu = 1, sigma = 1, lower.tail = TRUE, log.p = FALSE, max.value = 1e+05)
 
 rpig(n, mu = 1, sigma = 1)
 }
@@ -29,29 +29,57 @@ given as \eqn{\log(p)}.}
 \item{lower.tail}{logical; if \code{TRUE} (default), probabilities are
 \eqn{P[X \le x]}, otherwise \eqn{P[X > x]}.}
 
-\item{...}{further arguments passed to the underlying \code{gamlss.dist}
-function (e.g. \code{max.value} for \code{qpig}).}
-
 \item{p}{vector of probabilities.}
 
-\item{n}{number of random values to return.}
+\item{max.value}{integer cap on the support searched by \code{qpig}
+(default \code{1e5}). It does not limit \code{rpig}, which samples exactly.}
+
+\item{n}{number of random values to return; if \code{length(n) != 1}, the length is
+taken to be the number required (\code{numeric(0)} gives none), as in
+\code{\link[stats]{rpois}}.}
 }
 \value{
 \code{dpig} gives the PMF, \code{ppig} the CDF, \code{qpig} the
-quantile function, and \code{rpig} random deviates.
+  quantile function, and \code{rpig} random deviates.
 }
 \description{
 Density (PMF), distribution function, quantile function and random
 generation for the Poisson-inverse Gaussian (PIG) distribution: a
 mixed-Poisson model for overdispersed counts with mean \code{mu} and
-dispersion \code{sigma} (variance \eqn{\mu + \sigma\mu^2}). These are thin
-wrappers around \code{\link[gamlss.dist]{dPIG}} etc.
+dispersion \code{sigma} (variance \eqn{\mu + \sigma\mu^2}), in the
+parameterisation of \code{\link[gamlss.dist]{PIG}}. The PMF is computed natively
+by a cancellation-free forward recursion that is exact to rounding for every
+\code{sigma}, including the Poisson limit \code{sigma -> 0}.
+}
+\details{
+Both tails are computed from sums of the PMF taken in the direction that
+  keeps full relative accuracy (the upper tail from the survivor itself), so
+  \code{lower.tail = FALSE} and \code{log.p = TRUE} stay accurate far into the tail.
+  The quantile function inverts these probabilities up to rounding tolerance;
+  near one it compares on the log scale to resolve the small upper tail. Its
+  endpoints are 0 and \code{Inf}, and a nonattaining \code{max.value} gives \code{NA}
+  with a warning. Invalid input follows \code{\link[stats]{dpois}}: an \code{NA}
+  parameter gives \code{NA}; an invalid one (non-positive, \code{NaN} or infinite)
+  gives \code{NaN} with a warning, except that an \code{NA} or \code{NaN} \code{x},
+  \code{q} or \code{p} is returned silently; \code{x} that is negative or infinite has mass
+  zero, and a non-integer \code{x} has mass zero with a warning; probabilities
+  outside \eqn{[0, 1]} give \code{NaN} with a warning.
+
+  Random generation is exact and has no cap: \code{rpig} draws the mixing variable
+  \eqn{Z}, inverse Gaussian with mean 1 and variance \code{sigma}, by the method of
+  Michael, Schucany and Haas (1976), and then a Poisson count with mean
+  \eqn{\mu Z}.
 }
 \examples{
 dpig(0:5, mu = 2, sigma = 0.8)
 qpig(ppig(3, mu = 2, sigma = 0.8), mu = 2, sigma = 0.8)  # == 3
 }
+\references{
+Michael, J. R., Schucany, W. R. and Haas, R. W. (1976). Generating
+  random variates using transformations with multiple roots. \emph{The American
+  Statistician} 30, 88-90.
+}
 \seealso{
 \code{\link[gamlss.dist]{PIG}} for the gamlss family;
-\code{\link{dzipig}} for the zero-inflated version.
+  \code{\link{dzipig}} for the zero-inflated version.
 }

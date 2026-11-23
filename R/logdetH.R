@@ -106,8 +106,12 @@ dbeta$d1 <- CH %*% dbeta$d1
 
 d1eta <- lapply(seq_len(nX), function(i) X[[i]] %*% dbeta$d1[idpars == i, , drop=FALSE])
 eH <- eigen(H$H)
-V <- CH %*% eH$vectors
-XV <- lapply(seq_len(nX), function(i) X[[i]] %*% (H$dH[idpars == i] * V[idpars == i, , drop=FALSE]))
+## H$H is the preconditioned D H0 D = U L U' (D = diag(H$dH)), so
+## H0^{-1} = D U L^{-1} U' D and tr(H0^{-1} CH' M CH) needs the vectors CH D U. Scaling
+## the rows of CH U by D instead gave D CH U, which differs unless CH is diagonal (the
+## curvature sandwich adjustment), and made the REML gradient wrong there.
+V <- CH %*% (H$dH * eH$vectors)
+XV <- lapply(seq_len(nX), function(i) X[[i]] %*% V[idpars == i, , drop=FALSE])
 
 d1H <- matrix(0, nb, nsp)
 
@@ -146,8 +150,12 @@ d1eta <- lapply(seq_len(nX), function(i) X[[i]] %*% dbeta$d1[idpars == i, , drop
 d2eta <- lapply(seq_len(nX), function(i) apply(dbeta$d2[idpars == i, , , drop=FALSE], 2:3, function(x) X[[i]] %*% x))
 
 eH <- eigen(H$H)
-V <- CH %*% eH$vectors
-XV <- lapply(seq_len(nX), function(i) X[[i]] %*% (H$dH[idpars == i] * V[idpars == i, , drop=FALSE]))
+## H$H is the preconditioned D H0 D = U L U' (D = diag(H$dH)), so
+## H0^{-1} = D U L^{-1} U' D and tr(H0^{-1} CH' M CH) needs the vectors CH D U. Scaling
+## the rows of CH U by D instead gave D CH U, which differs unless CH is diagonal (the
+## curvature sandwich adjustment), and made the REML gradient wrong there.
+V <- CH %*% (H$dH * eH$vectors)
+XV <- lapply(seq_len(nX), function(i) X[[i]] %*% V[idpars == i, , drop=FALSE])
 
 d2H <- array(0, c(nb, nsp, nsp))
 

@@ -4,7 +4,15 @@
 \alias{qcomppareto}
 \title{Quantile function of the continuous composite Pareto distribution}
 \usage{
-qcomppareto(p, spec, alpha = 1, theta = 1, log.p = FALSE, ...)
+qcomppareto(
+  p,
+  spec,
+  alpha = 1,
+  theta = 1,
+  lower.tail = TRUE,
+  log.p = FALSE,
+  ...
+)
 }
 \arguments{
 \item{p}{vector of probabilities.}
@@ -14,7 +22,9 @@ qcomppareto(p, spec, alpha = 1, theta = 1, log.p = FALSE, ...)
 
 \item{alpha}{positive Pareto shape parameter.}
 
-\item{theta}{positive splice point and Pareto scale parameter.}
+\item{theta}{positive splice point and Lomax scale parameter.}
+
+\item{lower.tail}{logical; if \code{FALSE}, probabilities are \eqn{P[X > x]}.}
 
 \item{log.p}{logical; if \code{TRUE}, \code{p} is supplied on the log scale.}
 
@@ -24,5 +34,7 @@ qcomppareto(p, spec, alpha = 1, theta = 1, log.p = FALSE, ...)
 Numeric vector of quantiles.
 }
 \description{
-Quantile function of the continuous composite Pareto distribution
+Upper-tail and \code{log.p} targets below the splice point whose body probability is
+within about \code{1e-3} of 1 are inverted on the body's own survivor, matching
+\code{\link{pcomppareto}}.
 }

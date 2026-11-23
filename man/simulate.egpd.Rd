@@ -25,19 +25,37 @@
 
 \item{newdata}{a data frame}
 
-\item{type}{a character string: "link" or "response"}
+\item{type}{a character string: \code{"link"}, \code{"response"} or
+\code{"quantile"}; supplying \code{probs} implies \code{"quantile"}}
 
-\item{probs}{a scalar or vector of probabilities}
+\item{probs}{a scalar or vector of probabilities: for each coefficient draw, the
+quantiles of the response at these probabilities are returned}
 
-\item{threshold}{a scalar added to simulations}
+\item{threshold}{a scalar added to the simulated quantiles (e.g. the threshold
+of a peaks-over-threshold model); ignored for other types}
 
-\item{marginal}{logical: should uncertainty integrate out smoothing parameter uncertainty?}
+\item{marginal}{logical: should uncertainty integrate out smoothing parameter
+uncertainty (use \code{Vc}; the default) rather than condition on it
+(\code{Vp})?}
 
 \item{...}{additional arguments}
 }
 \value{
-Simulations of parameters
+A named list of observation-by-simulation matrices: one per linear
+  predictor (\code{type = "link"}: draws on the link scale, including model
+  offsets, named by parameter as for \code{type = "response"}, e.g.
+  \code{scale} for the \code{logscale} predictor), one
+  per distributional parameter (\code{type = "response"}, named by parameter;
+  the fitted inverse links are applied, including a finite DEGPD shape cap and,
+  for \code{family = "custom"}, \code{custom.fns$unlink}, and
+  parameters are clamped to the same safe interior as in the likelihood and in
+  \code{predict()}), or one per probability (\code{type = "quantile"}, named
+  \code{"q:<prob>"} with the probability to 15 significant digits, e.g.
+  \code{"q:0.9995"}, with \code{threshold} added).
 }
 \description{
-Simulations from a fitted \code{egpd} object
+Draws coefficient vectors from their approximate posterior, a multivariate
+normal with the fitted mean and covariance \code{Vc} (\code{marginal = TRUE})
+or \code{Vp}, and returns the implied linear predictors, distributional
+parameters, or quantiles.
 }

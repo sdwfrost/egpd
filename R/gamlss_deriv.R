@@ -1,415 +1,434 @@
-## Analytical derivatives for gamlss families using the Deriv package
+## Analytic scores for the egpd gamlss families
 ##
-## Log-density/PMF functions are symbolically differentiated on first use
-## (lazy initialisation).  The results are cached in .deriv_cache and
-## dispatched via .egpd_ad3() / .egpd_ad4(), which mirror the numerical
-## .egpd_nd3() / .egpd_nd4().
+## The score of an observation is the derivative of its log-density (or
+## log-PMF) with respect to the natural gamlss parameters
+##   mu = GPD scale sigma, sigma = GPD shape xi,
+##   nu = kappa (carriers 1, 2, 3) or delta (carriers 4, 5),
+##   tau = kappa (carrier 5) or pi (zero-inflated families).
+## Scores are assembled from numerically stable closed-form pieces of the
+## GPD and of the carrier G, all written in terms of A = -log(1 - F_GPD(y))
+## so that u = F_GPD(y) and s = 1 - u are both available without
+## cancellation.  For a discrete observation
+##   d log P(y) / d theta = [dH(y + 1) / d theta - dH(y) / d theta] / P(y),
+## with H = G(F_GPD(.)) and P(y) the stable PMF from ddiscegpd(); each term
+## is evaluated as sign * exp(log|term| - log P(y)), so neither underflow
+## nor the u^(kappa - 1) * du/dtheta = Inf * 0 limit at y = 0 (where
+## F_GPD(0) = 0 and dH(0) / d theta = 0 exactly) can arise.  Small |xi| uses
+## series for log1p(w) / w and its xi-derivative, so no switch to finite
+## differences is needed near xi = 0.  For truncated-beta shape scores use
+## the conditional cell and full normalizer derivatives directly.
+##
+## Observations with zero (or infinite) likelihood at the current parameters,
+## e.g. counts beyond a finite upper endpoint, have no score: NaN is returned
+## with a warning rather than a silent zero.  Invalid parameters give NaN
+## with a warning and NA inputs give NA, following base R conventions.
+
+.egpd_score_info <- function(key) {
+  zi <- startsWith(key, "zi")
+  base <- sub("^zi", "", key)
+  disc <- startsWith(base, "degpd")
+  model <- sub("^d?egpd", "", base)
+  type <- switch(model, "1" = 1L, "3" = 4L, "4" = 5L, "5" = 2L, "6" = 3L,
+                 stop("Unknown family: ", key, call. = FALSE))
+  list(type = type, disc = disc, zi = zi,
+       npar = if (type == 5L || zi) 4L else 3L)
+}
+
+## log1p(x) / x
+.sc_lg1p_over_x <- function(x) {
+  out <- log1p(x) / x
+  sm <- which(abs(x) < 1e-4)
+  if (length(sm)) {
+    xs <- x[sm]
+    out[sm] <- 1 - xs / 2 + xs^2 / 3 - xs^3 / 4
+  }
+  out
+}
+
+## (log1p(w) - w / (1 + w)) / w^2, so that dA/dxi = -z^2 * phi(w)
+.sc_phi <- function(w) {
+  out <- (log1p(w) - w / (1 + w)) / w^2
+  sm <- which(abs(w) < 1e-3)
+  if (length(sm)) {
+    ws <- w[sm]
+    out[sm] <- 0.5 - 2 * ws / 3 + 3 * ws^2 / 4 - 4 * ws^3 / 5 + 5 * ws^4 / 6
+  }
+  out
+}
+
+## x / expm1(x) - 1
+.sc_xm1 <- function(x) {
+  out <- x / expm1(x) - 1
+  sm <- which(abs(x) < 1e-4)
+  if (length(sm)) {
+    xs <- x[sm]
+    out[sm] <- -xs / 2 + xs^2 / 12 - xs^4 / 720
+  }
+  out[which(x == Inf)] <- -1
+  out
+}
+
+## log(1 - (1 + x) exp(-x)) for x >= 0
+.sc_log_q <- function(x) {
+  out <- rep(0, length(x))
+  fin <- which(is.finite(x))
+  if (length(fin)) {
+    xf <- x[fin]
+    val <- log(-expm1(-xf) - xf * exp(-xf))
+    sm <- which(xf < 1e-3)
+    if (length(sm)) {
+      xs <- xf[sm]
+      val[sm] <- 2 * log(xs) - log(2) +
+        log1p(-2 * xs / 3 + xs^2 / 4 - xs^3 / 15 + xs^4 / 72)
+    }
+    out[fin] <- val
+  }
+  out
+}
+
+## GPD pieces at t >= 0: A = -log S(t), dA/dscale, dA/dxi and the log-density
+## derivatives.  Points at or beyond a finite upper endpoint have A = Inf.
+.sc_gpd <- function(t, sc, xi) {
+  n <- length(t)
+  z <- t / sc
+  w <- xi * z
+  at0 <- t <= 0
+  beyond <- !at0 & xi < 0 & w <= -1
+  ok <- which(!at0 & !beyond)
+  A <- dAs <- dAx <- dlfs <- dlfx <- numeric(n)
+  A[beyond] <- Inf
+  dlfs[at0] <- -1 / sc[at0]
+  if (length(ok)) {
+    zo <- z[ok]; wo <- w[ok]; so <- sc[ok]; xo <- xi[ok]
+    A[ok] <- zo * .sc_lg1p_over_x(wo)
+    dAs[ok] <- -(zo / so) / (1 + wo)
+    ph <- .sc_phi(wo)
+    dAx[ok] <- -zo^2 * ph
+    dlfs[ok] <- -1 / so + (1 + xo) * (zo / so) / (1 + wo)
+    dlfx[ok] <- -A[ok] + (1 + xo) * zo^2 * ph
+  }
+  list(A = A, dAs = dAs, dAx = dAx, dlfs = dlfs, dlfx = dlfx,
+       at0 = at0, beyond = beyond)
+}
+
+## Carrier pieces at A (vectors of equal length).  Returns
+##   lg   log g(u)
+##   dlgs (d log g / du) * s
+##   dlgk, dlgd  d log g / d kappa, d log g / d delta  (continuous scores)
+##   Gk, Gd      list(sign, lm): dG(u)/d kappa = sign * exp(lm)  (discrete)
+.sc_carrier <- function(type, A, k, d, need = c("lg", "dlgs", "dlgk", "dlgd", "Gk", "Gd")) {
+  s <- exp(-A)
+  u <- -expm1(-A)
+  logu <- .egpd_log_u(A)
+  out <- list()
+  if (type == 1L) {
+    if ("lg" %in% need) out$lg <- log(k) + ifelse(k == 1, 0, (k - 1) * logu)
+    if ("dlgs" %in% need) out$dlgs <- ifelse(k == 1, 0, (k - 1) / expm1(A))
+    if ("dlgk" %in% need) out$dlgk <- 1 / k + logu
+    if ("Gk" %in% need) out$Gk <- list(sign = -1, lm = k * logu + .egpd_log_mlogu(A))
+  } else if (type == 2L) {
+    small <- k < 1e-2
+    C <- .egpd_C2(k)
+    if ("lg" %in% need) {
+      lg <- 0.5 * log(k) - 0.5 * log(2 * pi) - 0.5 * k * s^2 - log(C)
+      sm <- which(small)
+      if (length(sm)) lg[sm] <- -0.5 * k[sm] * s[sm]^2 - log(.erf_series(k[sm]))
+      out$lg <- lg
+    }
+    if ("dlgs" %in% need) out$dlgs <- k * s^2
+    if ("dlgk" %in% need) {
+      dser <- -1 / 6 + k / 20 - 3 * k^2 / 336 + 4 * k^3 / 3456 - 5 * k^4 / 42240
+      out$dlgk <- ifelse(small, -s^2 / 2 - dser / .erf_series(k),
+                         1 / (2 * k) - s^2 / 2 - dnorm(sqrt(k)) / (2 * sqrt(k) * C))
+    }
+    if ("Gk" %in% need) {
+      sk <- sqrt(k)
+      W <- (dnorm(sk * s) - dnorm(sk) * .egpd_S2_over_s(s, k)) / (2 * sk * C)
+      sW <- sign(W)
+      lW <- log(abs(W))
+      ## W = phi(sk s) (1 - R) / (2 sk C) with R = exp(-D) S2(s) / s and
+      ## D = kappa (1 - s^2) / 2.  dnorm() underflows for large kappa and the
+      ## bracket cancels as u -> 0 (S2(s) / s rounds to 1), so evaluate it on
+      ## the log scale there, with log(S2(s) / s) = log(1 - G(u)) + A for u < 1/2
+      lg <- which(!is.finite(lW) | u < 1e-2)
+      if (length(lg)) {
+        Ag <- A[lg]; kg <- rep_len(k, length(A))[lg]; ug <- u[lg]
+        lS2s <- numeric(length(lg))
+        lo <- which(ug < 0.5)
+        if (length(lo)) {
+          lGg <- .egpd_carrier_log(Ag[lo], 2L, rep(NA_real_, length(lo)), kg[lo],
+                                   rep(NA_real_, length(lo)))$lG
+          lS2s[lo] <- .log1mexp(lGg) + Ag[lo]
+        }
+        hi <- which(ug >= 0.5)
+        if (length(hi)) lS2s[hi] <- log(.egpd_S2_over_s(exp(-Ag[hi]), kg[hi]))
+        lR <- lS2s - kg * (-expm1(-2 * Ag)) / 2
+        l1mR <- ifelse(lR < 0, .log1mexp(lR),
+                       ifelse(lR > 0, lR + .log1mexp(-lR), -Inf))
+        lW[lg] <- -kg * exp(-2 * Ag) / 2 - 0.5 * log(2 * pi) + l1mR -
+          log(2 * sqrt(kg) * rep_len(C, length(A))[lg])
+        sW[lg] <- -sign(lR)
+      }
+      out$Gk <- list(sign = -sW, lm = -A + lW)
+    }
+  } else if (type == 3L) {
+    z <- ((15/16) * s)^2
+    if ("lg" %in% need) out$lg <- .egpd_tb_logdens(s, k)
+    if ("dlgs" %in% need) out$dlgs <- (k - 1) * (2 * z / (1 - z))
+    if ("dlgk" %in% need) out$dlgk <- log1p(-z) - .egpd_tb_norm(k)[, 2L]
+  } else if (type == 4L) {
+    lg4 <- log1p(1 / d) + log(-expm1(-d * A))
+    if ("lg" %in% need) out$lg <- lg4
+    if ("dlgs" %in% need) out$dlgs <- d / expm1(d * A)
+    if ("dlgd" %in% need) out$dlgd <- .sc_xm1(d * A) / d + 1 / (d + 1)
+    if ("Gd" %in% need) out$Gd <- list(sign = 1, lm = -A + .sc_log_q(d * A) - 2 * log(d))
+  } else {
+    na <- rep(NA_real_, length(A))
+    cl4 <- .egpd_carrier_log(A, 4L, na, na, d)
+    lG4 <- cl4$lG
+    lmlG4 <- ifelse(lG4 <= -log(2), suppressWarnings(log(-lG4)), .egpd_log_mlog1m(cl4$lS))
+    lg4 <- log1p(1 / d) + log(-expm1(-d * A))
+    if ("lg" %in% need) out$lg <- log(k / 2) + ifelse(k == 2, 0, (k / 2 - 1) * lG4) + lg4
+    if ("dlgs" %in% need) {
+      out$dlgs <- ifelse(k == 2, 0, (k / 2 - 1) * exp(lg4 - A - lG4)) + d / expm1(d * A)
+    }
+    if ("dlgk" %in% need) out$dlgk <- 1 / k + lG4 / 2
+    lq <- -A + .sc_log_q(d * A) - 2 * log(d)
+    if ("dlgd" %in% need) {
+      ## (dG4 / d delta) / G4 = exp(lq - lG4) tends to 1 / (delta + 1) as A -> 0
+      ## (G4 ~ (1 + delta) A^2 / 2), where both logs are -Inf
+      rq <- exp(lq - lG4)
+      a0 <- which(A == 0)
+      if (length(a0)) rq[a0] <- 1 / (rep_len(d, length(A))[a0] + 1)
+      out$dlgd <- ifelse(k == 2, 0, (k / 2 - 1) * rq) +
+        .sc_xm1(d * A) / d + 1 / (d + 1)
+    }
+    if ("Gk" %in% need) out$Gk <- list(sign = -1, lm = log(0.5) + (k / 2) * lG4 + lmlG4)
+    if ("Gd" %in% need) out$Gd <- list(sign = 1, lm = log(k / 2) + (k / 2 - 1) * lG4 + lq)
+  }
+  out
+}
+
+## Map gamlss (nu, tau) to carrier (kappa, delta)
+.sc_shapes <- function(type, nu, tau) {
+  if (type %in% 1:3) list(k = nu, d = rep(NA_real_, length(nu)))
+  else if (type == 4L) list(k = rep(NA_real_, length(nu)), d = nu)
+  else list(k = tau, d = nu)
+}
+
+## Stable log-density / log-PMF of the base (non-zero-inflated) model
+.sc_logdens <- function(y, sc, xi, k, d, type, disc) {
+  if (disc) {
+    ddiscegpd(y, sigma = sc, xi = xi, kappa = k, delta = d, type = type, log = TRUE)
+  } else {
+    degpd_density(y, sigma = sc, xi = xi, kappa = k, delta = d, type = type, log = TRUE)
+  }
+}
+
+## Scores of the base continuous model for rows with a finite log-density
+.sc_score_cont <- function(y, sc, xi, k, d, type, idx) {
+  g <- .sc_gpd(y, sc, xi)
+  t0 <- g$at0
+  if (idx <= 2L) {
+    cp <- .sc_carrier(type, g$A, k, d, need = "dlgs")
+    dA <- if (idx == 1L) g$dAs else g$dAx
+    carrier_term <- ifelse(t0, 0, cp$dlgs * dA)
+    return(carrier_term + (if (idx == 1L) g$dlfs else g$dlfx))
+  }
+  if (type == 5L) {
+    cp <- .sc_carrier(type, g$A, k, d, need = if (idx == 4L) "dlgk" else "dlgd")
+    return(if (idx == 4L) cp$dlgk else cp$dlgd)
+  }
+  cp <- .sc_carrier(type, g$A, k, d, need = if (type == 4L) "dlgd" else "dlgk")
+  if (type == 4L) cp$dlgd else cp$dlgk
+}
+
+## On a fixed interior cell, d log P is the mean continuous score weighted
+## by its density. This avoids subtracting two nearly equal endpoint terms.
+.sc_cell_score <- function(y, sc, xi, k, d, type, idx) {
+  m <- length(y)
+  rule <- .egpd_gl20()
+  tt <- y + rep((1 + rule$x) / 2, each = m)
+  rp <- function(v) rep(v, times = length(rule$x))
+  At <- -.gpd_cdf_surv_std(tt, rp(sc), rp(xi))$log_surv
+  ld <- matrix(.egpd_carrier_logdens(At, type, NA_real_, rp(k), rp(d)) +
+                 .dgpd_std(tt, rp(sc), rp(xi), log = TRUE), nrow = m)
+  sk <- matrix(.sc_score_cont(tt, rp(sc), rp(xi), rp(k), rp(d), type, idx), nrow = m)
+  fine <- rowSums(!is.finite(ld) | !is.finite(sk)) == 0
+  fine[fine] <- (.egpd_row_max(ld[fine, , drop = FALSE]) -
+                   .egpd_row_min(ld[fine, , drop = FALSE])) <= 3
+  out <- rep(NA_real_, m)
+  if (any(fine)) {
+    lw <- ld[fine, , drop = FALSE] + rep(log(rule$w), each = sum(fine))
+    w <- exp(lw - .egpd_row_max(lw))
+    out[fine] <- rowSums(w * sk[fine, , drop = FALSE]) / rowSums(w)
+  }
+  out
+}
+
+## Scores of the base discrete model for rows with log P(y) = logP finite
+.sc_score_disc <- function(y, sc, xi, k, d, type, idx, logP) {
+  n <- length(y)
+  g0 <- .sc_gpd(y, sc, xi)
+  g1 <- .sc_gpd(y + 1, sc, xi)
+  live0 <- !g0$at0 & !g0$beyond
+  live1 <- !g1$at0 & !g1$beyond
+  if (type == 3L && idx == 3L)
+    return(egpd_tb_moments_cpp(k, exp(-g1$A), exp(-g0$A))[, 2L] - .egpd_tb_norm(k)[, 2L])
+  difference <- function(i, lm0, lm1, sign0, sign1) {
+    l0 <- ifelse(live0[i] & sign0 != 0, lm0, -Inf)
+    l1 <- ifelse(live1[i] & sign1 != 0, lm1, -Inf)
+    out <- sign1 * exp(l1 - logP[i]) - sign0 * exp(l0 - logP[i])
+    narrow <- which(live0[i] & live1[i] & (!is.finite(out) |
+                    (sign0 == sign1 & abs(l0 - l1) <= 1e-5 * pmax(1, abs(l0), abs(l1)))))
+    if (length(narrow)) {
+      j <- i[narrow]
+      avg <- .sc_cell_score(y[j], sc[j], xi[j], k[j], d[j], type, idx)
+      ok <- is.finite(avg)
+      out[narrow[ok]] <- avg[ok]
+    }
+    out
+  }
+  carrier_param <- idx >= 3L
+  if (!carrier_param) {
+    A0 <- ifelse(live0, g0$A, 1)
+    A1 <- ifelse(live1, g1$A, 1)
+    lg0 <- .sc_carrier(type, A0, k, d, need = "lg")$lg
+    lg1 <- .sc_carrier(type, A1, k, d, need = "lg")$lg
+    dA0 <- if (idx == 1L) g0$dAs else g0$dAx
+    dA1 <- if (idx == 1L) g1$dAs else g1$dAx
+    return(difference(seq_len(n), lg0 - A0 + log(-dA0), lg1 - A1 + log(-dA1), -1, -1))
+  }
+  which_shape <- if (type == 5L) (if (idx == 4L) "k" else "d") else if (type == 4L) "d" else "k"
+  num <- if (type == 2L) k < 1e-3 else rep(FALSE, n)
+  out <- numeric(n)
+  an <- which(!num)
+  if (length(an)) {
+    nm <- if (which_shape == "k") "Gk" else "Gd"
+    A0 <- ifelse(live0, g0$A, 1)[an]
+    A1 <- ifelse(live1, g1$A, 1)[an]
+    c0 <- .sc_carrier(type, A0, k[an], d[an], need = nm)[[nm]]
+    c1 <- .sc_carrier(type, A1, k[an], d[an], need = nm)[[nm]]
+    s0 <- rep_len(c0$sign, length(an)); s1 <- rep_len(c1$sign, length(an))
+    out[an] <- difference(an, c0$lm, c1$lm, s0, s1)
+  }
+  nn <- which(num)
+  if (length(nn)) {
+    ## d log P / d kappa = int_y^{y+1} f d(log f)/d kappa / int f: where the
+    ## density varies slowly over [y, y + 1] this weighted mean of the
+    ## continuous carrier-shape score is evaluated by Gauss-Legendre, which
+    ## avoids differentiating the far-tail log P numerically
+    out[nn] <- NA_real_
+    i <- nn[y[nn] >= 1 & live1[nn]]
+    if (length(i))
+      out[i] <- .sc_cell_score(y[i], sc[i], xi[i], k[i], d[i], type, idx)
+    rest <- nn[!is.finite(out[nn])]
+    if (length(rest)) {
+      yn <- y[rest]; sn <- sc[rest]; xn <- xi[rest]; dn <- d[rest]; kn <- k[rest]
+      ldf <- function(p, j) .sc_logdens(yn[j], sn[j], xn[j], p, dn[j], type, TRUE)
+      out[rest] <- .egpd_nd_core(ldf, kn, pmax(1e-5 * kn, 1e-8))
+    }
+  }
+  out
+}
+
+## Score engine shared by all EGPD/DEGPD/ZIEGPD/ZIDEGPD gamlss families
+.egpd_score <- function(y, mu, sigma, nu, tau, key, idx) {
+  info <- .egpd_score_info(key)
+  if (!(idx %in% seq_len(info$npar))) stop("Unknown family/idx: ", key, "_", idx, call. = FALSE)
+  if (is.null(tau)) tau <- numeric(1)
+  lens <- c(length(y), length(mu), length(sigma), length(nu), if (info$npar == 4L) length(tau))
+  if (min(lens) == 0L) return(numeric(0))
+  n <- max(lens)
+  y <- rep_len(as.numeric(y), n); mu <- rep_len(as.numeric(mu), n)
+  sigma <- rep_len(as.numeric(sigma), n); nu <- rep_len(as.numeric(nu), n)
+  tau <- rep_len(as.numeric(tau), n)
+  type <- info$type
+  sh <- .sc_shapes(type, nu, tau)
+  k <- sh$k; d <- sh$d
+  pi0 <- if (info$zi) tau else rep(0, n)
+
+  active <- list(y, mu, sigma, nu)
+  if (info$npar == 4L) active <- c(active, list(tau))
+  has_na <- Reduce(`|`, lapply(active, is.na))
+  shape_ok <- if (type %in% 1:3) is.finite(k) & (k > 0 | (type == 2L & k == 0)) else TRUE
+  if (type %in% 4:5) shape_ok <- shape_ok & is.finite(d) & d > 0
+  if (type == 5L) shape_ok <- shape_ok & is.finite(k) & k > 0
+  par_ok <- !has_na & is.finite(mu) & mu > 0 & is.finite(sigma) & shape_ok &
+    is.finite(pi0) & pi0 >= 0 & pi0 <= 1
+  out <- rep(NaN, n)
+  bad_par <- sum(!has_na & !par_ok)
+
+  ok <- which(par_ok)
+  undefined <- 0L
+  if (length(ok)) {
+    yo <- y[ok]; so <- mu[ok]; xo <- sigma[ok]; ko <- k[ok]; dd <- d[ok]; po <- pi0[ok]
+    res <- rep(NaN, length(ok))
+    zero_obs <- info$zi & yo == 0
+    if (info$zi && idx == 4L) {
+      if (info$disc) {
+        lp0 <- .sc_logdens(rep(0, length(ok)), so, xo, ko, dd, type, TRUE)
+        res[zero_obs] <- (-expm1(lp0) / (po + (1 - po) * exp(lp0)))[zero_obs]
+      } else {
+        res[zero_obs] <- 1 / po[zero_obs]
+      }
+      pos <- which(!zero_obs)
+      if (length(pos)) {
+        lp <- .sc_logdens(yo[pos], so[pos], xo[pos], ko[pos], dd[pos], type, info$disc)
+        res[pos] <- ifelse(is.finite(lp) & po[pos] < 1, -1 / (1 - po[pos]), NaN)
+      }
+    } else {
+      ## base-model score at y (or at 0 for zero-inflated zeros)
+      lp <- .sc_logdens(yo, so, xo, ko, dd, type, info$disc)
+      fin <- if (info$zi && !info$disc) !zero_obs & is.finite(lp) else is.finite(lp)
+      if (info$zi) fin <- fin & (zero_obs | po < 1)
+      f <- which(fin)
+      if (length(f)) {
+        res[f] <- if (info$disc) {
+          .sc_score_disc(yo[f], so[f], xo[f], ko[f], dd[f], type, idx, lp[f])
+        } else {
+          .sc_score_cont(yo[f], so[f], xo[f], ko[f], dd[f], type, idx)
+        }
+      }
+      if (info$zi) {
+        z <- which(zero_obs)
+        if (length(z)) {
+          if (info$disc) {
+            ## d log(pi + (1 - pi) P0) = w0 * d log P0, w0 = (1 - pi) P0 / f(0)
+            w0 <- plogis(log1p(-po[z]) + lp[z] - log(po[z]))
+            res[z] <- ifelse(w0 == 0, 0, w0 * res[z])
+          } else {
+            res[z] <- 0
+          }
+        }
+      }
+    }
+    res[!is.finite(res)] <- NaN
+    undefined <- sum(is.nan(res))
+    out[ok] <- res
+  }
+  if (bad_par) warning("NaNs produced", call. = FALSE)
+  if (undefined) {
+    warning(sprintf(paste0(
+      "score undefined for %d observation(s) with zero or infinite likelihood ",
+      "at the current parameters (e.g. outside the support); NaN returned"),
+      undefined), call. = FALSE)
+  }
+  .egpd_apply_na_nan(out, active)
+}
 
 ## ---------------------------------------------------------------
-## Continuous EGPD log-density functions (plain R — no Deriv calls)
-## ---------------------------------------------------------------
-
-## Type 1 / model 1 (EGPD1): G(u) = u^kappa
-.logdens_egpd1 <- function(y, mu, sigma, nu) {
-  v <- 1 + sigma * y / mu
-  u <- 1 - v^(-1 / sigma)
-  log(nu) + (nu - 1) * log(u) - log(mu) - (1 / sigma + 1) * log(v)
-}
-
-## Type 4 / model 3 (EGPD3): g4 simplifies to avoid dbeta/pbeta
-.logdens_egpd3 <- function(y, mu, sigma, nu) {
-  v <- 1 + sigma * y / mu
-  u <- 1 - v^(-1 / sigma)
-  log(nu) + log(1 - (1 - u)^nu) - lbeta(1 / nu, 2) -
-    log(mu) - (1 / sigma + 1) * log(v)
-}
-
-## Type 2 / model 5 (EGPD5): truncated normal
-.logdens_egpd5 <- function(y, mu, sigma, nu) {
-  v <- 1 + sigma * y / mu
-  u <- 1 - v^(-1 / sigma)
-  C <- pnorm(sqrt(nu), 0, 1) - 0.5
-  0.5 * log(nu) - 0.5 * log(2 * pi) - 0.5 * nu * (u - 1)^2 -
-    log(C) - log(mu) - (1 / sigma + 1) * log(v)
-}
-
-## Type 3 / model 6 (EGPD6): truncated beta (main part without log(C))
-## The GPD CDF is first rescaled from [0, 1] to [1/32, 1/2].
-.logdens_egpd6_main <- function(y, mu, sigma, nu) {
-  v <- 1 + sigma * y / mu
-  u <- 1 - v^(-1 / sigma)
-  hml <- 0.5 - 1 / 32
-  t <- hml * u + 1 / 32
-  log(hml) + (nu - 1) * log(t) + (nu - 1) * log(1 - t) - lbeta(nu, nu) -
-    log(mu) - (1 / sigma + 1) * log(v)
-}
-
-## Normalising constant for type 3
-.logC_egpd6 <- function(nu) {
-  log(pbeta(0.5, nu, nu) - pbeta(1 / 32, nu, nu))
-}
-
-## Numerical d/dnu of log(C) for type 3
-.dlogC_dnu_egpd6 <- function(nu) {
-  h <- pmax(abs(nu) * 1e-6, 1e-8)
-  (.logC_egpd6(nu + h) - .logC_egpd6(nu - h)) / (2 * h)
-}
-
-## Type 5 / model 4 (EGPD4): power-beta (Deriv-compatible part)
-.logdens_egpd4_deriv <- function(y, mu, sigma, nu, tau) {
-  v <- 1 + sigma * y / mu
-  u <- 1 - v^(-1 / sigma)
-  log(tau / 2) + log(nu) + log(1 - (1 - u)^nu) - lbeta(1 / nu, 2) -
-    log(mu) - (1 / sigma + 1) * log(v)
-}
-
-## G4 CDF term for type 5: (tau/2 - 1) * log(G4(u; nu))
-.logG4_term <- function(y, mu, sigma, nu, tau) {
-  v <- 1 + sigma * y / mu
-  u <- 1 - v^(-1 / sigma)
-  G4 <- 1 - pbeta((1 - u)^nu, 1 / nu, 2)
-  (tau / 2 - 1) * log(G4)
-}
-
-## d/dtau of G4 term = (1/2)*log(G4) (hand-coded)
-.ad_dldt_egpd4_G4_fn <- function(y, mu, sigma, nu, tau) {
-  v <- 1 + sigma * y / mu
-  u <- 1 - v^(-1 / sigma)
-  G4 <- 1 - pbeta((1 - u)^nu, 1 / nu, 2)
-  0.5 * log(G4)
-}
-
-## ---------------------------------------------------------------
-## Discrete EGPD log-PMF functions (plain R — no Deriv calls)
-## ---------------------------------------------------------------
-
-## DEGPD1 (type 1): P = u1^nu - u0^nu
-.logpmf_degpd1 <- function(y, mu, sigma, nu) {
-  v1 <- 1 + sigma * (y + 1) / mu
-  u1 <- 1 - v1^(-1 / sigma)
-  v0 <- 1 + sigma * y / mu
-  u0 <- 1 - v0^(-1 / sigma)
-  log(u1^nu - u0^nu)
-}
-
-## DEGPD3 (type 4): G4(u) = 1 - pbeta((1-u)^d, 1/d, 2)
-.logpmf_degpd3 <- function(y, mu, sigma, nu) {
-  v1 <- 1 + sigma * (y + 1) / mu
-  u1 <- 1 - v1^(-1 / sigma)
-  v0 <- 1 + sigma * y / mu
-  u0 <- 1 - v0^(-1 / sigma)
-  G4_1 <- 1 - pbeta((1 - u1)^nu, 1 / nu, 2)
-  G4_0 <- 1 - pbeta((1 - u0)^nu, 1 / nu, 2)
-  log(G4_1 - G4_0)
-}
-
-## DEGPD5 (type 2): truncated normal CDF
-.logpmf_degpd5 <- function(y, mu, sigma, nu) {
-  v1 <- 1 + sigma * (y + 1) / mu
-  u1 <- 1 - v1^(-1 / sigma)
-  v0 <- 1 + sigma * y / mu
-  u0 <- 1 - v0^(-1 / sigma)
-  sd_val <- 1 / sqrt(nu)
-  Fmin <- 1 - pnorm(1, 0, sd_val)
-  Fmax <- pnorm(1, 1, sd_val)
-  C <- Fmax - Fmin
-  G2_1 <- (pnorm(u1, 1, sd_val) - Fmin) / C
-  G2_0 <- (pnorm(u0, 1, sd_val) - Fmin) / C
-  log(G2_1 - G2_0)
-}
-
-## DEGPD6 (type 3): truncated beta CDF
-.logpmf_degpd6_main <- function(y, mu, sigma, nu) {
-  v1 <- 1 + sigma * (y + 1) / mu
-  u1 <- 1 - v1^(-1 / sigma)
-  v0 <- 1 + sigma * y / mu
-  u0 <- 1 - v0^(-1 / sigma)
-  u_s1 <- (0.5 - 1 / 32) * u1 + 1 / 32
-  u_s0 <- (0.5 - 1 / 32) * u0 + 1 / 32
-  C_beta <- pbeta(0.5, nu, nu) - pbeta(1 / 32, nu, nu)
-  G3_1 <- (pbeta(u_s1, nu, nu) - pbeta(1 / 32, nu, nu)) / C_beta
-  G3_0 <- (pbeta(u_s0, nu, nu) - pbeta(1 / 32, nu, nu)) / C_beta
-  log(G3_1 - G3_0)
-}
-
-## DEGPD4 (type 5, 4-param)
-.logpmf_degpd4 <- function(y, mu, sigma, nu, tau) {
-  v1 <- 1 + sigma * (y + 1) / mu
-  u1 <- 1 - v1^(-1 / sigma)
-  v0 <- 1 + sigma * y / mu
-  u0 <- 1 - v0^(-1 / sigma)
-  G4_1 <- 1 - pbeta((1 - u1)^nu, 1 / nu, 2)
-  G4_0 <- 1 - pbeta((1 - u0)^nu, 1 / nu, 2)
-  G5_1 <- G4_1^(tau / 2)
-  G5_0 <- G4_0^(tau / 2)
-  log(G5_1 - G5_0)
-}
-
-## ---------------------------------------------------------------
-## Lazy-init cache for Deriv-generated derivative functions
-## ---------------------------------------------------------------
-
-.deriv_cache <- new.env(parent = emptyenv())
-.deriv_cache$initialized <- FALSE
-
-.ensure_deriv_cache <- function() {
-  if (.deriv_cache$initialized) return(invisible(NULL))
-
-  ## Register custom Deriv rules for pbeta / dbeta
-  ## Must capture the drule environment first — Deriv::drule[["x"]] <- val
-  ## fails because R treats it as a namespace assignment.
-  dr <- Deriv::drule
-  dr[["pbeta"]] <- alist(
-    q      = dbeta(q, shape1, shape2),
-    shape1 = stop("pbeta shape1 deriv not supported"),
-    shape2 = stop("pbeta shape2 deriv not supported")
-  )
-  dr[["dbeta"]] <- alist(
-    x      = dbeta(x, shape1, shape2) * ((shape1 - 1) / x - (shape2 - 1) / (1 - x)),
-    shape1 = dbeta(x, shape1, shape2) * (log(x)      - digamma(shape1) + digamma(shape1 + shape2)),
-    shape2 = dbeta(x, shape1, shape2) * (log(1 - x)  - digamma(shape2) + digamma(shape1 + shape2))
-  )
-
-  ## --- Continuous EGPD derivatives ---
-
-  ## EGPD1: fully analytical
-  .deriv_cache$dldm_egpd1 <- Deriv::Deriv(.logdens_egpd1, "mu")
-  .deriv_cache$dldd_egpd1 <- Deriv::Deriv(.logdens_egpd1, "sigma")
-  .deriv_cache$dldv_egpd1 <- Deriv::Deriv(.logdens_egpd1, "nu")
-
-  ## EGPD3: fully analytical
-  .deriv_cache$dldm_egpd3 <- Deriv::Deriv(.logdens_egpd3, "mu")
-  .deriv_cache$dldd_egpd3 <- Deriv::Deriv(.logdens_egpd3, "sigma")
-  .deriv_cache$dldv_egpd3 <- Deriv::Deriv(.logdens_egpd3, "nu")
-
-  ## EGPD5: fully analytical (pnorm handled by Deriv)
-  .deriv_cache$dldm_egpd5 <- Deriv::Deriv(.logdens_egpd5, "mu")
-  .deriv_cache$dldd_egpd5 <- Deriv::Deriv(.logdens_egpd5, "sigma")
-  .deriv_cache$dldv_egpd5 <- Deriv::Deriv(.logdens_egpd5, "nu")
-
-  ## EGPD6: main part analytical; dldv gets numerical correction
-  .deriv_cache$dldm_egpd6 <- Deriv::Deriv(.logdens_egpd6_main, "mu")
-  .deriv_cache$dldd_egpd6 <- Deriv::Deriv(.logdens_egpd6_main, "sigma")
-  .deriv_cache$dldv_egpd6_main <- Deriv::Deriv(.logdens_egpd6_main, "nu")
-
-  ## EGPD4: Deriv part (g4 density + GPD)
-  .deriv_cache$dldm_egpd4_d <- Deriv::Deriv(.logdens_egpd4_deriv, "mu")
-  .deriv_cache$dldd_egpd4_d <- Deriv::Deriv(.logdens_egpd4_deriv, "sigma")
-  .deriv_cache$dldv_egpd4_d <- Deriv::Deriv(.logdens_egpd4_deriv, "nu")
-  .deriv_cache$dldt_egpd4_d <- Deriv::Deriv(.logdens_egpd4_deriv, "tau")
-
-  ## EGPD4: G4 term — d/dmu, d/dsigma analytical (pbeta q-rule)
-  .deriv_cache$dldm_egpd4_G4 <- Deriv::Deriv(.logG4_term, "mu")
-  .deriv_cache$dldd_egpd4_G4 <- Deriv::Deriv(.logG4_term, "sigma")
-
-  ## --- Discrete EGPD derivatives ---
-
-  ## DEGPD1: fully analytical
-  .deriv_cache$dldm_degpd1 <- Deriv::Deriv(.logpmf_degpd1, "mu")
-  .deriv_cache$dldd_degpd1 <- Deriv::Deriv(.logpmf_degpd1, "sigma")
-  .deriv_cache$dldv_degpd1 <- Deriv::Deriv(.logpmf_degpd1, "nu")
-
-  ## DEGPD3: d/d(mu,sigma) analytical; d/dnu numerical fallback
-  .deriv_cache$dldm_degpd3 <- Deriv::Deriv(.logpmf_degpd3, "mu")
-  .deriv_cache$dldd_degpd3 <- Deriv::Deriv(.logpmf_degpd3, "sigma")
-
-  ## DEGPD5: fully analytical
-  .deriv_cache$dldm_degpd5 <- Deriv::Deriv(.logpmf_degpd5, "mu")
-  .deriv_cache$dldd_degpd5 <- Deriv::Deriv(.logpmf_degpd5, "sigma")
-  .deriv_cache$dldv_degpd5 <- Deriv::Deriv(.logpmf_degpd5, "nu")
-
-  ## DEGPD6: d/d(mu,sigma) analytical; d/dnu numerical fallback
-  .deriv_cache$dldm_degpd6 <- Deriv::Deriv(.logpmf_degpd6_main, "mu")
-  .deriv_cache$dldd_degpd6 <- Deriv::Deriv(.logpmf_degpd6_main, "sigma")
-
-  ## DEGPD4: d/d(mu,sigma) analytical; d/d(nu,tau) numerical fallback
-  .deriv_cache$dldm_degpd4 <- Deriv::Deriv(.logpmf_degpd4, "mu")
-  .deriv_cache$dldd_degpd4 <- Deriv::Deriv(.logpmf_degpd4, "sigma")
-
-  .deriv_cache$initialized <- TRUE
-  invisible(NULL)
-}
-
-## ---------------------------------------------------------------
-## Dispatcher: 3-parameter analytical derivatives
+## Dispatchers used by the gamlss family objects
 ## ---------------------------------------------------------------
 
 #' @keywords internal
 .egpd_ad3 <- function(y, mu, sigma, nu, family, idx) {
-  .ensure_deriv_cache()
-
-  dl <- switch(
-    paste0(family, "_", idx),
-
-    ## --- Continuous EGPD ---
-    "egpd1_1" = .deriv_cache$dldm_egpd1(y, mu, sigma, nu),
-    "egpd1_2" = .deriv_cache$dldd_egpd1(y, mu, sigma, nu),
-    "egpd1_3" = .deriv_cache$dldv_egpd1(y, mu, sigma, nu),
-
-    "egpd3_1" = .deriv_cache$dldm_egpd3(y, mu, sigma, nu),
-    "egpd3_2" = .deriv_cache$dldd_egpd3(y, mu, sigma, nu),
-    "egpd3_3" = .deriv_cache$dldv_egpd3(y, mu, sigma, nu),
-
-    "egpd5_1" = .deriv_cache$dldm_egpd5(y, mu, sigma, nu),
-    "egpd5_2" = .deriv_cache$dldd_egpd5(y, mu, sigma, nu),
-    "egpd5_3" = .deriv_cache$dldv_egpd5(y, mu, sigma, nu),
-
-    "egpd6_1" = .deriv_cache$dldm_egpd6(y, mu, sigma, nu),
-    "egpd6_2" = .deriv_cache$dldd_egpd6(y, mu, sigma, nu),
-    "egpd6_3" = .deriv_cache$dldv_egpd6_main(y, mu, sigma, nu) -
-                .dlogC_dnu_egpd6(nu),
-
-    ## --- Discrete EGPD ---
-    "degpd1_1" = .deriv_cache$dldm_degpd1(y, mu, sigma, nu),
-    "degpd1_2" = .deriv_cache$dldd_degpd1(y, mu, sigma, nu),
-    "degpd1_3" = {
-      dl <- .deriv_cache$dldv_degpd1(y, mu, sigma, nu)
-      ## Fix y=0 boundary: u0=0 causes 0^nu*log(0)=NaN in Deriv output.
-      ## True value: d/dnu log(u1^nu) = log(u1)
-      if (any(y == 0)) {
-        v1_0 <- 1 + sigma[y == 0] * 1 / mu[y == 0]
-        u1_0 <- 1 - v1_0^(-1 / sigma[y == 0])
-        dl[y == 0] <- log(u1_0)
-      }
-      dl
-    },
-
-    "degpd3_1" = .deriv_cache$dldm_degpd3(y, mu, sigma, nu),
-    "degpd3_2" = .deriv_cache$dldd_degpd3(y, mu, sigma, nu),
-    "degpd3_3" = .egpd_nd3(y, mu, sigma, nu, dDEGPD3, idx = 3L),
-
-    "degpd5_1" = .deriv_cache$dldm_degpd5(y, mu, sigma, nu),
-    "degpd5_2" = .deriv_cache$dldd_degpd5(y, mu, sigma, nu),
-    "degpd5_3" = .deriv_cache$dldv_degpd5(y, mu, sigma, nu),
-
-    "degpd6_1" = .deriv_cache$dldm_degpd6(y, mu, sigma, nu),
-    "degpd6_2" = .deriv_cache$dldd_degpd6(y, mu, sigma, nu),
-    "degpd6_3" = .egpd_nd3(y, mu, sigma, nu, dDEGPD6, idx = 3L),
-
-    stop("Unknown family/idx: ", family, "_", idx)
-  )
-  dl[!is.finite(dl)] <- 0
-  dl
+  .egpd_score(y, mu, sigma, nu, NULL, family, idx)
 }
-
-## ---------------------------------------------------------------
-## Dispatcher: 4-parameter analytical derivatives
-## ---------------------------------------------------------------
 
 #' @keywords internal
 .egpd_ad4 <- function(y, mu, sigma, nu, tau, family, idx) {
-  .ensure_deriv_cache()
-
-  dl <- switch(
-    paste0(family, "_", idx),
-
-    ## --- Continuous EGPD4 ---
-    "egpd4_1" = .deriv_cache$dldm_egpd4_d(y, mu, sigma, nu, tau) +
-                .deriv_cache$dldm_egpd4_G4(y, mu, sigma, nu, tau),
-    "egpd4_2" = .deriv_cache$dldd_egpd4_d(y, mu, sigma, nu, tau) +
-                .deriv_cache$dldd_egpd4_G4(y, mu, sigma, nu, tau),
-    "egpd4_3" = {
-      deriv_part <- .deriv_cache$dldv_egpd4_d(y, mu, sigma, nu, tau)
-      h <- pmax(abs(nu) * 1e-6, 1e-8)
-      G4_corr <- (.logG4_term(y, mu, sigma, nu + h, tau) -
-                   .logG4_term(y, mu, sigma, nu - h, tau)) / (2 * h)
-      deriv_part + G4_corr
-    },
-    "egpd4_4" = .deriv_cache$dldt_egpd4_d(y, mu, sigma, nu, tau) +
-                .ad_dldt_egpd4_G4_fn(y, mu, sigma, nu, tau),
-
-    ## --- Discrete EGPD4 ---
-    "degpd4_1" = .deriv_cache$dldm_degpd4(y, mu, sigma, nu, tau),
-    "degpd4_2" = .deriv_cache$dldd_degpd4(y, mu, sigma, nu, tau),
-    "degpd4_3" = .egpd_nd4(y, mu, sigma, nu, tau, dDEGPD4, idx = 3L),
-    "degpd4_4" = .egpd_nd4(y, mu, sigma, nu, tau, dDEGPD4, idx = 4L),
-
-    ## --- Zero-Inflated Continuous EGPD ---
-    "ziegpd1_1" = .zi_ad(y, mu, sigma, nu, tau, "egpd1", 1L),
-    "ziegpd1_2" = .zi_ad(y, mu, sigma, nu, tau, "egpd1", 2L),
-    "ziegpd1_3" = .zi_ad(y, mu, sigma, nu, tau, "egpd1", 3L),
-    "ziegpd1_4" = .zi_ad_tau(y, mu, sigma, nu, tau, dEGPD1),
-
-    "ziegpd3_1" = .zi_ad(y, mu, sigma, nu, tau, "egpd3", 1L),
-    "ziegpd3_2" = .zi_ad(y, mu, sigma, nu, tau, "egpd3", 2L),
-    "ziegpd3_3" = .zi_ad(y, mu, sigma, nu, tau, "egpd3", 3L),
-    "ziegpd3_4" = .zi_ad_tau(y, mu, sigma, nu, tau, dEGPD3),
-
-    "ziegpd5_1" = .zi_ad(y, mu, sigma, nu, tau, "egpd5", 1L),
-    "ziegpd5_2" = .zi_ad(y, mu, sigma, nu, tau, "egpd5", 2L),
-    "ziegpd5_3" = .zi_ad(y, mu, sigma, nu, tau, "egpd5", 3L),
-    "ziegpd5_4" = .zi_ad_tau(y, mu, sigma, nu, tau, dEGPD5),
-
-    "ziegpd6_1" = .zi_ad(y, mu, sigma, nu, tau, "egpd6", 1L),
-    "ziegpd6_2" = .zi_ad(y, mu, sigma, nu, tau, "egpd6", 2L),
-    "ziegpd6_3" = .zi_ad(y, mu, sigma, nu, tau, "egpd6", 3L),
-    "ziegpd6_4" = .zi_ad_tau(y, mu, sigma, nu, tau, dEGPD6),
-
-    ## --- Zero-Inflated Discrete EGPD ---
-    "zidegpd1_1" = .zid_ad(y, mu, sigma, nu, tau, "degpd1", 1L, dDEGPD1),
-    "zidegpd1_2" = .zid_ad(y, mu, sigma, nu, tau, "degpd1", 2L, dDEGPD1),
-    "zidegpd1_3" = .zid_ad(y, mu, sigma, nu, tau, "degpd1", 3L, dDEGPD1),
-    "zidegpd1_4" = .zid_ad_tau(y, mu, sigma, nu, tau, dDEGPD1),
-
-    "zidegpd3_1" = .zid_ad(y, mu, sigma, nu, tau, "degpd3", 1L, dDEGPD3),
-    "zidegpd3_2" = .zid_ad(y, mu, sigma, nu, tau, "degpd3", 2L, dDEGPD3),
-    "zidegpd3_3" = .zid_ad(y, mu, sigma, nu, tau, "degpd3", 3L, dDEGPD3),
-    "zidegpd3_4" = .zid_ad_tau(y, mu, sigma, nu, tau, dDEGPD3),
-
-    "zidegpd5_1" = .zid_ad(y, mu, sigma, nu, tau, "degpd5", 1L, dDEGPD5),
-    "zidegpd5_2" = .zid_ad(y, mu, sigma, nu, tau, "degpd5", 2L, dDEGPD5),
-    "zidegpd5_3" = .zid_ad(y, mu, sigma, nu, tau, "degpd5", 3L, dDEGPD5),
-    "zidegpd5_4" = .zid_ad_tau(y, mu, sigma, nu, tau, dDEGPD5),
-
-    "zidegpd6_1" = .zid_ad(y, mu, sigma, nu, tau, "degpd6", 1L, dDEGPD6),
-    "zidegpd6_2" = .zid_ad(y, mu, sigma, nu, tau, "degpd6", 2L, dDEGPD6),
-    "zidegpd6_3" = .zid_ad(y, mu, sigma, nu, tau, "degpd6", 3L, dDEGPD6),
-    "zidegpd6_4" = .zid_ad_tau(y, mu, sigma, nu, tau, dDEGPD6),
-
-    stop("Unknown family/idx: ", family, "_", idx)
-  )
-  dl[!is.finite(dl)] <- 0
-  dl
-}
-
-## ---------------------------------------------------------------
-## Zero-Inflated helpers
-## ---------------------------------------------------------------
-
-## ZI continuous: d/d(mu,sigma,nu)
-## For y > 0: same as base family
-## For y = 0: 0 (only pi contributes)
-.zi_ad <- function(y, mu, sigma, nu, tau, base_family, idx) {
-  dl_base <- .egpd_ad3(y, mu, sigma, nu, base_family, idx)
-  ifelse(y > 0, dl_base, 0)
-}
-
-## ZI continuous: d/dtau (= d/dpi)
-.zi_ad_tau <- function(y, mu, sigma, nu, tau, dfun_base) {
-  ifelse(y > 0, -1 / (1 - tau), 1 / tau)
-}
-
-## ZI discrete: d/d(mu,sigma,nu)
-## For y > 0: same as base family
-## For y = 0: (1-pi)*P_base(0)*dl_base_0 / [pi + (1-pi)*P_base(0)]
-.zid_ad <- function(y, mu, sigma, nu, tau, base_family, idx, dfn_base) {
-  dl_base <- .egpd_ad3(y, mu, sigma, nu, base_family, idx)
-  p0 <- dfn_base(0, mu = mu, sigma = sigma, nu = nu)
-  denom <- tau + (1 - tau) * p0
-
-  dl_base_0 <- .egpd_ad3(rep(0, length(y)), mu, sigma, nu, base_family, idx)
-  dl_y0 <- (1 - tau) * p0 * dl_base_0 / denom
-
-  dl <- ifelse(y > 0, dl_base, dl_y0)
-  dl[!is.finite(dl)] <- 0
-  dl
-}
-
-## ZI discrete: d/dtau
-.zid_ad_tau <- function(y, mu, sigma, nu, tau, dfn_base) {
-  p0 <- dfn_base(0, mu = mu, sigma = sigma, nu = nu)
-  denom <- tau + (1 - tau) * p0
-  ifelse(y > 0, -1 / (1 - tau), (1 - p0) / denom)
+  .egpd_score(y, mu, sigma, nu, tau, family, idx)
 }
 
 ## ---------------------------------------------------------------

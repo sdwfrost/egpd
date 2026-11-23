@@ -15,7 +15,11 @@ An object of class \code{family.bamlss}
 \description{
 Creates a \code{family.bamlss} object for fitting zero-inflated
 Poisson-inverse Gaussian (ZIPIG) count models with \code{bamlss()}. Adds a
-logit-link zero-inflation probability \code{pi} to \code{\link{pig_bamlss}}.
-The distribution functions are taken from \code{gamlss.dist} (whose ZIPIG
-zero-inflation argument is named \code{nu}).
+logit-link zero-inflation probability \code{pi} to \code{\link{pig_bamlss}},
+using the package's Poisson-limit-stabilised \code{\link{dzipig}} family.
+}
+\details{
+Quantile residuals randomize between the CDF at the preceding count and
+at the observed count. Response residuals subtract the component mean
+\code{mu}, or \eqn{(1-\pi)\mu} for a zero-inflated family.
 }

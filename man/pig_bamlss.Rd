@@ -16,5 +16,11 @@ An object of class \code{family.bamlss}
 Creates a \code{family.bamlss} object for fitting Poisson-inverse Gaussian
 (PIG) count models with \code{bamlss()}. PIG is a mixed-Poisson distribution
 (\code{mu} = mean, \code{sigma} = dispersion; Var = mu + sigma * mu^2). The
-distribution functions are taken from \code{gamlss.dist}.
+distribution functions use the package's Poisson-limit-stabilised
+\code{\link{dpig}} family.
+}
+\details{
+Quantile residuals randomize between the CDF at the preceding count and
+at the observed count. Response residuals subtract the component mean
+\code{mu}, or \eqn{(1-\pi)\mu} for a zero-inflated family.
 }

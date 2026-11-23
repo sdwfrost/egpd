@@ -35,6 +35,7 @@ print.distfit <- function(x, ...) {
 
   cat("Fitting of the distribution '", x$family, "' (type ", x$type,
       ") by ", x$method, "\n", sep = "")
+  if (!is.null(x$reduction)) cat(x$reduction$description, "\n")
   cat("Parameters:\n")
   print(round(x$estimate, 4))
   invisible(x)
@@ -100,6 +101,7 @@ summary.distfit <- function(object, ...) {
     bic      = object$bic,
     n        = object$n,
     npar     = object$npar,
+    reduction = object$reduction,
     family   = object$family,
     type     = object$type,
     method   = object$method,
@@ -138,8 +140,9 @@ print.summary.distfit <- function(x, digits = 4, ...) {
   cat("\n\n")
 
   cat("Estimated parameters:\n")
-  printCoefmat(x$table, digits = digits, na.print = "NA",
-               P.values = TRUE, has.Pvalue = TRUE, ...)
+  if (!is.null(x$reduction)) cat(x$reduction$description, "\n")
+  if (nrow(x$table)) printCoefmat(x$table, digits = digits, na.print = "NA",
+                                  P.values = TRUE, has.Pvalue = TRUE, ...)
 
   if (!is.null(x$fix.tab)) {
     cat("\nFixed parameters:\n")
@@ -170,6 +173,23 @@ vcov.distfit <- function(object, ...) {
     stop("Variance-covariance matrix not available for NBE estimator (no posterior samples)",
          call. = FALSE)
   }
+  if (isTRUE(object$support.ridge))
+    stop("Variance-covariance matrix not available: free parameters are not separately identifiable.",
+         call. = FALSE)
+  if (isTRUE(object$support.change))
+    stop("Variance-covariance matrix not available at a change in count support.", call. = FALSE)
+  if (isTRUE(object$optim$pi.boundary))
+    stop("Variance-covariance matrix not available: zero-inflation MLE on its natural boundary.",
+         call. = FALSE)
+  if (length(object$optim$carrier.boundary))
+    stop("Variance-covariance matrix not available: carrier MLE on its natural boundary.",
+         call. = FALSE)
+  if (isTRUE(object$optim$bound.active))
+    stop("Variance-covariance matrix not available: the MLE is on an optimizer bound.",
+         call. = FALSE)
+  if (isTRUE(object$optim$stalled))
+    stop("Variance-covariance matrix not available: the likelihood optimizer stalled.",
+         call. = FALSE)
   if (is.null(object$vcov))
     stop("Variance-covariance matrix not available (hessian was not computed)")
   object$vcov
@@ -198,39 +218,114 @@ nobs.distfit <- function(object, ...) {
   object$n
 }
 
+#' Confidence intervals for distfit parameters
+#'
+#' For maximum likelihood and Bernstein fits, Wald intervals computed on the scale
+#' on which each parameter is estimated -- log for positive parameters (e.g.
+#' \code{sigma}, \code{kappa}, \code{delta}, \code{mu}, \code{theta}), logit for
+#' probabilities (e.g. \code{pi}, \code{prob}, GPIG \code{a} and \code{c}), and
+#' identity for the shape \code{xi} -- except the generalised Waring \code{rho},
+#' whose interval is formed for \eqn{\log(\rho - 1)} since \eqn{\rho > 1};
+#' back-transformed, so they stay inside the parameter space. For neural posterior
+#' estimation fits, equal-tailed posterior credible intervals.
+#'
+#' @param object a \code{distfit} object
+#' @param parm the parameters, as names or as indices into \code{coef(object)};
+#'   all estimated parameters by default. Unknown names and out-of-range indices
+#'   are an error.
+#' @param level the confidence level, a single probability in \eqn{[0,1]}
+#' @param ... unused
+#' @return A matrix with one row per parameter and columns for the lower and
+#'   upper limits.
 #' @export
 confint.distfit <- function(object, parm, level = 0.95, ...) {
+  .check_confint_level(level)
+  a <- (1 - level) / 2
+  pct <- paste(format(100 * c(a, 1 - a), trim = TRUE, digits = 3), "%")
+  cf <- object$estimate
+  parm <- .distfit_parm(if (missing(parm)) NULL else parm, names(cf))
   if (.is_bivariate(object$family)) {
     if (object$estimator_type == "npe" && !is.null(object$posterior_samples)) {
       ## Credible intervals from posterior quantiles
-      a <- (1 - level) / 2
-      post <- object$posterior_samples  # 6 x nsamples
-      cf <- object$estimate
-      if (missing(parm)) parm <- names(cf)
-      parm <- parm[parm %in% names(cf)]
+      post <- object$posterior_samples  # d x nsamples
       idx <- match(parm, rownames(post))
-      ci <- t(apply(post[idx, , drop = FALSE], 1, quantile,
-                     probs = c(a, 1 - a)))
-      pct <- paste(format(100 * c(a, 1 - a), trim = TRUE, digits = 3), "%")
-      colnames(ci) <- pct
-      rownames(ci) <- parm
+      ci <- matrix(unlist(lapply(idx, function(i)
+        stats::quantile(post[i, ], probs = c(a, 1 - a), names = FALSE))),
+        ncol = 2L, byrow = TRUE, dimnames = list(parm, pct))
       return(ci)
     }
     stop("Credible intervals not available for NBE estimator (no posterior samples)",
          call. = FALSE)
   }
 
-  cf <- object$estimate
   se <- object$sd
-  if (missing(parm)) parm <- names(cf)
-  parm <- parm[parm %in% names(cf)]
-  a <- (1 - level) / 2
-  z <- qnorm(1 - a)
-  ci <- cbind(cf[parm] - z * se[parm], cf[parm] + z * se[parm])
-  pct <- paste(format(100 * c(a, 1 - a), trim = TRUE, digits = 3), "%")
+  z <- qnorm(a, lower.tail = FALSE)
+  ## Wald intervals on the scale the parameter was estimated on (log for positive
+  ## parameters, logit for probabilities; log(rho - 1) for the Waring rho > 1),
+  ## back-transformed, so they respect the parameter space; the delta-method SE on
+  ## that scale is sd / (dpar / dtheta).
+  tr <- .distfit_transforms(object)[parm]
+  est <- cf[parm]
+  lg <- tr == "log"
+  lt <- tr == "logit"
+  l1 <- tr == "log1"
+  th <- est
+  jac <- rep(1, length(est))
+  th[lg] <- log(est[lg])
+  jac[lg] <- est[lg]
+  th[lt] <- qlogis(est[lt])
+  jac[lt] <- est[lt] * (1 - est[lt])
+  th[l1] <- log(est[l1] - 1)
+  jac[l1] <- est[l1] - 1
+  se_th <- se[parm] / jac
+  back <- function(v) {
+    v[lg] <- exp(v[lg])
+    v[lt] <- plogis(v[lt])
+    v[l1] <- 1 + exp(v[l1])
+    v
+  }
+  ci <- cbind(back(th - z * se_th), back(th + z * se_th))
   colnames(ci) <- pct
   rownames(ci) <- parm
   ci
+}
+
+## Resolve confint()'s `parm` to parameter names: NULL gives all of them; numbers
+## index `nms`, names must be among them (as confint.egpd() requires).
+.distfit_parm <- function(parm, nms) {
+  if (is.null(parm)) return(nms)
+  if (is.numeric(parm)) {
+    if (anyNA(parm) || any(parm < 1 | parm > length(nms) | parm != round(parm)))
+      stop("Numeric 'parm' out of range: the fit has ", length(nms),
+           " parameters (", paste(nms, collapse = ", "), ")", call. = FALSE)
+    return(nms[parm])
+  }
+  if (is.character(parm)) {
+    bad <- setdiff(parm, nms)
+    if (length(bad))
+      stop(sprintf("Parameter%s %s not found; the fit has %s",
+                   if (length(bad) > 1L) "s" else "",
+                   paste0("'", bad, "'", collapse = ", "), paste(nms, collapse = ", ")),
+           call. = FALSE)
+    return(parm)
+  }
+  stop("'parm' must be numeric or character", call. = FALSE)
+}
+
+## Scale on which confint.distfit() forms each Wald interval of a univariate fit:
+## the estimation scale used by optim() ("log", "logit" or "identity"), except the
+## generalised Waring rho > 1, which uses "log1", i.e. log(rho - 1), so that the
+## interval stays above 1.
+.distfit_transforms <- function(object) {
+  spec <- if (identical(object$method, "bernstein"))
+    list(sigma = list(transform = "log"), xi = list(transform = "identity"),
+         kappa = list(transform = "log"))
+  else .distfit_parspec(object$type, object$family)
+  if (isTRUE(object$reduction$product) || isTRUE(object$reduction$thinned))
+    spec$mu <- list(transform = "log")
+  if (isTRUE(object$reduction$bernoulli)) spec$p1 <- list(transform = "logit")
+  if (identical(object$family, "gwaring")) spec$rho$transform <- "log1"
+  vapply(names(object$estimate), function(nm) spec[[nm]]$transform, character(1))
 }
 
 
@@ -260,13 +355,15 @@ plot.distfit <- function(x, ...) {
   obj <- x
   dat <- obj$data
   n <- obj$n
-  est <- as.list(c(obj$estimate, unlist(obj$fix.arg)))
+  est <- c(as.list(obj$estimate), as.list(obj$fix.arg), obj$reduction$constants)
+  if (isTRUE(obj$reduction$product)) est$b <- est$mu
   is_discrete <- obj$family %in% c("degpd", "zidegpd", "cpdegpd", "pig", "zipig",
-                                   "gpig", "zigpig", "bell", "zibell")
+                                   "gpig", "zigpig", "bell", "zibell", "gwaring")
   is_zi <- obj$family %in% c("ziegpd", "zidegpd")
   is_pig <- obj$family %in% c("pig", "zipig")
   is_gpig <- obj$family %in% c("gpig", "zigpig")
   is_bell <- obj$family %in% c("bell", "zibell")
+  is_gwaring <- obj$family == "gwaring"
   is_cpegpd <- obj$family == "cpegpd"
   is_cpdegpd <- obj$family == "cpdegpd"
   is_bernstein <- obj$method == "bernstein"
@@ -284,18 +381,34 @@ plot.distfit <- function(x, ...) {
   b_gp   <- if ("b" %in% names(est)) est[["b"]] else NA
   c_gp   <- if ("c" %in% names(est)) est[["c"]] else NA
   theta_bell <- if ("theta" %in% names(est)) est[["theta"]] else NA
+  k_gw   <- if ("k" %in% names(est)) est[["k"]] else NA
+  rho_gw <- if ("rho" %in% names(est)) est[["rho"]] else NA
 
   ## Density, CDF, and quantile wrappers
-  if (is_pig) {
+  if (isTRUE(obj$reduction$bernoulli)) {
+    dfun <- function(xv) stats::dbinom(xv, 1, est$p1)
+    pfun <- function(qv) stats::pbinom(qv, 1, est$p1)
+    qfun <- function(pv) stats::qbinom(pv, 1, est$p1)
+  } else if (isTRUE(obj$reduction$thinned)) {
+    dfun <- function(xv) stats::dpois(xv, est$mu)
+    pfun <- function(qv) stats::ppois(qv, est$mu)
+    qfun <- function(pv) stats::qpois(pv, est$mu)
+  } else if (is_gwaring) {
+    dfun <- function(xv) dgwaring(xv, mu = mu, k = k_gw, rho = rho_gw)
+    pfun <- function(qv) pgwaring(qv, mu = mu, k = k_gw, rho = rho_gw)
+    qfun <- function(pv) qgwaring(pv, mu = mu, k = k_gw, rho = rho_gw)
+  } else if (is_pig) {
+    ## The package's native PIG/ZIPIG functions, as in the fit (gamlss.dist's
+    ## break down near the Poisson limit sigma -> 0).
     dfun <- function(xv) if (obj$family == "pig")
-      gamlss.dist::dPIG(xv, mu = mu, sigma = sigma)
-      else gamlss.dist::dZIPIG(xv, mu = mu, sigma = sigma, nu = pi_val)
+      dpig(xv, mu = mu, sigma = sigma)
+      else dzipig(xv, mu = mu, sigma = sigma, pi = pi_val)
     pfun <- function(qv) if (obj$family == "pig")
-      gamlss.dist::pPIG(qv, mu = mu, sigma = sigma)
-      else gamlss.dist::pZIPIG(qv, mu = mu, sigma = sigma, nu = pi_val)
+      ppig(qv, mu = mu, sigma = sigma)
+      else pzipig(qv, mu = mu, sigma = sigma, pi = pi_val)
     qfun <- function(pv) if (obj$family == "pig")
-      gamlss.dist::qPIG(pv, mu = mu, sigma = sigma)
-      else gamlss.dist::qZIPIG(pv, mu = mu, sigma = sigma, nu = pi_val)
+      qpig(pv, mu = mu, sigma = sigma)
+      else qzipig(pv, mu = mu, sigma = sigma, pi = pi_val)
   } else if (is_gpig) {
     dfun <- function(xv) if (obj$family == "gpig")
       dgpig(xv, a = a_gp, b = b_gp, c = c_gp)
@@ -406,9 +519,10 @@ plot.distfit <- function(x, ...) {
   } else if (is_discrete) {
     tab <- table(dat)
     vals <- as.numeric(names(tab))
-    barplot(tab / n, names.arg = vals, main = "Empirical vs Fitted PMF",
-            xlab = "x", ylab = "Probability", col = "lightblue", border = "grey")
-    points(seq_along(vals), dfun(vals), pch = 16, col = "red", type = "b")
+    ## the fitted pmf goes at the bar centres that barplot() returns, not at 1..K
+    bp <- barplot(tab / n, names.arg = vals, main = "Empirical vs Fitted PMF",
+                  xlab = "x", ylab = "Probability", col = "lightblue", border = "grey")
+    points(bp, dfun(vals), pch = 16, col = "red", type = "b")
   } else {
     hist(dat, breaks = "FD", freq = FALSE, main = "Histogram and Fitted Density",
          xlab = "x", col = "lightblue", border = "grey")

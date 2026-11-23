@@ -19,8 +19,11 @@ gpig_control(
 \item{method}{one of
 \describe{
   \item{\code{"hybrid"}}{(default) exact recursion for \code{y <= yswitch};
-    above it the saddlepoint, but only where its own asymptotic series has
-    converged (see \code{sptol}), otherwise the exact recursion again.}
+    above it the saddlepoint where its own asymptotic series has converged
+    (\eqn{|corr| \le} \code{sptol}/2), the exact recursion where it has not
+    (\eqn{|corr| \ge} \code{sptol}) up to \code{ymax}, and a smooth blend of the
+    two in between; above \code{ymax} the saddlepoint. The likelihood is continuous in
+    the parameters.}
   \item{\code{"recursion"}}{the exact \eqn{O(y^2)} recursion, carried in log
     space with dynamic rescaling. Immune to the \eqn{p_0} underflow.}
   \item{\code{"trunc"}}{as \code{"recursion"}, but the severity convolution is
@@ -35,42 +38,55 @@ gpig_control(
     pre-existing results bit-for-bit, including the underflow.}
 }}
 
-\item{yswitch}{count above which \code{"hybrid"} switches to the saddlepoint.
-The exact branch then costs at most \code{yswitch^2}. Default 200.}
+\item{yswitch}{count above which \code{"hybrid"} may switch to the saddlepoint (where
+it has converged, and always above \code{ymax}). Default 200.}
 
 \item{order}{saddlepoint order, 1 or 2. Order 2 adds the Daniels correction
-\eqn{1 + \kappa_4/8 - 5\kappa_3^2/24}, improving the relative error from
-\eqn{O(1/y)} to \eqn{O(1/y^2)}. It falls back to order 1 if the correction
-factor is non-positive. Default 2.}
+\eqn{1 + corr}, \eqn{corr = \kappa_4/8 - 5\kappa_3^2/24}, improving the relative
+error from \eqn{O(1/b)} to \eqn{O(1/b^2)}. Because the correction is the leading
+term of an asymptotic series it is tapered smoothly to zero as \eqn{|corr|} grows
+from 0.25 to 0.5 (where the series has diverged), rather than switched off, so the
+saddlepoint log-pmf stays continuous in the parameters. Default 2.}
 
 \item{eps}{relative severity-truncation tolerance used by \code{method = "trunc"}.
 Default 1e-12.}
 
-\item{sptol}{largest \eqn{|corr|} at which \code{"hybrid"} will accept a
-saddlepoint evaluation, where \eqn{corr = \kappa_4/8 - 5\kappa_3^2/24} is the
-leading neglected term of the expansion. Above \code{sptol} the exact recursion
-is used instead. Default 1e-3.}
+\item{sptol}{the \eqn{|corr|} above which \code{"hybrid"} replaces the saddlepoint
+by the exact recursion, where \eqn{corr = \kappa_4/8 - 5\kappa_3^2/24} is the
+leading neglected term of the expansion. Between \code{sptol}/2 and \code{sptol}
+the two are blended smoothly. Default 1e-3.}
 
-\item{ymax}{largest count at which \code{"hybrid"} will fall back to the exact
-\eqn{O(y^2)} recursion when \code{sptol} is exceeded. Above it the saddlepoint
-is kept regardless, because the recursion could not finish: at \eqn{y = 10^5} it
-is \eqn{\sim 10^{10}} operations for a single observation. An optimiser routinely
-transits regions of small \eqn{b} and large \eqn{y} where \eqn{|corr|} is large,
-so this bound is load-bearing rather than a formality; such regions are transient,
-since at a converged fit \eqn{b} grows with the fitted mean and drives
-\eqn{|corr|} back below \code{sptol}. Default 1000.}
+\item{ymax}{largest count at which \code{"hybrid"} uses the exact recursion when
+\eqn{|corr|} exceeds \code{sptol}/2. Default 1000: above it the saddlepoint, with
+its tapered second-order term, is used whatever \eqn{|corr|}. \code{ymax = Inf}
+makes the hybrid exact wherever the saddlepoint has not converged, at every count.
+The exact branch reads every count of a parameter row off a single ladder, so it
+costs \eqn{O(y^2)} per distinct parameter row and evaluation, where \eqn{y} is the
+largest count of the row that needs it: cheap for intercept-only parameters, but with
+covariates every observation is its own row, and an unbounded exact branch then costs
+\eqn{O(\sum_i y_i^2)} per evaluation -- one evaluation of a Tycho measles fit
+(4678 weeks, counts to 2.7e5, \eqn{c = 0.99994}) took 448 s with \code{ymax = Inf}
+against 0.24 s at the default. The price of a finite \code{ymax} is accuracy above
+it where \eqn{b} is small: \eqn{b = \mu(1-c)^{1-a}/(ac) \to 0} as \eqn{c \to 1},
+the heavy-tailed regime the family is fitted for, and there the saddlepoint log-pmf
+above \code{ymax} can be off by tenths of a nat per count (see Details). The
+likelihood is continuous in the parameters for every \code{ymax}: which branch is
+used depends on the count alone, and the saddlepoint's correction is tapered.}
 
-\item{nquad}{number of quadrature nodes used to compute the saddlepoint's
-normalising constant \eqn{S = \sum_k \hat p(k)}. Default 256.}
+\item{nquad}{retained for compatibility; minimum lattice truncation used in
+computing the normalising sum (default 256), not continuous quadrature nodes.}
 
-\item{normalize}{divide the saddlepoint pmf by \eqn{S = \sum_k \hat p(k)}, restoring a
-proper pmf. Opt-in, default \code{FALSE}. Where the expansion has converged this
-sharpens the log-pmf by 50-100x, but at the \eqn{c \to 1} boundary it buys nothing:
-the bias there is \eqn{y}-dependent, whereas \eqn{S} is a constant (at the fitted
-MEASLES parameters \eqn{S = 1.034}, i.e. 0.033 log units, against an error of 0.15).
-The quadrature is also expensive, since the integrand is a peak of width
-\eqn{1/\sqrt{K''(0)}} that narrows as \eqn{b} grows. It refines until convergence and
-declines to normalise rather than return a wrong constant.}
+\item{normalize}{normalize the actual selected lattice PMF, including its
+zero mass and the hybrid's exact branch. Opt-in, default \code{FALSE}.
+The sum stops after 32 consecutive negligible terms with a geometric tail
+estimate below \eqn{10^{-11}} of the total. It requires \eqn{0<c<1} and errors
+explicitly if unresolved masses or the 100000-count limit prevent convergence.
+No unnormalised fallback is substituted. Normalization removes total-mass error,
+not shape error. Its score differentiates the same sum analytically, in the same
+pass. The constant is computed once per distinct parameter row and evaluation (and
+cached), at a cost of a few hundred to a few thousand lattice terms; with
+covariates on every parameter each observation is its own row, so normalisation
+then multiplies the cost of an evaluation by roughly that factor.}
 }
 \value{
 Invisibly, the previous settings, as a list suitable for passing back to
@@ -89,13 +105,29 @@ The accuracy of the saddlepoint is governed by the large parameter
   \eqn{y}. At \eqn{b = 300} the second-order log-pmf error is around \eqn{10^{-6}}
   at every \eqn{y}, whereas at \eqn{b = 5} it grows with \eqn{y}. This is why
   \code{"hybrid"} guards the switch with \code{sptol} rather than trusting
-  \code{yswitch} alone. In a GAM \eqn{b} is proportional to the fitted mean, so a
-  large count is accompanied by a large \eqn{b} and the saddlepoint is at its most
-  accurate exactly where the recursion is most expensive.
+  \code{yswitch} alone. With a covariate on the mean, \eqn{b} is proportional to the
+  fitted mean, so a large count usually comes with a large \eqn{b} and the
+  saddlepoint is then accurate where the recursion is most expensive; but as
+  \eqn{c \to 1} (or \eqn{a \to 0}) \eqn{b} stays small at any mean, and the
+  exact branch is then what keeps the likelihood exact -- up to \code{ymax}.
 
-  The saddlepoint mass function does not sum to exactly one; that residual is the
-  usual price of an unnormalised saddlepoint. Use \code{method = "recursion"} when
-  an exact likelihood is required.
+  Above \code{ymax} the saddlepoint is biased in that regime. At
+  \eqn{(a, b, c) = (0.2, 5, 0.999)} its log-pmf error is -0.05, 0.12 and 0.28 nats at
+  \eqn{y} = 1500, 3000 and 10000, and 0.46 to 0.52 nats at \eqn{(0.1, 2, 0.9995)}. A fit
+  to 500 counts from GPIG(\eqn{a = 0.2, c = 0.999, \mu = 250}), 22 of them above 1000,
+  reported a log-likelihood of -3105.71 at the default where the exact value at that
+  fit is -3108.52 (and \code{ymax = Inf} fits to -3106.59, exactly). Use
+  \code{ymax = Inf} when the counts above 1000 matter in that regime and there are few
+  distinct parameter rows (intercept-only parameters), or re-evaluate a fitted model's
+  likelihood with \code{ymax = Inf} to check it.
+
+  Every exact route groups the observations by their parameter row and reads all the
+  counts of a row off one recursion ladder, which is also cached across calls, so
+  \code{d0} and its score at the same parameters share the work.
+
+  Where \code{"hybrid"} uses the saddlepoint the mass function is unnormalised
+  (\code{normalize = TRUE} rescales it); \code{"recursion"} gives the exact
+  likelihood at every count.
 }
 \examples{
 \dontrun{

@@ -15,5 +15,7 @@
 The call of the object (invisibly)
 }
 \description{
-Print a fitted \code{egpd} object
+Prints the formulae of the fit, a note if a linear predictor sits on a plateau
+of its link (component \code{plateau}, see \code{\link{egpd}}), and a note if the
+Hessian behind the standard errors is singular (component \code{hessian.rank}).
 }

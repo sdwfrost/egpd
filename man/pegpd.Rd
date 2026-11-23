@@ -4,7 +4,17 @@
 \alias{pegpd}
 \title{CDF of the Extended GPD}
 \usage{
-pegpd(q, prob = NA, kappa = NA, delta = NA, sigma = NA, xi = NA, type = 1)
+pegpd(
+  q,
+  prob = NA,
+  kappa = NA,
+  delta = NA,
+  sigma = NA,
+  xi = NA,
+  type = 1,
+  lower.tail = TRUE,
+  log.p = FALSE
+)
 }
 \arguments{
 \item{q}{quantiles}
@@ -20,10 +30,22 @@ pegpd(q, prob = NA, kappa = NA, delta = NA, sigma = NA, xi = NA, type = 1)
 \item{xi}{GPD shape parameter}
 
 \item{type}{integer 1-6 specifying G type}
+
+\item{lower.tail}{logical; if TRUE (default), probabilities are \eqn{P(X \le q)},
+otherwise \eqn{P(X > q)}}
+
+\item{log.p}{logical; if TRUE, probabilities are returned on the log scale}
 }
 \value{
 CDF values
 }
 \description{
-CDF of the Extended GPD
+The carrier is evaluated on the log scale from the GPD log-survival, so
+\code{log.p = TRUE} results stay accurate far into either tail, where the
+linear-scale probability underflows.
+}
+\details{
+Parameters required by \code{type} (the GPD \code{sigma} and \code{xi} and the
+  carrier parameters) must be supplied: a missing one is an error, whereas
+  supplied \code{NA} values give \code{NA} results.
 }

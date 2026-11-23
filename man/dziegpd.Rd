@@ -39,6 +39,14 @@ dziegpd(
 Density values
 }
 \description{
+Numeric arguments, including carrier parameters, are recycled to their
+common maximum length.
+}
+\details{
 Continuous zero-inflated EGPD density:
-\eqn{h(x) = \pi I(x=0) + (1-\pi) f_{EGPD}(x)} for \eqn{x \ge 0}.
+mass \eqn{\pi} at zero and density \eqn{(1-\pi)f_{EGPD}(x)} for \eqn{x > 0}.
+
+Parameters required by \code{type} (\code{pi}, the GPD \code{sigma} and \code{xi}
+  and the carrier parameters) must be supplied: a missing one is an error,
+  whereas supplied \code{NA} values give \code{NA} results.
 }

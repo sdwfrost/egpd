@@ -12,8 +12,6 @@
 ## finite-difference tests below check -- at NEGATIVE xi, the case that did not
 ## exist before.
 
-testthat::skip_on_cran()
-
 EXTRA <- list(`2` = c("lkappa1", "ldkappa", "logitp"), `3` = "ldelta",
               `4` = c("ldelta", "lkappa"), `5` = "lkappa", `6` = "lkappa")
 NP <- c(`2` = 5L, `3` = 3L, `4` = 4L, `5` = 3L, `6` = 3L)
@@ -52,6 +50,7 @@ test_that("identity-link gradient matches finite differences, including xi < 0",
 })
 
 test_that("identity-link Hessian matches finite differences, including xi < 0", {
+  skip_on_cran()
   d <- bounded_data()
   for (m in names(EXTRA)) {
     fit <- id_fit(m, d)
@@ -79,6 +78,7 @@ test_that("identity-link Hessian matches finite differences, including xi < 0", 
 })
 
 test_that("the two links give the same likelihood at the same positive xi", {
+  skip_on_cran()
   ## the identity path must not perturb the log-link answer where both are valid:
   ## same model, same xi, same data => same negative log-likelihood
   d <- bounded_data()
@@ -97,6 +97,7 @@ test_that("the two links give the same likelihood at the same positive xi", {
 })
 
 test_that("every carrier can reach a bounded tail on bounded data", {
+  skip_on_cran()
   ## the point of the exercise: xi < 0 was unreachable for m = 2-6
   d <- bounded_data()
   for (m in as.character(1:6)) {

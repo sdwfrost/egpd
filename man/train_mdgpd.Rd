@@ -5,7 +5,7 @@
 \title{\[Experimental\] Train a neural estimator for MDGPD}
 \usage{
 train_mdgpd(
-  savepath = "inst/models",
+  savepath = NULL,
   family = c("mdgpd", "zimdgpd"),
   data_dim = 2L,
   estimator = c("both", "npe", "nbe"),
@@ -14,17 +14,19 @@ train_mdgpd(
   epochs = NULL,
   stopping_epochs = 10,
   quick = FALSE,
-  mc.cores = parallel::detectCores() - 1L,
+  mc.cores = NULL,
   seed = 1L,
   verbose = TRUE
 )
 }
 \arguments{
 \item{savepath}{character; directory to save trained model files (.bson).
-Created if it does not exist.}
+Created if it does not exist. The default \code{NULL} uses
+\code{file.path(tools::R_user_dir("egpd", "data"), "models")} and reports
+it in a message.}
 
-\item{family}{character; \code{"mdgpd"} (4 parameters) or \code{"zimdgpd"}
-(5 parameters, adds pi0).}
+\item{family}{character; \code{"mdgpd"} (3 parameters: sigma, xi, rate)
+or \code{"zimdgpd"} (4 parameters, adds pi0).}
 
 \item{data_dim}{integer >= 2; dimension of the multivariate data
 (default \code{2L}). A separate neural network is trained for each
@@ -35,7 +37,9 @@ data dimension.}
 
 \item{K}{integer; number of training parameter sets to sample from the prior.}
 
-\item{m}{integer vector; range of sample sizes for simulated datasets.}
+\item{m}{integer vector; range of sample sizes for simulated datasets.
+Recorded in the model sidecar; inference warns when the number of
+observations falls outside \code{range(m)}.}
 
 \item{epochs}{integer; maximum number of training epochs.}
 
@@ -43,9 +47,14 @@ data dimension.}
 
 \item{quick}{logical; if \code{TRUE}, uses reduced training settings.}
 
-\item{mc.cores}{integer; number of parallel cores for data simulation.}
+\item{mc.cores}{integer; number of parallel cores for data simulation.
+\code{NULL} (default) uses \code{parallel::detectCores() - 1}. Forced to
+1 on Windows and capped at 2 when \code{_R_CHECK_LIMIT_CORES_} is set
+(as by \code{R CMD check --as-cran}).}
 
-\item{seed}{integer or \code{NULL}; random seed for reproducibility.}
+\item{seed}{integer or \code{NULL}; seeds R, per-dataset parallel
+simulations, and Julia's \code{Random.seed!}. Backend/version-specific
+nondeterminism may remain.}
 
 \item{verbose}{logical; if \code{TRUE}, print progress messages.}
 }
@@ -56,29 +65,46 @@ A named list of file paths to saved .bson model files (invisible).
 Trains Neural Posterior Estimator (NPE) and/or Neural Bayesian Estimator
 (NBE) networks for MDGPD inference. Based on the Aka, Kratz &
 Naveau (2025) framework. Requires Julia (>= 1.11) with NeuralEstimators.jl
-and Flux.jl installed, plus the R packages \pkg{JuliaConnectoR} and
-\pkg{NeuralEstimators}.
+(>= 0.3 for training), Flux.jl, BSON.jl and Optimisers.jl installed (in Julia,
+\code{using Pkg; Pkg.add(["NeuralEstimators", "Flux", "BSON", "Optimisers"])}),
+plus the R packages \pkg{JuliaConnectoR} and \pkg{NeuralEstimators} (see
+"Supported Julia/R versions" in \code{\link{train_begpd}}).
 }
 \details{
 This function is \strong{experimental} and its interface may change.
 
+\strong{Homogeneous MDGPD only.} The networks are trained for the
+exchangeable model with one scale \eqn{\sigma_1 = \cdots = \sigma_d}, one
+shape \eqn{\xi_1 = \cdots = \xi_d} and a single Poisson generator rate for
+all components (Aka, Kratz & Naveau 2025, Table 1 types (a)-(b)). The
+marginal-specific \eqn{(\sigma_j, \xi_j)}, asymmetric generator rates
+\eqn{\lambda_1 \ne \lambda_2} and shifted generators (Table 1 type (c))
+fitted in the paper's dry-spell application (Tables 2-3) cannot be
+represented: \code{\link{rmdgpd}} simulates vector \code{sigma}/\code{xi},
+but \code{distfit(family = "mdgpd", method = "neuralbayes")} estimates
+only the common \code{(sigma, xi, rate)}.
+
 The training procedure:
 \enumerate{
   \item Samples parameters from uniform priors:
-    \code{sigma ~ U(0.1, 10)}, \code{xi ~ U(0.01, 0.5)},
-    \code{lambda ~ U(0.01, 5)}, \code{rho ~ U(0.01, 0.99)},
+    \code{sigma ~ U(0.1, 10)}, \code{xi ~ U(-0.4, 0.5)},
+    \code{rate ~ U(0.01, 5)},
     and for ZIMDGPD: \code{pi0 ~ U(0.01, 0.9)}.
   \item Simulates \code{data_dim}-dimensional MDGPD data using
     \code{\link{rmdgpd}} or \code{\link{rzimdgpd}}.
   \item Applies variance-stabilizing (signed log) and parameter transforms
-    (\code{log} for sigma/xi/lambda, \code{logit} for rho and pi0).
+    (\code{log} for sigma/rate, \code{identity} for xi, \code{logit} for pi0).
   \item Trains the neural network(s).
-  \item Saves trained states as .bson files.
+  \item Saves trained states as .bson files with required
+    \code{.metadata.rds} compatibility sidecars. No bundled .bson models
+    are shipped; train compatible weights and pass \code{model.path}.
 }
 
 Model files are named with a dimension-specific prefix (e.g.,
 \code{MDGPD_NPE.bson} for \code{data_dim = 2},
-\code{MDGPD_3D_NPE.bson} for \code{data_dim = 3}).
+\code{MDGPD_3D_NPE.bson} for \code{data_dim = 3}). The sidecar records
+the training sample-size range and backend versions; see
+\code{\link{train_begpd}} for the supported Julia/R version pairings.
 }
 \examples{
 \dontrun{

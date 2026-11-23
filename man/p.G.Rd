@@ -21,5 +21,11 @@ p.G(u, type = 1, prob, kappa, delta)
 Transformed probabilities
 }
 \description{
-Transformation CDF for EGPD
+Near \eqn{u = 0} (carriers 2 and 3), for carrier 3 with \code{kappa < 0.01}
+and where the carrier-4 value is below the double range (carrier 5) the CDF
+is computed on the log scale, so it keeps its relative accuracy there.
+}
+\details{
+Carrier parameters required by \code{type} must be supplied: a missing
+  one is an error, whereas supplied \code{NA} values give \code{NA} results.
 }

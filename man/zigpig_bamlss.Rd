@@ -17,3 +17,8 @@ Adds a logit-link zero-inflation probability \code{pi} to
 \code{\link{gpig_bamlss}} (mapped to the \code{tau} argument of the
 underlying ZIGPIG functions).
 }
+\details{
+Quantile residuals randomize between the CDF at the preceding count and
+at the observed count. Response residuals subtract the component mean
+\code{mu}, or \eqn{(1-\pi)\mu} for a zero-inflated family.
+}

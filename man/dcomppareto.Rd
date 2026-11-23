@@ -14,7 +14,7 @@ dcomppareto(x, spec, alpha = 1, theta = 1, log = FALSE, ...)
 
 \item{alpha}{positive Pareto shape parameter.}
 
-\item{theta}{positive splice point and Pareto scale parameter.}
+\item{theta}{positive splice point and Lomax scale parameter.}
 
 \item{log}{logical; return log-density?}
 
@@ -24,5 +24,20 @@ dcomppareto(x, spec, alpha = 1, theta = 1, log = FALSE, ...)
 Numeric vector of densities.
 }
 \description{
-Density of the continuous composite Pareto distribution
+The implemented tail is a Lomax (Pareto-II) density proportional to
+\eqn{(x+\theta)^{-\alpha-1}}, conditioned on \eqn{x>\theta}; its conditional
+survivor is \eqn{[2\theta/(x+\theta)]^\alpha}. It is not a Pareto-I tail
+with survivor \eqn{(\theta/x)^\alpha}. The splice weight is
+\eqn{\phi=2\theta g(\theta)/[\alpha G(\theta)]}; it is formed on the log scale
+where \eqn{g(\theta)}, \eqn{G(\theta)} or \eqn{\phi} underflow or overflow, so a
+splice point far in a tail of the body still gives a finite density.
+}
+\details{
+The support is \eqn{x > 0}: the density is 0 (log-density \code{-Inf}) at
+\eqn{x \le 0} and at \eqn{x = \infty}, \code{pcomppareto} is 0 at \eqn{q \le 0}, and
+\code{qcomppareto(0)} is 0, so a model fitted with \code{family = "comppareto"}
+requires strictly positive responses. A parameter that is \code{NA} gives \code{NA};
+an invalid parameter (non-positive \code{alpha} or \code{theta}, invalid body
+parameters, \code{NaN}) gives \code{NaN} with a warning, as do probabilities outside
+\eqn{[0, 1]} in \code{qcomppareto}.
 }

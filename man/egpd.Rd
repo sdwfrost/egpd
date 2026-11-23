@@ -27,28 +27,94 @@ egpd(
   sandwich.args = list(),
   custom.fns = list(),
   sp = NULL,
-  gamma = 1
+  gamma = 1,
+  fixed = list(),
+  restarts = TRUE
 )
 }
 \arguments{
-\item{formula}{a formula or list of formulae}
+\item{formula}{a formula or list of formulae, one per distribution parameter. The
+first (or the only) formula carries the response; in a named list (for a
+family other than \code{"custom"}) any one element may carry it. A list may be named, in any
+order, by each parameter's natural name (e.g. \code{sigma}, \code{xi},
+\code{kappa}, \code{pi}, \code{lambda}, \code{sdlog}), by its link-prefixed
+name (e.g. \code{lsigma}, \code{logscale}, \code{logitpi}), or, for the scale and
+shape of the EGPD families, by \code{scale}/\code{psi} and \code{shape}; unnamed
+elements fill the remaining slots in order. Unknown names are an error listing
+the valid ones. The legacy spellings \code{lpi} (zero-inflation probability) and
+\code{lxi} (shape under an identity link) still work but are deprecated. Each
+formula is evaluated in its own environment, so smooth arguments may refer to
+local variables. As in \pkg{mgcv}, parametric terms, the covariates of smooths
+(including \code{by} variables and the factor of an \code{"fs"} smooth) and the
+response may be expressions of the columns of \code{data}, such as
+\code{log(x)}, \code{factor(g)}, \code{I(x^2)}, \code{poly(x, 2)},
+\code{s(log(x))}, \code{s(x, by = factor(g))} or \code{I(y + 1) ~ x}; the
+columns they use must be in \code{data} (and in the \code{newdata} of
+\code{predict()}). Other symbols in them are looked up in the formula's
+environment when fitting, as by \code{mgcv::gam()}; the response is evaluated
+once, in the environment of the formula that carries it. As in base \R, an
+expression is always evaluated, even if \code{data} has a column named like it
+(\code{"log(x)"}); only a name, backquoted if need be, refers to a column.
+In a term such as \code{I(x * cfg$gain)}, \code{gain} names a component
+of \code{cfg}, not an additional data column.
+Censored responses, \code{cens(left, right)} on the left-hand
+side (an \pkg{evgam} feature), are not supported by any family and give an
+error.}
 
-\item{data}{a data frame}
+\item{data}{a data frame. Incomplete rows, including missing values
+introduced by evaluated predictor terms or offsets, are omitted jointly
+across parameters before fitting.}
 
-\item{family}{a character string: "egpd", "degpd", "zidegpd",
-"comppareto", or "custom".
+\item{family}{a character string naming the distribution family, including
+\code{"egpd"}, \code{"degpd"}, \code{"zidegpd"}, \code{"pig"}, \code{"zipig"},
+\code{"gpig"}, \code{"gpignat"}, \code{"zigpig"}, \code{"zigpignat"},
+\code{"bell"}, \code{"bellnat"}, \code{"zibell"}, \code{"zibellnat"},
+\code{"cmp"}, \code{"prl"}, \code{"gpois"}, \code{"gwaring"},
+\code{"ztdegpd"}, \code{"ztgwaring"}, \code{"plnorm"}, \code{"comppareto"},
+or \code{"custom"}.
 Continuous zero-inflated EGPD utilities are provided elsewhere in the
 package, but are not fitted via \code{egpd()}.}
 
 \item{correctV}{logical: should variance-covariance matrix account for smoothing parameter uncertainty? Defaults to TRUE}
 
-\item{rho0}{initial log smoothing parameters}
+\item{rho0}{initial log smoothing parameters for the smoothing-parameter search:
+one per independent parameter not fixed in a term, or one value for all
+(with \code{gamma != 1}, of \code{log(sp / gamma)}; see \code{gamma}).}
 
-\item{inits}{initial parameter values}
+\item{inits}{initial parameter values: one value per distribution parameter (the
+intercept of its linear predictor), or a list of candidate values per parameter,
+of which the best combination is used. Explicit starts are coefficients:
+offsets are added to them. Automatic predictor-level starts instead subtract
+the mean offset from a free intercept (the median if the mean-centred
+start has non-finite likelihood), and never move a fixed predictor.
+Starting values at which the likelihood
+cannot be evaluated are an error, and so, for the count families whose
+likelihoods clamp their parameters (\code{"gpois"}, \code{"gwaring"},
+\code{"ztgwaring"}, \code{"plnorm"}, \code{"prl"}, \code{"cmp"}), are values
+outside the clamped range, where the fit could not move them: for example
+\code{inits = c(0, 0, 0)} for \code{"gwaring"} puts \eqn{\rho} at 1, outside
+its parameter space \eqn{\rho > 1}. Without \code{inits}, \code{"ztgwaring"}
+starts from the mean, \eqn{k = 1} and \eqn{\rho = 2.5}, unless the intercept-only
+fit from there leaves the interior of the parameter space (e.g. runs into
+\eqn{\rho = 1}) while the intercept-only maximum likelihood estimate of the
+zero-truncated law lies inside it; it then starts from that estimate, as the first
+start of \code{\link{fit_hurdle}} does.}
 
-\item{outer}{outer optimization method: "bfgs" (default), "newton", "fd", or "fixed"}
+\item{outer}{outer optimization method: "bfgs" (default), "newton", "fd", or "fixed"
+Continuous EGPD models 1 and 3, and DEGPD model 1 with an unbounded log or
+identity shape link, supply analytic third derivatives for the REML gradient.
+Other models, compact fits (of any family) and a finite \code{xi.max} use
+finite differences;
+near-zero shape, non-finite analytic derivatives, and DEGPD cells too narrow for
+the analytic derivatives (very large counts or scales, where
+\eqn{(\sigma + \xi y)/|\xi|} exceeds about \eqn{4.5 \times 10^{10}}) trigger a
+warning of class \code{"egpd_d34_fallback"} and a finite-difference retry.}
 
-\item{control}{a list of control parameters}
+\item{control}{a named list with optional \code{outer} and \code{inner} lists.
+Each overrides the corresponding optimizer defaults: \code{steptol},
+\code{itlim}, \code{fntol}, \code{gradtol}, and \code{stepmax}. The
+finite-difference REML derivatives tighten the default inner \code{gradtol}
+for their own refits; an inner \code{gradtol} given here is used as is.}
 
 \item{removeData}{logical: should data be removed from the returned object? Defaults to FALSE}
 
@@ -58,9 +124,17 @@ package, but are not fitted via \code{egpd()}.}
 
 \item{maxdata}{maximum number of data rows}
 
-\item{maxspline}{maximum number of rows for spline basis construction}
+\item{maxspline}{maximum number of rows for spline basis construction: with more
+rows than this, each smooth basis is set up on a random subsample of
+\code{maxspline} rows and then evaluated on all of them. The subsample is
+extended by one row of each level of a factor in the formula that it misses, so
+factor terms are set up as on the full data.}
 
-\item{compact}{logical: use compact representation? Defaults to FALSE}
+\item{compact}{logical: keep one design row per distinct combination of
+evaluated design values and offsets? Terms are evaluated on the fitting
+sample before grouping, so compaction preserves their multiplicities
+in sample-dependent transformations. Defaults to \code{FALSE}. For custom likelihoods see
+the observation map under \code{custom.fns}.}
 
 \item{egpd.args}{a list of arguments for EGPD family (e.g., m=1)}
 
@@ -70,31 +144,343 @@ tail index \eqn{\xi} via a bounded shape link
 \eqn{\xi = \texttt{xi.max}\,(1 - \exp(-\exp(\eta)/\texttt{xi.max}))}, which reduces
 to the usual unbounded \eqn{\xi = \exp(\eta)} log link as \code{xi.max} tends to
 \code{Inf} and saturates at \code{xi.max}; this stabilises fits on short, spiky,
-or heavily over-dispersed series. Applies to all DEGPD models 1-6.}
+or heavily over-dispersed series. Applies to all DEGPD models 1-6.
+Must be a positive scalar; a finite cap cannot be combined with
+\code{link = "identity"}. Default and restart shape starts are placed inside
+the cap (at most \code{xi.max / 2}), since near the cap, and as \eqn{\xi \to 0},
+the likelihood barely depends on \eqn{\eta} and a fit can stop there short of
+the optimum (see \code{restarts}).}
 
 \item{zidegpd.args}{a list of arguments for ZIDEGPD family (e.g., m=1)}
 
 \item{comppareto.args}{a list of arguments for the CompPareto GAM family.
 Currently this supports \code{spec = "lnorm"}, \code{"gamma"},
-\code{"weibull"}, or \code{"exp"} for the body distribution.}
+\code{"weibull"}, or \code{"exp"} for the body distribution. See
+\code{restarts} for splice-point searches and convergence at a splice knot.}
 
 \item{gpig.args}{a list of arguments controlling how the GPIG/ZIGPIG pmf is
 evaluated, passed to \code{\link{gpig_control}}: \code{method} (one of
 \code{"hybrid"}, \code{"recursion"}, \code{"trunc"}, \code{"saddlepoint"},
 \code{"legacy"}), \code{yswitch}, \code{order}, \code{eps}, \code{sptol},
 \code{ymax}, \code{nquad} and \code{normalize}. Applied for the duration of the
-fit and then restored. Ignored, with a warning, for other families.}
+fit and then restored. The effective settings (including inherited
+settings) are saved as \code{gpig.control} for profile likelihood
+intervals. Ignored, with a warning, for other families.}
 
-\item{sandwich.args}{a list of sandwich correction arguments}
+\item{sandwich.args}{Optional list with \code{id} naming the cluster column
+(use a distinct ID per independent observation). Let \eqn{H} be the observed
+information at the unpenalised fit and \eqn{J} the cross-product of the
+cluster score sums. On the \eqn{p} free coefficients, \code{method="magnitude"}
+(default) multiplies the likelihood on the log scale by
+\eqn{p / {\rm tr}(H^{-1}J)}. \code{method="curvature"} transforms the
+coefficients about the unpenalised estimate so the inverse adjusted curvature
+there is \eqn{H^{-1}JH^{-1}}. Smooths are fitted to the adjusted likelihood
+with the usual penalty; \code{Vp} inverts the adjusted penalised curvature
+at the resulting fit and \code{Vc} includes smoothing-parameter uncertainty.
+For BHHH families the unadjusted fit still uses score products, but sandwich
+inference differentiates the likelihood scores. Numerically unresolved or
+non-positive definite observed information (or a singular \eqn{J} for the
+curvature adjustment) is an error, not a fallback to BHHH. For every family
+the magnitude adjustment warns if \eqn{J} lacks numerical rank on the free
+coefficients, for example when cluster fixed effects make some cluster score
+sums zero. Its scalar factor is unchanged and need not give a reliable
+standard error for an individual coefficient. The curvature adjustment
+requires full-rank positive definite \eqn{H} and \eqn{J} and a numerically
+resolved adjusted information matrix at the fitted coefficients. For exact-Hessian
+families only, \code{force=TRUE} allows pseudo-inverse adjustments; a forced
+singular curvature adjustment does not support inference in the missing
+directions.}
 
-\item{custom.fns}{a list of custom likelihood functions}
+\item{custom.fns}{for \code{family = "custom"}, a list defining the likelihood (as
+for \pkg{evgam}'s custom families), with elements
+\describe{
+  \item{\code{d0}}{\code{function(pars, likdata)}: the negative log-likelihood at
+    the coefficient vector \code{pars}, summed over the rows of
+    \code{likdata$y} using the linear predictors described below.}
+  \item{\code{d120}}{\code{function(pars, likdata)}: a matrix with one row per
+    observation: the first derivatives of its negative log-likelihood with
+    respect to each linear predictor, then the second derivatives, upper
+    triangle by row (for two predictors: 1-1, 1-2, 2-2).}
+  \item{\code{d340}}{optional third and fourth derivatives, used for
+    smoothing-parameter selection; without them, finite differences are used.}
+  \item{\code{unlink}}{optional list of inverse-link functions, one per linear
+    predictor (in formula order), giving the distributional parameter, as used
+    by \code{fixed}, \code{predict(type = "response")}, \code{simulate()} and
+    \code{confint()}; each must be monotone (increasing or decreasing). A
+    missing or \code{NULL} entry uses the link named by the
+    predictor's prefix (\code{log}, \code{logit}, \code{probit},
+    \code{cloglog}), and otherwise the identity. An attribute \code{"deriv"},
+    the derivative of the inverse link, gives the delta-method standard errors
+    of \code{predict(se.fit = TRUE)}; without it a central difference is used.
+    For a response-scale pin, an optional function attribute \code{"link"}
+    maps the fixed value back to a finite linear predictor on the intended
+    domain. Otherwise a standard forward link or a numerical root bracketed
+    on a finite grid is used. If a valid inverse cannot be found and checked
+    against \code{unlink}, fitting stops rather than guessing from the name.}
+  \item{\code{q}}{optional quantile function, \code{function(p, par1, ...)},
+    taking the distributional parameters in formula order (at most four); needed for
+    quantile predictions and \code{simulate(probs = )}.}
+}
+In each callback, construct predictor \code{i} in the row order of
+\code{likdata$y}. Select its coefficients with \code{likdata$idpars},
+expand the design product if compact, \emph{then} add the offset:
+\preformatted{
+eta <- drop(likdata$X[[i]] \%*\% pars[likdata$idpars == i])
+if (likdata$duplicate == 1L) eta <- eta[likdata$dupid + 1L]
+off <- likdata$offsets[[i]]
+if (length(off)) eta <- eta + off
+}
+The observation-to-design map \code{dupid} is zero-based. The offsets are
+already in observation order: do not expand them again. They include formula
+offsets and the constant link-scale offsets used by \code{fixed}; for a pin
+the design product is zero. Apply the family's inverse link to this complete
+predictor when evaluating the likelihood, and return derivative rows in the
+same observation order. The design matrices passed to existing callbacks
+are not automatically expanded.}
 
-\item{sp}{fixed smoothing parameters (if supplied, outer optimization is skipped)}
+\item{sp}{optional non-negative smoothing parameters on the reported scale
+(see \code{gamma}). Supplying them skips outer optimization. In predictor
+order, give one value per independent parameter not already fixed in a
+smooth, or a scalar to use for all of them. Alternatively supply one
+multiplier per penalty, consistent with all fixed and shared values.
+A non-negative term-level \code{sp} fixes that penalty as in \pkg{mgcv}; an \code{id}
+shares smoothing parameters only within its predictor (including the
+levels of a factor \code{by} smooth). For linked terms specify fixed
+values on the first term with that id. A top-level zero removes that
+penalty exactly; for a zero in a term, \pkg{mgcv}'s setup supplies a
+small positive effective zero, retained in the fit and its REML score.
+Custom smooths whose log-penalty map needs a product or power of free
+parameters rather than one multiplier per matrix are not supported.}
 
-\item{gamma}{a gamma multiplier for the likelihood}
+\item{gamma}{a positive number; as in \code{mgcv::gam()}, values above 1 make the
+REML smoothing-parameter selection favour smoother fits, by selecting the
+smoothing parameters with the log-likelihood divided by \code{gamma}. Only the
+selection is affected: the coefficients are those that maximise the
+log-likelihood minus the penalty at the selected smoothing parameters, and their
+covariance matrices \code{Vp} and \code{Vc} (and so \code{summary()},
+\code{predict(se.fit = TRUE)}, \code{simulate()} and Wald intervals) are those of
+this unscaled penalised log-likelihood, so \code{gamma} does not inflate standard
+errors. The reported smoothing parameters \code{sp} are those of the penalty on
+the unscaled log-likelihood (\code{gamma} times those of the penalty on the
+log-likelihood divided by \code{gamma}), as in \pkg{mgcv}, and a supplied
+\code{sp} is read on that scale, so supplying the reported \code{sp} reproduces a
+fit whatever \code{gamma} is. Without smooth terms, or with \code{sp} supplied,
+\code{gamma} does not change the estimates. The reported log-likelihood is not
+divided by \code{gamma} (\code{logLik.adjusted}, the objective used for
+estimation, is). Cannot be combined with \code{sandwich.args}.}
+
+\item{fixed}{a named list of response-scale parameter values to hold fixed
+during estimation (for example \code{list(kappa = 1)}). Names are matched as
+in a named \code{formula} list, and values are on the response scale
+whichever spelling is used (\code{list(lkappa = 1)} also means kappa = 1).}
+
+\item{restarts}{logical: when \code{inits = NULL}, fit \code{family = "egpd"},
+  \code{"degpd"} or \code{"zidegpd"} (and \code{"comppareto"}, see below) from several
+  starting values -- the package
+  default (for ZIDEGPD a warm start from the nested DEGPD fit) and four more, with
+  shapes 0.05 and 0.3 combined with two fills of the remaining parameters (0 and
+  \eqn{\log 2} on their link scales; for the continuous mixture carrier,
+  \code{egpd.args = list(m = 2)}, weight 0.12 on \eqn{\kappa_1} with
+  \eqn{\kappa_1 = 1, \kappa_2 = 2}, and weight 0.88 with \eqn{\kappa_1 = 1,
+  \kappa_2 = 21}), plus the model 2 starts below -- and return the best of the
+  converged fits? Defaults to \code{TRUE}; \code{FALSE} fits the default start
+  only. The fits are compared by
+  the criterion they optimise: without smooth terms, the log-likelihood; with smooth
+  terms, the REML criterion (the lowest \code{negREML}) when the smoothing
+  parameters are estimated, so that a wigglier fit with a higher log-likelihood but
+  a worse REML criterion is not preferred, and the penalised log-likelihood (the
+  log-likelihood less the penalty) when they are all fixed. Fits within
+  0.01 of the best by that criterion count as the same optimum, and of those the one
+  with the highest log-likelihood is returned -- for the continuous EGPD the default
+  start's fit, so that another start replaces it only if it improves the criterion
+  by more than 0.01, and a fit whose default start reaches the optimum is unchanged.
+  The REML criterion is a Laplace approximation, which needs a regular maximum of
+  the penalised likelihood: if any of the fits has a linear predictor other than the
+  scale's on a boundary of its link (\eqn{|\eta| > 9}, as below), its shape on a
+  flat end of the bounded link, or a penalised Hessian that is not positive
+  definite, the likelihood is flat there and the criterion falls without bound as
+  that fit drifts along it, so the fits are compared by the log-likelihood instead.
+  With a sandwich adjustment (\code{sandwich.args}) the fits are always compared by
+  the log-likelihood: the adjustment is estimated from each start's own unpenalised
+  fit, so the adjusted criteria of different starts are on different scales.
+  Starts that differ only for parameters held by
+  \code{fixed} are fitted once, and every start fits the same data, including the
+  same \code{maxdata} and \code{maxspline} subsamples.
+
+  Model 2 (EGPD, DEGPD and ZIDEGPD) also tries up to three starts that place
+  the two components at different response quantiles. It screens trial scales,
+  shapes and mixing weights on at most 512 response ranks; only the best start
+  from each of three weight ranges is used for a full fit. Screening uses
+  densities for EGPD and bin probabilities (including zero inflation if fitted)
+  for counts. This helps escape both nearly equal powers and inferior separated
+  mixtures; it does not guarantee a global maximum. In continuous model 2
+  with negative shape, the scale can place the upper support endpoint just
+  above the largest observation while the larger power grows. The likelihood
+  can then be unbounded. The starts do not target such spikes.
+
+  For EGPD, DEGPD and ZIDEGPD carriers \code{m = 2}, \code{3} and \code{4},
+  all the starts are tried, even for an interior primary fit.
+  For the other ZIDEGPD carriers the four extra starts are fitted
+  only when the default fit fails: it does not converge, its log-likelihood is not
+  finite, or a fitted linear predictor other than the scale's (and other than
+  those held by \code{fixed}) reaches a boundary, \eqn{|\eta| > 9} (for
+  example \eqn{\pi}, \eqn{\kappa} or \eqn{\xi} below about \eqn{10^{-4}}).
+  Each extra start retained is a full fit. On two intercept-only model 2
+  examples with 400 observations, eight starts took about 8 to 11 times as
+  long as a single start. Without the model 2 screen, five starts together
+  take about twice as long as the default fit alone for intercept-only and
+  parametric DEGPD models, and about 2.5 to 8 times as long for the continuous
+  EGPD (about 3 times for a model 1 fit with one smooth). With a
+  finite \code{degpd.args$xi.max}, if the best of them has its shape on either
+  flat end of the bounded link (\eqn{\xi} within about \eqn{10^{-4}} relative of the
+  cap, or below about \eqn{10^{-4}}), a fit with the unbounded log link is mapped
+  onto the bounded link and tried as one more start (the log-link fit, another
+  model, only supplies that start and is not one of the fits compared).
+
+  For \code{family = "comppareto"} a local maximum can occur at an observation
+  (a kink in the splice point \eqn{\theta}) or between observations. For constant
+  predictors a deterministic screen considers up to 128 distinct sample splits and
+  the adjacent log-midpoints. It profiles a free \eqn{\alpha} analytically and fits
+  the free body parameters at a coarse set of splits. With covariates, smooths or
+  varying offsets it instead tries shifts of the fitted log-splice intercept (up
+  to 32 splits and their midpoints), holding the other fitted predictors intact
+  for scoring. This searches only a line even for a smooth on \eqn{\theta}; a
+  pinned splice or a design without a splice intercept skips the screen.
+  At most two peaks scoring more than 0.01 above the primary log-likelihood
+  supply intercept starts for full refits. All coefficients and adjustments are
+  fitted normally from each start. A primary fit with all observations on one
+  side still tries the four quantile starts (50\%, 75\%, 90\%, 95\%). The
+  primary fit is kept within 0.01 by the comparison criterion above; a failed
+  primary is replaced only for a material improvement over the log-likelihood
+  at its coefficients as well. This bounded search does not guarantee a global
+  maximum. A selected split with no tail observations and a free unpenalised
+  tail-shape intercept has no finite tail-shape optimum there.
+
+  For an exponential body with one log-splice intercept (possibly offset), the
+  coefficient optimizer can stop at an observed splice with a nonzero ordinary
+  gradient. With no smoothing parameters to estimate, the fitter can polish
+  the smooth free coordinates at the knot and verify positive tangent curvature
+  and both one-sided slopes of the objective actually optimized. This is a
+  local convergence check, not a restart or a regularity guarantee for standard
+  errors. A rate driven to zero is distinguished from a finite kink optimum.
+  This check does not certify varying splice coefficients, curvature-sandwich
+  transformations, or the outer REML search.}
 }
 \value{
-An object of class \code{egpd}
+An object of class \code{egpd}. Among its components, \code{logLik} is
+  the log-likelihood of the data at the fitted coefficients (not divided by
+  \code{gamma} or a sandwich adjustment factor; the adjusted value used for
+  estimation is \code{logLik.adjusted}), \code{negREML} the REML criterion at the
+  returned smoothing parameters (or, without smooths, the minimised negative
+  log-likelihood), and \code{convergence} 0 on success, 1 if an iteration limit
+  was reached, 2 if the log-likelihood cannot be evaluated at the returned
+  coefficients (or is positive for a discrete family), and 3 if the coefficient
+  search stopped with a non-negligible gradient, with the reason in
+  \code{convergence.report}. A fit that did not converge has \code{logLik}
+  \code{NA} and \code{AIC = BIC = 1e20}, and \code{egpd()} warns (condition class
+  \code{"egpd_nonconvergence"}).
+
+  For penalised models, \code{sp} lists the independent parameters not
+  already fixed by the formula (including values supplied at top level).
+  \code{full.sp} gives the actual multiplier of each penalty matrix,
+  including term-fixed and repeated values. Each predictor reports its own
+  slice of both vectors. The correction from \code{Vp} to \code{Vc}
+  propagates the covariance of the estimated log smoothing parameters
+  through the first derivatives of the fitted coefficients.
+
+  \code{negREML} is the Laplace approximation to the negative log restricted
+  likelihood (Wood, 2011, \emph{JRSS B} 73, 3--36). With \code{gamma != 1} or
+  a sandwich adjustment it uses the adjusted log-likelihood. When comparing
+  \code{negREML} to \code{gcv.ubre} from \code{mgcv::gam(method = "REML")},
+  match the likelihood, scale and smoothing parameters. Even then the absolute
+  scores can differ by an additive constant under \code{gamma != 1}, depending
+  on the \pkg{mgcv} fitter. For example, with \eqn{M_p} unpenalised coefficients,
+  the fixed-scale Gaussian REML score exceeds \code{negREML} by
+  \eqn{M_p \log\gamma}, whereas a Gaussian location/scale fit
+  (\code{mgcv::gaulss()}, \code{gam.fit5} in \pkg{mgcv} 1.9-4) gives
+  \eqn{(M_p + 1)\log\gamma / 2}. These constants vanish at \code{gamma = 1}
+  and do not affect smoothing-parameter selection within a model at fixed
+  \code{gamma}.
+
+  \code{df} is the total effective degrees of freedom (also the \code{"df"}
+  attribute of \code{logLik()}), from which \code{AIC = -2 * logLik + 2 * df} and
+  \code{BIC = -2 * logLik + log(nobs) * df} are computed, and each parameter's
+  \code{edf} holds the share of its coefficients. They are the diagonal of
+  \eqn{(H_0 + S)^{-1} H_0}, where \eqn{H_0} is the Hessian of the negative
+  log-likelihood at the fitted coefficients (of the adjusted one, with a sandwich
+  adjustment) and \eqn{S} the penalty (without smooth terms \eqn{S = 0}, and each
+  identified coefficient counts one). That formula assumes \eqn{H_0} is positive
+  semi-definite, which it need not be at a penalised optimum -- e.g. with smooth
+  terms on all the parameters of a zero-truncated DEGPD -- and there it can give a
+  negative \code{df} and an AIC below \code{-2 * logLik}. When \eqn{H_0} has an
+  eigenvalue below \eqn{-\sqrt{\epsilon}}{-sqrt(eps)} times its largest
+  (\eqn{\epsilon}{eps} the machine precision), the edf follow the rule of \pkg{mgcv}
+  for general families: the eigenvalues of \eqn{H_0} below \eqn{t} times its largest
+  are raised to that level, with \eqn{t = 0}, then \eqn{10^{-7}}{1e-7},
+  \eqn{1.1 \times 10^{-6}}{1.1e-6}, \ldots until the clamped \eqn{H_0} plus \eqn{S}
+  has full rank, and the edf are computed from the clamped \eqn{H_0}. Only the edf,
+  \code{df}, AIC and BIC (and the smooth-term tests of \code{summary()}, which use the
+  edf) change: \code{Vp} and \code{Vc} remain the inverse of the exact penalised
+  Hessian.
+
+  \code{plateau} is a named logical vector with one element per linear predictor,
+  \code{TRUE} where the predictor sits on a plateau of its link, so that the
+  likelihood no longer depends on it and the parameter is not identified: a
+  predictor other than the scale's, and not held by \code{fixed}, with a fitted value
+  beyond \eqn{|\eta| > 9} (e.g. \eqn{\kappa} or \eqn{\xi} below about \eqn{10^{-4}}
+  or above about \eqn{10^4} under a log link, \eqn{\pi} within about \eqn{10^{-4}}
+  of 0 or 1 under a logit link), or a DEGPD shape on either flat end of the
+  bounded link (\code{degpd.args$xi.max}), as for \code{restarts}, which compares
+  such fits by the log-likelihood instead of \code{negREML}. Where any element is
+  \code{TRUE}, \code{negREML}, and so the selection of the smoothing parameters, is
+  ill-defined: the Laplace approximation needs a regular maximum, and its value
+  depends on how far the coefficient search drifted along the plateau (for a
+  continuous carrier-5 fit with \eqn{\kappa \to 0}{kappa -> 0}, refitting at the
+  reported \code{sp} changed \code{negREML} from 447.15 to 463.22 at the same
+  log-likelihood). \code{egpd()} records this without a warning, and
+  \code{print()} notes it. \code{plateau} is assessed for the families
+  \code{"egpd"}, \code{"degpd"}, \code{"zidegpd"}, \code{"ztdegpd"},
+  \code{"gwaring"} and \code{"ztgwaring"}, and is \code{NA} for the others.
+
+  \code{hessian.rank} is \code{c(rank, npar)}: the numerical rank of the Hessian
+  behind \code{Vp} and \code{Vc} (that of the negative log-likelihood -- the adjusted
+  one, with a sandwich adjustment -- plus the penalty with smooth terms; \code{Vp} is
+  its pseudo-inverse) and the number of estimated coefficients it covers (all but the
+  inert ones of parameters held by \code{fixed}). The rank counts the eigenvalues above
+  \eqn{\sqrt{\epsilon}}{sqrt(eps)} times the largest eigenvalue of the unpenalised
+  Hessian, with each coefficient measured in units of the root mean square of its
+  design column, so that the units of the covariates do not matter. A rank below
+  \code{npar} means that the Hessian is singular or not positive definite: \code{Vp}
+  gives the unidentified direction(s) a zero, negative or arbitrarily large variance,
+  so that standard errors, \code{vcov()}, \code{confint()},
+  \code{predict(se.fit = TRUE)} and \code{simulate()} do not reflect the uncertainty
+  along them; \code{print()} and \code{summary()} then add a note. For the families
+  whose Hessian is the outer product of the per-observation scores (BHHH:
+  \code{"gwaring"}, \code{"ztgwaring"}, \code{"gpois"}, \code{"plnorm"},
+  \code{"gpig"}, \code{"gpignat"}, \code{"zigpig"}, \code{"zigpignat"}, \code{"cmp"}
+  and \code{"prl"}, without a sandwich adjustment) it is singular where the
+  scores are linearly dependent, which
+  need not make the likelihood flat: an intercept-only generalized Waring fit whose
+  estimate has \eqn{a = k}, where \eqn{a = \mu(\rho - 1)/k}, has rank 2 of 3, since
+  its likelihood is symmetric in \eqn{a} and \eqn{k}.
+
+  A converged fit warns (condition class \code{"egpd_singular_hessian"}), naming the
+  coefficients involved, when the singularity is one that neither its standard errors
+  nor \code{plateau} show. Among the coefficients of the linear predictors that are not
+  on a plateau (those are reported by \code{plateau} and \code{print()}, without a
+  warning), it warns when \code{Vp} gives some direction zero or negative variance --
+  the pseudo-inverse cut it off, as for collinear terms, or a coefficient carries no
+  information at all, as for a parameter beyond the range in which its likelihood is
+  evaluated (e.g. a \code{"gpig"} \eqn{a} on its guard bound), or the Hessian is not
+  positive definite -- and, for the BHHH families, also when the Hessian is merely
+  numerically singular, as at \eqn{a = k}, where the outer product of the scores is
+  singular although the likelihood is not flat. A near-singular exact Hessian, whose
+  very large variances reflect a flat likelihood, is recorded in \code{hessian.rank} and
+  noted by \code{print()} and \code{summary()} without a warning. Fixing a parameter
+  (\code{fixed}), a simpler model, or profile likelihood intervals
+  (\code{confint(method = "profile")}) do not rely on the singular Hessian. For a fit
+  that did not converge, the rank is still recorded, but only the nonconvergence
+  warning is given for the estimates.
 }
 \description{
 Fit Extended Generalized Pareto Distribution GAMs

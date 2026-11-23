@@ -27,9 +27,11 @@ rprl(n, tau = 2.5)
 
 \item{p}{vector of probabilities}
 
-\item{max.value}{largest count searched when inverting the cdf}
+\item{max.value}{largest count searched when inverting the cdf; a nonattaining
+cap returns \code{NA} with a warning.}
 
-\item{n}{number of draws}
+\item{n}{number of draws; if \code{length(n) != 1}, the length is taken to be
+the number required (\code{numeric(0)} gives none), as in \code{\link[stats]{rpois}}}
 }
 \value{
 a numeric vector
@@ -41,6 +43,14 @@ Its mean is \code{tau^2/(tau-1)} -- minimised at \code{4}, so no smaller mean is
 representable -- and its dispersion index is \code{(tau^2+tau-3)/(tau-1)}, approximately
 the mean. It is therefore geometric-like: strictly stronger than the Bell distribution
 (whose dispersion index is about 1), but with no free dispersion parameter.
+}
+\details{
+The survivor has the closed form of their Eq. (3)/(4), so both tails keep full
+  relative accuracy. Invalid input follows \code{\link[stats]{dpois}}: an \code{NA}
+  parameter gives \code{NA}; an invalid one (\code{tau < 2}, \code{NaN}, infinite)
+  gives \code{NaN} with a warning; \code{x} that is negative or infinite has mass zero,
+  and a non-integer \code{x} has mass zero with a warning; probabilities outside
+  \eqn{[0, 1]} give \code{NaN} with a warning. Quantile endpoints are 0 and \code{Inf}.
 }
 \references{
 Alkhairy, I. (2023) Classical and Bayesian inference for the discrete

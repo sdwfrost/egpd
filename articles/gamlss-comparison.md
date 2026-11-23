@@ -21,16 +21,16 @@ These map to EGPD parameters as follows:
 
 ## Fitting notes
 
-- **gamlss convergence**: The EGPD families use numerical derivatives,
-  which can require more iterations than the gamlss default
-  (`n.cyc = 20`). We recommend setting `n.cyc = 200` via
-  `gamlss.control()` to ensure convergence.
-- **Penalised vs raw log-likelihood**: `egpd()` uses penalised
-  likelihood estimation (as in `mgcv`), so `logLik()` on an egpd object
-  returns the penalised log-likelihood, which is slightly lower than the
-  raw log-likelihood. The gamlss `logLik()` returns the raw
-  log-likelihood. Despite this difference in objective function, both
-  approaches recover very similar parameter estimates.
+- **gamlss convergence**: Some EGPD families fall back to numerical
+  derivatives for some parameters, and fits can require more iterations
+  than the gamlss default (`n.cyc = 20`). We recommend setting
+  `n.cyc = 200` via `gamlss.control()` to ensure convergence.
+- **Penalised estimation, unpenalised log-likelihood**: `egpd()`
+  estimates smooth terms by penalised likelihood (as in `mgcv`), but
+  `logLik()` on an egpd object returns the unpenalised log-likelihood of
+  the data at those penalised estimates, as the gamlss `logLik()` does.
+  Despite the different objective functions and smoothing-parameter
+  selection, both approaches recover very similar parameter estimates.
 
 ## Discrete EGPD Model 1
 
@@ -98,10 +98,14 @@ cat("Range of y:", range(y), "\n")
 
 ### egpd fit
 
+`predict(type = "response")` returns one column per distributional
+parameter (`scale`, `shape`, `kappa`, …) plus an `xi` column that
+duplicates `shape`, so we select the columns we need by name.
+
 ``` r
 fit_egpd <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
                  data = df, family = "degpd", degpd.args = list(m = 1))
-pars_egpd <- predict(fit_egpd, type = "response")[1, ]
+pars_egpd <- predict(fit_egpd, type = "response")[1, c("scale", "shape", "kappa")]
 ```
 
 ### gamlss fit
@@ -129,9 +133,9 @@ data.frame(
 ```
 
       parameter true   egpd gamlss
-    1     sigma 3.00 2.7332 2.7205
-    2        xi 0.15 0.1974 0.1989
-    3     kappa 2.00 2.1228 2.1310
+    1     sigma 3.00 2.7332 2.7332
+    2        xi 0.15 0.1974 0.1974
+    3     kappa 2.00 2.1228 2.1228
 
 Both approaches recover similar parameter estimates for the discrete
 model.
@@ -163,7 +167,7 @@ cat("Proportion of zeros:", mean(y == 0), "\n")
 ``` r
 fit_zidegpd <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1, logitpi = ~ 1),
                     data = df, family = "zidegpd", zidegpd.args = list(m = 1))
-pars_zidegpd <- predict(fit_zidegpd, type = "response")[1, ]
+pars_zidegpd <- predict(fit_zidegpd, type = "response")[1, c("scale", "shape", "kappa", "pi")]
 ```
 
 ### gamlss fit
@@ -192,10 +196,10 @@ data.frame(
 ```
 
       parameter true   egpd gamlss
-    1     sigma 3.00 3.0878 3.0460
-    2        xi 0.15 0.1465 0.1505
-    3     kappa 2.00 1.7892 1.8202
-    4        pi 0.25 0.2161 0.2178
+    1     sigma 3.00 3.0878 3.0878
+    2        xi 0.15 0.1465 0.1465
+    3     kappa 2.00 1.7892 1.7892
+    4        pi 0.25 0.2161 0.2161
 
 Both fitting approaches recover all four parameters for the
 zero-inflated discrete model.
@@ -220,7 +224,7 @@ df <- data.frame(y = y, x = rep(1, n))
 ``` r
 fit_egpd_c <- egpd(list(lpsi = y ~ 1, xi = ~ 1, lkappa = ~ 1),
                    data = df, family = "egpd", egpd.args = list(m = 1))
-pars_egpd_c <- predict(fit_egpd_c, type = "response")[1, ]
+pars_egpd_c <- predict(fit_egpd_c, type = "response")[1, c("scale", "shape", "kappa")]
 ```
 
 ### gamlss fit
@@ -248,9 +252,9 @@ data.frame(
 ```
 
       parameter true   egpd gamlss
-    1     sigma  2.0 2.0957 2.0900
-    2        xi  0.2 0.1933 0.1943
-    3     kappa  1.5 1.3904 1.3928
+    1     sigma  2.0 2.0957 2.0957
+    2        xi  0.2 0.1933 0.1933
+    3     kappa  1.5 1.3904 1.3904
 
 Both approaches recover very similar estimates for the continuous model
 as well.

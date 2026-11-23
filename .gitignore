@@ -13,3 +13,5 @@ inst/models/*/
 
 .venv/
 derive_degpd1_identity.cpp.txt
+# vignette outputs are built by R CMD build, not committed
+inst/doc

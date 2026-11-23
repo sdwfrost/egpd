@@ -23,24 +23,11 @@
 }
 
 .iG2i_zidegpd <- function(v, kappa1, kappa2, p) {
-  if (v <= 0)
-    return(0)
-  if (v >= 1)
-    return(1)
-  if (abs(kappa1 - kappa2) < sqrt(.Machine$double.eps))
-    return(v^(1 / kappa1))
-  vv <- range(c(v^(1 / kappa1), v^(1 / kappa2)))
-  d <- max(diff(vv), .Machine$double.eps)
-  lo <- vv[1]
-  while(.G2_zidegpd(lo, kappa1, kappa2, p) - v > 0 && lo > 0) lo <- max(0, lo - d)
-  hi <- vv[2]
-  while(.G2_zidegpd(hi, kappa1, kappa2, p) - v < 0 && hi < 1) hi <- min(1, hi + d)
-  uniroot(function(x) .G2_zidegpd(x, kappa1, kappa2, p) - v, c(lo, hi))$root
+  q.G(v, type = 6, kappa = kappa1, delta = kappa2, prob = p)
 }
 
 .iG2_zidegpd <- function(v, kappa1, kappa2, p) {
-  n <- length(v)
-  vapply(seq_len(n), function(i) .iG2i_zidegpd(v[i], kappa1[i], kappa2[i], p[i]), double(1))
+  mapply(.iG2i_zidegpd, v, kappa1, kappa2, p, USE.NAMES = FALSE)
 }
 
 .zidegpd2.d0 <- function(pars, likdata) {
@@ -67,7 +54,7 @@
   zidegpd3d12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
-.iG3_zidegpd <- function(v, delta) 1 - qbeta(1 - v, 1/delta, 2)^(1/delta)
+.iG3_zidegpd <- function(v, delta) q.G(v, type = 4L, delta = delta)
 
 .zidegpd3fns <- list(d0=.zidegpd3.d0, d120=.zidegpd3.d12, d340=NULL, m=3, iG=.iG3_zidegpd)
 
@@ -83,7 +70,7 @@
   zidegpd4d12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$X[[5]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
-.iG4_zidegpd <- function(v, delta, kappa) 1 - qbeta(1 - v^(2/kappa), 1/delta, 2)^(1/delta)
+.iG4_zidegpd <- function(v, delta, kappa) q.G(v, type = 5L, delta = delta, kappa = kappa)
 
 .zidegpd4fns <- list(d0=.zidegpd4.d0, d120=.zidegpd4.d12, d340=NULL, m=4, iG=.iG4_zidegpd)
 

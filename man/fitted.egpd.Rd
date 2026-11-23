@@ -4,15 +4,23 @@
 \alias{fitted.egpd}
 \title{Extract Model Fitted Values}
 \usage{
-\method{fitted}{egpd}(object, ...)
+\method{fitted}{egpd}(object, type = c("link", "response"), ...)
 }
 \arguments{
 \item{object}{a fitted \code{egpd} object}
 
+\item{type}{\code{"link"} (the default, as in \pkg{evgam}): the fitted linear
+predictors, one column per distributional parameter named by its link (e.g.
+\code{logscale}, \code{logshape}, \code{logitpi}), including offsets;
+\code{"response"}: the fitted distributional parameters on their natural
+scale, as \code{predict(object, type = "response")} (columns named by
+parameter, e.g. \code{scale}, \code{shape}, plus an \code{xi} alias of
+\code{shape} for EGPD families). Neither is a fitted mean of the response.}
+
 \item{...}{not used}
 }
 \value{
-Fitted values extracted from the object
+A data frame with one row per observation used in the fit.
 }
 \description{
 Extract Model Fitted Values

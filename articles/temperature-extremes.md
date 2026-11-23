@@ -89,16 +89,16 @@ summary(fit1)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.56       0.31   -1.81   0.0351
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.56       0.31   -1.81   0.0702
 
     shape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.16       0.11     1.4   0.0806
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.16       0.11     1.4    0.161
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     1.35        0.3    4.46 4.08e-06
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     1.35        0.3    4.46 8.17e-06
 
     ** Smooth terms **
 
@@ -128,16 +128,16 @@ summary(fit3)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.29       0.15    1.89   0.0294
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.29       0.15    1.89   0.0587
 
     shape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.17       0.07   -2.47  0.00682
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.17       0.07   -2.47   0.0136
 
     logdelta
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)      0.8       0.56    1.43   0.0767
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)      0.8       0.56    1.43    0.153
 
     ** Smooth terms **
 
@@ -155,20 +155,20 @@ summary(fit4)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.17       0.21   -0.81    0.209
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.17       0.21   -0.81    0.419
 
     shape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.02       0.09    0.21    0.418
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.02       0.09    0.21    0.835
 
     logdelta
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     1.75       0.33    5.26 7.35e-08
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     1.75       0.33    5.26 1.47e-07
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     1.44       0.21    6.88    3e-12
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     1.44       0.21    6.88    6e-12
 
     ** Smooth terms **
 
@@ -186,16 +186,16 @@ summary(fit5)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.95       0.39   -2.47  0.00669
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.95       0.39   -2.47   0.0134
 
     shape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.36       0.14    2.66  0.00393
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.36       0.14    2.66  0.00787
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     3.13       0.57    5.45 2.49e-08
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     3.13       0.57    5.45 4.97e-08
 
     ** Smooth terms **
 
@@ -213,16 +213,16 @@ summary(fit6)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.33        0.2   -1.63   0.0516
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.33        0.2   -1.63    0.103
 
     shape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.12        0.1    1.19    0.117
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.12        0.1    1.19    0.235
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     1.66       0.27    6.15  3.8e-10
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     1.66       0.27    6.15 7.58e-10
 
     ** Smooth terms **
 
@@ -241,11 +241,11 @@ aic_table
 ```
 
        Model npar  logLik    AIC
-    1 EGPD-1    3 -478.58 963.16
-    2 EGPD-3    3 -483.65 973.29
-    3 EGPD-4    4 -475.05 958.09
-    4 EGPD-5    3 -482.75 971.51
-    5 EGPD-6    3 -477.95 961.91
+    1 EGPD-1    3 -475.82 957.65
+    2 EGPD-3    3 -480.89 967.78
+    3 EGPD-4    4 -471.37 950.74
+    4 EGPD-5    3 -480.00 965.99
+    5 EGPD-6    3 -475.20 956.39
 
 ## Goodness of fit
 
@@ -336,22 +336,22 @@ summary(fit1_yr)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.54       0.31   -1.75   0.0402
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.53       0.31   -1.74    0.082
 
     shape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.15       0.11    1.31   0.0956
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.15       0.11    1.29    0.197
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     1.33        0.3    4.46 4.19e-06
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     1.32        0.3    4.46 8.12e-06
 
     ** Smooth terms **
 
     logscale
-             edf max.df Chi.sq Pr(>|t|)
-    s(year) 1.15      4   0.22    0.768
+             edf max.df Chi.sq p-value
+    s(year) 1.25      4    0.3   0.765
 
 ``` r
 cat("\nAIC (intercept-only):", round(AIC(fit1), 2),
@@ -359,8 +359,8 @@ cat("\nAIC (intercept-only):", round(AIC(fit1), 2),
 ```
 
 
-    AIC (intercept-only): 963.16 
-    AIC (year trend):     966.82 
+    AIC (intercept-only): 957.65 
+    AIC (year trend):     959.45 
 
 ``` r
 year_grid <- data.frame(year = 1970:2019)

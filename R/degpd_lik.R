@@ -17,8 +17,10 @@
   if (isTRUE(likdata$duplicate == 1)) eta <- eta[likdata$dupid + 1]
   if (length(likdata$offsets[[xcol]]) > 0) eta <- eta + likdata$offsets[[xcol]]
   u <- exp(eta); tt <- u / a
-  mp <- (u * exp(-tt)) / (a * -expm1(-tt)); mpp <- mp * (1 - tt - mp)
-  sat <- !is.finite(mp) | (tt > 700); mp[sat] <- 0; mpp[sat] <- 0
+  small <- !is.na(tt) & (tt < 1e-4)
+  mp <- ifelse(small, 1 - 0.5 * tt + tt^2 / 12, (u * exp(-tt)) / (a * -expm1(-tt)))
+  mpp <- mp * (1 - tt - mp)
+  sat <- is.na(mp) | !is.finite(mp) | (tt > 700); mp[sat] <- 0; mpp[sat] <- 0
   ## packed upper-tri column (1-based) for parameter pair (i,j), i<=j, 0-based
   col_ij <- function(i, j) {
     off <- 0L; if (i > 0) for (r in 0:(i - 1)) off <- off + (npar - r)
@@ -48,9 +50,62 @@
   degpd1d12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, xm)
 }
 
+## The generated high-order expressions lose precision near xi = 0, and in cells too
+## narrow for the generated forms (below). Signal these numerical limitations so
+## .outer() can retry with finite differences.
+.degpd1.d34.unavailable <- function(message) {
+  stop(structure(list(message = message, call = NULL),
+                 class = c("egpd_d34_unavailable", "error", "condition")))
+}
+
+## Narrow cells: the generated d34 evaluate t = 1 + xi y/sigma at both ends of the cell
+## [y, y + 1], whose width |xi|/sigma is then resolved only to eps t sigma/|xi| =
+## eps (sigma + xi y)/|xi| (eps * (distance to the endpoint) for xi < 0). The third
+## derivatives lose about that much, times up to 3e4 (both links), and the REML
+## gradient error grows with it: below eps (sigma + xi y)/|xi| = 1e-5 it stayed below
+## 2e-5 in designed fits (under the finite-difference gradient's own error, 6e-5 to
+## 3e-4); above, it reached 1.5e-4 at 1e10 counts and 5e-2 (sp 5% off) at 1e13.
+## Ordinary counts and scales are many orders of magnitude below the limit.
+.degpd1.d34.cell.limit <- 1e-5
+
+.degpd1.check.d34 <- function(pars, likdata, identity = FALSE) {
+  b <- split(pars, factor(likdata$idpars, levels = seq_along(likdata$X)))
+  predictor <- function(k) {
+    eta <- as.numeric(likdata$X[[k]] %*% b[[k]])
+    if (isTRUE(likdata$duplicate == 1)) eta <- eta[likdata$dupid + 1L]
+    if (length(likdata$offsets[[k]])) eta <- eta + likdata$offsets[[k]]
+    eta
+  }
+  eta <- predictor(2)
+  small <- if (identity) abs(eta) < 0.05 else eta < log(1e-3)
+  if (any(!is.finite(eta) | small))
+    .degpd1.d34.unavailable("analytic DEGPD d34 is unstable near zero shape")
+  xi <- if (identity) eta else exp(eta)
+  cells <- (exp(predictor(1)) + xi * likdata$y[, 1]) / abs(xi)
+  if (any(.Machine$double.eps * cells > .degpd1.d34.cell.limit, na.rm = TRUE))
+    .degpd1.d34.unavailable(sprintf(paste(
+      "analytic DEGPD (%s shape link) third/fourth derivatives lose accuracy at very",
+      "large counts or scales: (sigma + xi*y)/|xi| reaches %.3g, above %.3g, so the",
+      "cells [y, y + 1] are resolved to worse than %.0e"),
+      if (identity) "identity" else "log", max(cells, na.rm = TRUE),
+      .degpd1.d34.cell.limit / .Machine$double.eps, .degpd1.d34.cell.limit))
+}
+
+## These derivatives assume an unbounded log link, not the xi.max link.
+.degpd1.d34 <- function(pars, likdata) {
+  xm <- if (is.null(likdata$xi.max)) Inf else likdata$xi.max
+  if (is.finite(xm))
+    .degpd1.d34.unavailable("analytic DEGPD d34 is unavailable for finite xi.max")
+  .degpd1.check.d34(pars, likdata)
+  out <- degpd1d34(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, xm)
+  if (any(!is.finite(out)))
+    .degpd1.d34.unavailable("analytic DEGPD d34 is non-finite")
+  out
+}
+
 .iG1_degpd <- function(v, kappa) v^(1/kappa)
 
-.degpd1fns <- list(d0=.degpd1.d0, d120=.degpd1.d12, d340=NULL, m=1, iG=.iG1_degpd)
+.degpd1fns <- list(d0=.degpd1.d0, d120=.degpd1.d12, d340=.degpd1.d34, m=1, iG=.iG1_degpd)
 
 ## model 1, identity link on xi (unconstrained shape; xi may be < 0, bounded tail).
 ## Parameter 2 IS xi (not log xi), so NO .bounded_xi_chain conversion is applied.
@@ -62,7 +117,14 @@
 .degpd1id.d12 <- function(pars, likdata) {
   degpd1id12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, Inf)
 }
-.degpd1idfns <- list(d0=.degpd1id.d0, d120=.degpd1id.d12, d340=NULL, m=1, iG=.iG1_degpd, identity.xi=TRUE)
+.degpd1id.d34 <- function(pars, likdata) {
+  .degpd1.check.d34(pars, likdata, identity = TRUE)
+  out <- degpd1id34(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets, Inf)
+  if (any(!is.finite(out)))
+    .degpd1.d34.unavailable("analytic DEGPD d34 is non-finite")
+  out
+}
+.degpd1idfns <- list(d0=.degpd1id.d0, d120=.degpd1id.d12, d340=.degpd1id.d34, m=1, iG=.iG1_degpd, identity.xi=TRUE)
 
 ## model 2 ##
 
@@ -71,24 +133,11 @@
 }
 
 .iG2i_degpd <- function(v, kappa1, kappa2, p) {
-  if (v <= 0)
-    return(0)
-  if (v >= 1)
-    return(1)
-  if (abs(kappa1 - kappa2) < sqrt(.Machine$double.eps))
-    return(v^(1 / kappa1))
-  vv <- range(c(v^(1 / kappa1), v^(1 / kappa2)))
-  d <- max(diff(vv), .Machine$double.eps)
-  lo <- vv[1]
-  while(.G2_degpd(lo, kappa1, kappa2, p) - v > 0 && lo > 0) lo <- max(0, lo - d)
-  hi <- vv[2]
-  while(.G2_degpd(hi, kappa1, kappa2, p) - v < 0 && hi < 1) hi <- min(1, hi + d)
-  uniroot(function(x) .G2_degpd(x, kappa1, kappa2, p) - v, c(lo, hi))$root
+  q.G(v, type = 6, kappa = kappa1, delta = kappa2, prob = p)
 }
 
 .iG2_degpd <- function(v, kappa1, kappa2, p) {
-  n <- length(v)
-  vapply(seq_len(n), function(i) .iG2i_degpd(v[i], kappa1[i], kappa2[i], p[i]), double(1))
+  mapply(.iG2i_degpd, v, kappa1, kappa2, p, USE.NAMES = FALSE)
 }
 
 .degpd2.d0 <- function(pars, likdata) {
@@ -121,7 +170,7 @@
   .bounded_xi_chain(out, pars, likdata)
 }
 
-.iG3_degpd <- function(v, delta) 1 - qbeta(1 - v, 1/delta, 2)^(1/delta)
+.iG3_degpd <- function(v, delta) q.G(v, type = 4L, delta = delta)
 
 .degpd3fns <- list(d0=.degpd3.d0, d120=.degpd3.d12, d340=NULL, m=3, iG=.iG3_degpd)
 
@@ -140,7 +189,7 @@
   .bounded_xi_chain(out, pars, likdata)
 }
 
-.iG4_degpd <- function(v, delta, kappa) 1 - qbeta(1 - v^(2/kappa), 1/delta, 2)^(1/delta)
+.iG4_degpd <- function(v, delta, kappa) q.G(v, type = 5L, delta = delta, kappa = kappa)
 
 .degpd4fns <- list(d0=.degpd4.d0, d120=.degpd4.d12, d340=NULL, m=4, iG=.iG4_degpd)
 
@@ -185,59 +234,16 @@
 ## ---------------------------------------------------------------------------
 ## IDENTITY LINK ON xi, CARRIERS 2-6.
 ##
-## The C++ routines are handed xi directly (xi_identity = TRUE) instead of
-## exp(eta); see the long note in src/degpd.cpp. Because their expressions were
-## derived w.r.t. log xi, what comes back is
-##
-##   g_lxi = xi * dnll/dxi
-##   h_lxi,lxi = xi * dnll/dxi + xi^2 * d2nll/dxi2
-##   h_lxi,theta = xi * d2nll/(dxi dtheta)
-##
-## evaluated at that xi. Inverting gives the identity-link derivatives:
-##
-##   dnll/dxi           = g_lxi / xi
-##   d2nll/dxi2         = (h_lxi,lxi - g_lxi) / xi^2
-##   d2nll/(dxi dtheta) = h_lxi,theta / xi
-##
-## This is exactly .bounded_xi_chain() run backwards, and it reuses one set of
-## derivative formulas for both links rather than re-deriving five carriers.
-##
-## ACCURACY NEAR xi = 0: dividing by xi amplifies cancellation, so like the
-## model-1 identity code (src/degpd1_identity.cpp) this degrades in a band around
-## zero, where the two terms of (h - g) nearly cancel. That band is the light-tail
-## boundary, where the bounded-vs-heavy question is moot; the C++ guards
-## |xi| >= 1e-6 so the division is never singular.
-.identity_xi_chain <- function(out, pars, likdata) {
-  npar <- length(likdata$X)
-  xcol <- 2L                                   # shape is parameter 2 (1-based)
-  beta <- split(pars, factor(likdata$idpars, levels = seq_along(likdata$X)))[[xcol]]
-  xi <- as.numeric(likdata$X[[xcol]] %*% beta)
-  if (isTRUE(likdata$duplicate == 1)) xi <- xi[likdata$dupid + 1]
-  if (length(likdata$offsets[[xcol]]) > 0) xi <- xi + likdata$offsets[[xcol]]
-  ## must match guard_xi_id() in src/degpd.cpp, or the chain rule divides by a
-  ## different xi than the one the derivatives were evaluated at
-  eps <- 1e-6
-  small <- abs(xi) < eps
-  xi[small] <- ifelse(xi[small] < 0, -eps, eps)
-
-  ## packed upper-tri column (1-based) for parameter pair (i,j), i<=j, 0-based
-  col_ij <- function(i, j) {
-    off <- 0L; if (i > 0) for (r in 0:(i - 1)) off <- off + (npar - r)
-    npar + off + (j - i) + 1L
-  }
-  xi0 <- 1L                                    # 0-based index of the shape parameter
-  g <- out[, xcol]; cdd <- col_ij(xi0, xi0); hdd <- out[, cdd]
-  out[, xcol] <- g / xi
-  for (k in 0:(npar - 1)) if (k != xi0) {
-    cc <- col_ij(min(k, xi0), max(k, xi0)); out[, cc] <- out[, cc] / xi
-  }
-  out[, cdd] <- (hdd - g) / (xi * xi)
-  out
-}
+## xi_identity = TRUE dispatches to direct predictor derivatives in
+## src/degpd1_identity.cpp. The former inverse log-xi chain divided cancellation
+## errors by xi^2 and could not represent the true xi=0 likelihood/derivatives.
+## All carriers now share log1p(z)/z with an analytic Taylor continuation.
+## Carriers 5/6 integrate their density over the survival interval, checking
+## quadrature error in both the objective and its first/second derivatives.
 
 ## Build the identity-link wrappers mechanically: same C++ entry points, xi.max
 ## forced to Inf (a bounding link on xi is meaningless when xi may be negative),
-## xi_identity = TRUE, and .identity_xi_chain in place of .bounded_xi_chain.
+## xi_identity = TRUE. Native results already use the identity predictors.
 .make_degpd_id_fns <- function(m, d0fun, d12fun, nX, iG) {
   cargs <- function(likdata, pars)
     c(list(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X)))),
@@ -250,7 +256,7 @@
     do.call(d0fun, cargs(likdata, pars))
   }
   d12 <- function(pars, likdata)
-    .identity_xi_chain(do.call(d12fun, cargs(likdata, pars)), pars, likdata)
+    do.call(d12fun, cargs(likdata, pars))
   list(d0 = d0, d120 = d12, d340 = NULL, m = m, iG = iG, identity.xi = TRUE)
 }
 

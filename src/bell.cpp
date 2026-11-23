@@ -2,6 +2,7 @@
 #include <RcppArmadillo.h>
 #include <cmath>
 #include <vector>
+#include <limits>
 
 // Bell distribution of Castellares, Ferrari & Lemonte (2018, Applied
 // Mathematical Modelling 56:172-185) and its zero-inflated variant (ZIBell) for
@@ -23,7 +24,8 @@
 //                     EGPD families.
 //
 // Because the log-likelihood is closed form, the score AND the observed-
-// information Hessian are exact (not the BHHH approximation used for PIG/GPIG).
+// information Hessian are exact (as in PIG via PigJet, and unlike the BHHH
+// approximation used for GPIG).
 //
 // d12 returns per-observation derivatives of the NEGATIVE log-likelihood wrt
 // the linear predictors, packed to match .gH1 / .gH2 (upper triangle,
@@ -33,30 +35,65 @@
 
 // ------------------------------------------------------ Bell ratios / W0 ------
 
-// Fill la[0..nmax] with log(B_k / k!) via the stable log-space recursion
-//   a_n = (1/n) sum_{m=0}^{n-1} a_m / (n-1-m)!,   a_0 = 1,
-// i.e. la_n = -log(n) + logsumexp_{m<n} ( la_m - lgamma(n-m) ).
-static inline void log_bell_ratio(int nmax, std::vector<double>& la)
+// log(B_n / n!) for n = 0..nmax, by the stable log-space recursion
+//   a_n = (1/n) sum_{j=0}^{n-1} a_{n-1-j} / j!,   a_0 = 1,
+// i.e. la_n = -log(n) + logsumexp_j ( la_{n-1-j} - log j! ).
+//
+// The table does not depend on theta, so it is built once per session and grown on
+// demand (it used to be rebuilt, at O(n^2) cost, on every likelihood evaluation and
+// every d/p/q/r call). Building is also O(n) rather than O(n^2): the summand
+// t_j = la_{n-1-j} - log j! is concave in j -- its increments
+// log(a_{m-1}/a_m) - log j decrease, because m B_{m-1}/B_m is non-decreasing in m
+// (Bell numbers are log-convex) -- so it is unimodal with its peak near j = W(n),
+// and the sum can stop once the terms are past the peak, more than 60 nats below it
+// and falling by more than a factor e^2 per step. Everything dropped is below
+// e^-60 (~1e-26) relative to the sum, far beneath double precision, so the values
+// are those of the full sum (checked against exact Bell numbers).
+static std::vector<double> bell_la_cache(1, 0.0);      // la_0 = log(B_0/0!) = 0
+static std::vector<double> bell_lfact_cache(1, 0.0);   // log j!, grown as needed
+
+static const std::vector<double>& bell_log_ratio(int nmax)
 {
-  la.assign(nmax + 1, 0.0);
-  la[0] = 0.0;                                   // a_0 = B_0/0! = 1
-  for (int n = 1; n <= nmax; n++) {
-    double mx = -std::numeric_limits<double>::infinity();
-    for (int m = 0; m < n; m++) {
-      double t = la[m] - std::lgamma((double)(n - m));   // (n-1-m)! = Gamma(n-m)
-      if (t > mx) mx = t;
+  if (nmax < 0) Rcpp::stop("Bell support must be non-negative");
+  if (nmax > 100000000) Rcpp::stop("Bell support beyond 1e8 is not supported");
+  std::vector<double>& la = bell_la_cache;
+  std::vector<double>& lf = bell_lfact_cache;
+  int have = (int)la.size() - 1;
+  if (nmax <= have) return la;
+  la.reserve(nmax + 1);
+  for (int n = have + 1; n <= nmax; n++) {
+    if ((n & 4095) == 0) Rcpp::checkUserInterrupt();
+    double tmax = -std::numeric_limits<double>::infinity(), prev = tmax;
+    int J = n - 1;
+    for (int j = 0; j <= n - 1; j++) {
+      while ((int)lf.size() <= j) lf.push_back(std::lgamma((double)lf.size() + 1.0));
+      double t = la[n - 1 - j] - lf[j];
+      if (t > tmax) tmax = t;
+      if (j > 0 && t < tmax - 60.0 && t - prev < -2.0) { J = j; break; }
+      prev = t;
     }
     double s = 0.0;
-    for (int m = 0; m < n; m++)
-      s += std::exp(la[m] - std::lgamma((double)(n - m)) - mx);
-    la[n] = -std::log((double) n) + mx + std::log(s);
+    for (int j = 0; j <= J; j++) s += std::exp(la[n - 1 - j] - lf[j] - tmax);
+    la.push_back(-std::log((double)n) + tmax + std::log(s));
   }
+  return la;
+}
+
+static inline double bell_logsumexp2(double a, double b)
+{
+  if (a == b) return a + M_LN2;
+  double m = (a > b) ? a : b;
+  if (!std::isfinite(m)) return m;
+  return m + R::log1pexp(-std::fabs(a - b));
 }
 
 // Principal branch of the Lambert W function for x >= 0 (Halley iteration).
 static inline double lambertW0(double x)
 {
-  if (x <= 0.0) return 0.0;                       // W0(0) = 0
+  if (std::isnan(x)) return x;
+  if (x == 0.0) return 0.0;                       // W0(0) = 0
+  if (x < 0.0) return R_NaN;
+  if (!std::isfinite(x)) return R_PosInf;
   double w = (x < 1.0) ? x : std::log(x);
   if (x > 3.0) w = std::log(x) - std::log(std::log(x));
   for (int i = 0; i < 60; i++) {
@@ -70,22 +107,30 @@ static inline double lambertW0(double x)
   return w;
 }
 
-// eta -> theta with dtheta/deta and d2theta/deta2.
-//   native (param 0): theta = exp(eta),          dtheta = theta, d2theta = theta
-//   mean   (param 1): mu = exp(eta), theta = W0(mu),
-//                     dtheta = theta/(1+theta),  d2theta = theta/(1+theta)^3
-static inline void eta_to_theta(int param, double eta,
-                                double& theta, double& dth, double& d2th)
+static inline double bell_theta(int param, double eta)
 {
+  return param == 0 ? std::exp(eta) : lambertW0(std::exp(eta));
+}
+
+static inline double bell_logtheta(int param, double eta, double theta)
+{
+  // log(mu) = log(theta) + theta, even if exp(eta) underflows.
+  return param == 0 ? eta : (theta < 1.0 ? eta - theta : std::log(theta));
+}
+
+// Differentiate in log(theta), not theta: y/theta^2 can overflow even
+// when both link-scale derivatives are representable.
+static inline void bell_link_d12(int param, double eta, double theta, int y,
+                                 double& g, double& h)
+{
+  const double mu = param == 0 ? theta * std::exp(theta) : std::exp(eta);
+  const double t = 1.0 + theta;
   if (param == 0) {
-    theta = std::exp(eta);
-    dth = theta; d2th = theta;
+    g = mu - y;
+    h = mu * t;
   } else {
-    double mu = std::exp(eta);
-    theta = lambertW0(mu);
-    double opt = 1.0 + theta;
-    dth  = theta / opt;
-    d2th = theta / (opt * opt * opt);
+    g = (mu - y) / t;
+    h = mu / t - g * (theta / t) / t;
   }
 }
 
@@ -102,13 +147,13 @@ static double bell_d0_impl(int param, const Rcpp::List& pars, const arma::mat& X
 
   int ymax = 0;
   for (int j = 0; j < nobs; j++) { int y = (int)(yvec[j] + 0.5); if (y > ymax) ymax = y; }
-  std::vector<double> la; log_bell_ratio(ymax, la);
+  const std::vector<double>& la = bell_log_ratio(ymax);
 
   double nllh = 0.0;
   for (int j = 0; j < nobs; j++) {
-    double theta, dth, d2th; eta_to_theta(param, e1[j], theta, dth, d2th);
+    double theta = bell_theta(param, e1[j]);
     int y = (int)(yvec[j] + 0.5);
-    double logf = y * std::log(theta) - (std::exp(theta) - 1.0) + la[y];
+    double logf = y * bell_logtheta(param, e1[j], theta) - std::expm1(theta) + la[y];
     nllh += -logf;
   }
   return nllh;
@@ -125,13 +170,8 @@ static arma::mat bell_d12_impl(int param, const Rcpp::List& pars, const arma::ma
   { arma::vec o0 = Rcpp::as<arma::vec>(offsets[0]); if (o0.n_elem > 0) e1 += o0; }
 
   for (int j = 0; j < nobs; j++) {
-    double theta, dth, d2th; eta_to_theta(param, e1[j], theta, dth, d2th);
     int y = (int)(yvec[j] + 0.5);
-    double eth = std::exp(theta);
-    double g_th = eth - y / theta;                 // dNLL/dtheta
-    double h_th = eth + y / (theta * theta);       // d2NLL/dtheta2
-    out(j, 0) = g_th * dth;                                 // g1
-    out(j, 1) = h_th * dth * dth + g_th * d2th;             // H11
+    bell_link_d12(param, e1[j], bell_theta(param, e1[j]), y, out(j, 0), out(j, 1));
   }
   return out;
 }
@@ -174,19 +214,22 @@ static double zibell_d0_impl(int param, const Rcpp::List& pars, const arma::mat&
   }
   int ymax = 0;
   for (int j = 0; j < nobs; j++) { int y = (int)(yvec[j] + 0.5); if (y > ymax) ymax = y; }
-  std::vector<double> la; log_bell_ratio(ymax, la);
+  const std::vector<double>& la = bell_log_ratio(ymax);
 
   double nllh = 0.0;
   for (int j = 0; j < nobs; j++) {
-    double theta, dth, d2th; eta_to_theta(param, e1[j], theta, dth, d2th);
-    double pi = 1.0 / (1.0 + std::exp(-e2[j]));
+    double theta = bell_theta(param, e1[j]);
+    double eta_pi = e2[j];
+    double log_pi = -R::log1pexp(-eta_pi);
+    double log1m_pi = -R::log1pexp(eta_pi);
     int y = (int)(yvec[j] + 0.5);
+    double lp0 = -std::expm1(theta);
     double logf;
     if (y == 0) {
-      double p0 = std::exp(1.0 - std::exp(theta));
-      logf = std::log(pi + (1.0 - pi) * p0);
+      logf = lp0 > -M_LN2 ? std::log1p(std::exp(log1m_pi) * std::expm1(lp0))
+                           : bell_logsumexp2(log_pi, log1m_pi + lp0);
     } else {
-      logf = std::log1p(-pi) + y * std::log(theta) - (std::exp(theta) - 1.0) + la[y];
+      logf = log1m_pi + y * bell_logtheta(param, e1[j], theta) + lp0 + la[y];
     }
     nllh += -logf;
   }
@@ -208,40 +251,45 @@ static arma::mat zibell_d12_impl(int param, const Rcpp::List& pars, const arma::
     arma::vec o1 = Rcpp::as<arma::vec>(offsets[1]); if (o1.n_elem > 0) e2 += o1;
   }
   for (int j = 0; j < nobs; j++) {
-    double theta, dth, d2th; eta_to_theta(param, e1[j], theta, dth, d2th);
-    double pi = 1.0 / (1.0 + std::exp(-e2[j]));
-    double dpi = pi * (1.0 - pi);                  // dpi/deta_pi
-    double d2pi = dpi * (1.0 - 2.0 * pi);          // d2pi/deta_pi2
+    double theta = bell_theta(param, e1[j]);
+    double eta_pi = e2[j];
+    double log_pi = -R::log1pexp(-eta_pi);
+    double log1m_pi = -R::log1pexp(eta_pi);
+    double pi = std::exp(log_pi);
+    double one_m_pi = std::exp(log1m_pi);
+    double pip = std::exp(log_pi + log1m_pi);
     int y = (int)(yvec[j] + 0.5);
-    double eth = std::exp(theta);
-
-    double NLL_th, NLL_pi, NLL_thth, NLL_thpi, NLL_pipi;
     if (y > 0) {
-      NLL_th   = eth - y / theta;
-      NLL_thth = eth + y / (theta * theta);
-      NLL_pi   = 1.0 / (1.0 - pi);
-      NLL_pipi = 1.0 / ((1.0 - pi) * (1.0 - pi));
-      NLL_thpi = 0.0;
+      bell_link_d12(param, e1[j], theta, y, out(j, 0), out(j, 2));
+      out(j, 1) = pi;
+      out(j, 3) = 0.0;
+      out(j, 4) = pip;
     } else {
-      double p0 = std::exp(1.0 - eth);
-      double p0_th   = -eth * p0;                  // dp0/dtheta
-      double p0_thth = p0 * eth * (eth - 1.0);     // d2p0/dtheta2
-      double D    = pi + (1.0 - pi) * p0;
-      double D_th   = (1.0 - pi) * p0_th;
-      double D_pi   = 1.0 - p0;
-      double D_thth = (1.0 - pi) * p0_thth;
-      double D_thpi = -p0_th;                      // d2D/dtheta dpi
-      NLL_th   = -D_th / D;
-      NLL_pi   = -D_pi / D;
-      NLL_thth = -D_thth / D + (D_th * D_th) / (D * D);
-      NLL_thpi = -D_thpi / D + (D_th * D_pi) / (D * D);
-      NLL_pipi = (D_pi * D_pi) / (D * D);          // D_pipi = 0
+      double lp0 = -std::expm1(theta);
+      double delta = eta_pi - lp0;
+      double log_w0 = -R::log1pexp(delta);
+      double log_w1 = -R::log1pexp(-delta);
+      double w0 = (delta >= 0.0) ? std::exp(log_w0) : (1.0 - std::exp(log_w1));
+      double w1 = (delta >= 0.0) ? (1.0 - w0) : std::exp(log_w1);
+      double w01 = std::exp(log_w0 + log_w1);
+      double w0_eth   = std::isfinite(delta) ? std::exp(log_w0 + theta) : 0.0;
+      double w01_eth  = std::isfinite(delta) ? std::exp(log_w0 + log_w1 + theta) : 0.0;
+      double w01_eth2 = std::isfinite(delta) ? std::exp(log_w0 + log_w1 + 2.0 * theta) : 0.0;
+      double t = param == 0 ? 1.0 : 1.0 + theta;
+      double dth = theta / t, d2th = dth / (t * t);
+      out(j, 0) = w0_eth * dth;
+      out(j, 2) = (w0_eth - w01_eth2) * dth * dth + w0_eth * d2th;
+      out(j, 3) = -w01_eth * dth;
+      if (lp0 > -M_LN2) {
+        // pi - w1 cancels when a Bell zero is nearly certain.
+        double d = std::expm1(lp0);
+        out(j, 1) = pip * d / (1.0 + one_m_pi * d);
+        out(j, 4) = out(j, 1) * (one_m_pi - pi + out(j, 1));
+      } else {
+        out(j, 1) = (eta_pi >= 0.0) ? (w0 - one_m_pi) : (pi - w1);
+        out(j, 4) = pip - w01;
+      }
     }
-    out(j, 0) = NLL_th * dth;                                   // g1
-    out(j, 1) = NLL_pi * dpi;                                   // g2
-    out(j, 2) = NLL_thth * dth * dth + NLL_th * d2th;           // H11
-    out(j, 3) = NLL_thpi * dth * dpi;                           // H12
-    out(j, 4) = NLL_pipi * dpi * dpi + NLL_pi * d2pi;           // H22
   }
   return out;
 }
@@ -277,12 +325,17 @@ arma::mat zibellnat1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2,
 // [[Rcpp::export]]
 Rcpp::NumericVector bell_pmf_cpp(int n, double theta)
 {
+  if (n < 0) Rcpp::stop("Bell support must be non-negative");
   Rcpp::NumericVector out(n + 1);
-  std::vector<double> la; log_bell_ratio(n, la);
-  double base = 1.0 - std::exp(theta);            // log Pr(Y=0) = 1 - e^theta
+  const std::vector<double>& la = bell_log_ratio(n);
+  double base = -std::expm1(theta);               // log Pr(Y=0) = 1 - e^theta
   double lth = std::log(theta);
-  for (int k = 0; k <= n; k++)
-    out[k] = std::exp(k * lth + base + la[k]);
+  Rcpp::NumericVector logs(n + 1);
+  for (int k = 0; k <= n; k++) {
+    logs[k] = k * lth + base + la[k];
+    out[k] = std::exp(logs[k]);
+  }
+  out.attr("logpmf") = logs;
   return out;
 }
 

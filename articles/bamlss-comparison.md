@@ -6,11 +6,14 @@ The `egpd` package provides bamlss family constructors (`egpd_bamlss()`,
 fitting continuous and discrete EGPD models (with optional
 zero-inflation) using the `bamlss` package’s distributional regression
 framework. This vignette compares parameter estimates from the two
-fitting approaches on simulated data.
+fitting approaches on simulated data. Only point estimates are compared,
+so the `bamlss()` fits use the backfitting optimizer alone
+(`sampler = FALSE` skips the MCMC sampler, which is slow and not needed
+here).
 
 ## Continuous EGPD Model 1
 
-We simulate from a continuous EGPD with $G(u) = u^\kappa$ and fit using
+We simulate from a continuous EGPD with G(u) = u^kappa and fit using
 both `egpd()` (penalised likelihood via GAM) and `bamlss()` (backfitting
 with the `egpd_bamlss()` family).
 
@@ -40,7 +43,7 @@ library(bamlss)
 
     Loading required package: nlme
 
-    This is mgcv 1.9-3. For overview type 'help("mgcv-package")'.
+    This is mgcv 1.9-4. For overview type '?mgcv'.
 
     -
 
@@ -66,10 +69,14 @@ df <- data.frame(y = y, x = rep(1, n))
 
 ### egpd fit
 
+`predict(type = "response")` returns one column per distributional
+parameter (`scale`, `shape`, `kappa`, …) plus an `xi` column that
+duplicates `shape`, so we select the columns we need by name.
+
 ``` r
 fit_egpd <- egpd(list(lpsi = y ~ 1, xi = ~ 1, lkappa = ~ 1),
                  data = df, family = "egpd", egpd.args = list(m = 1))
-pars_egpd <- predict(fit_egpd, type = "response")[1, ]
+pars_egpd <- predict(fit_egpd, type = "response")[1, c("scale", "shape", "kappa")]
 ```
 
 ### bamlss fit
@@ -77,7 +84,7 @@ pars_egpd <- predict(fit_egpd, type = "response")[1, ]
 ``` r
 fit_bamlss <- bamlss(list(y ~ 1, ~ 1, ~ 1),
                      data = df, family = egpd_bamlss(m = 1),
-                     verbose = FALSE)
+                     sampler = FALSE, verbose = FALSE)
 ```
 
 ### Comparison
@@ -129,7 +136,7 @@ fit_egpd_s <- egpd(list(lpsi = y ~ s(x, k = 15), xi = ~ 1, lkappa = ~ 1),
 ``` r
 fit_bamlss_s <- bamlss(list(y ~ s(x, k = 15), ~ 1, ~ 1),
                        data = df, family = egpd_bamlss(m = 1),
-                       verbose = FALSE)
+                       sampler = FALSE, verbose = FALSE)
 ```
 
 Compare the recovered scale functions:
@@ -177,7 +184,7 @@ cat("Proportion of zeros:", mean(y == 0), "\n")
 ``` r
 fit_zi <- bamlss(list(y ~ 1, ~ 1, ~ 1, ~ 1),
                  data = df, family = ziegpd_bamlss(m = 1),
-                 verbose = FALSE)
+                 sampler = FALSE, verbose = FALSE)
 ```
 
 ``` r
@@ -228,7 +235,7 @@ cat("Range of y:", range(y), "\n")
 ``` r
 fit_degpd <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
                   data = df, family = "degpd", degpd.args = list(m = 1))
-pars_degpd <- predict(fit_degpd, type = "response")[1, ]
+pars_degpd <- predict(fit_degpd, type = "response")[1, c("scale", "shape", "kappa")]
 ```
 
 ### bamlss fit
@@ -236,7 +243,7 @@ pars_degpd <- predict(fit_degpd, type = "response")[1, ]
 ``` r
 fit_degpd_b <- bamlss(list(y ~ 1, ~ 1, ~ 1),
                       data = df, family = degpd_bamlss(m = 1),
-                      verbose = FALSE)
+                      sampler = FALSE, verbose = FALSE)
 ```
 
 ### Comparison
@@ -288,7 +295,7 @@ cat("Proportion of zeros:", mean(y == 0), "\n")
 ``` r
 fit_zidegpd <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1, logitpi = ~ 1),
                     data = df, family = "zidegpd", zidegpd.args = list(m = 1))
-pars_zidegpd <- predict(fit_zidegpd, type = "response")[1, ]
+pars_zidegpd <- predict(fit_zidegpd, type = "response")[1, c("scale", "shape", "kappa", "pi")]
 ```
 
 ### bamlss fit
@@ -296,7 +303,7 @@ pars_zidegpd <- predict(fit_zidegpd, type = "response")[1, ]
 ``` r
 fit_zidegpd_b <- bamlss(list(y ~ 1, ~ 1, ~ 1, ~ 1),
                         data = df, family = zidegpd_bamlss(m = 1),
-                        verbose = FALSE)
+                        sampler = FALSE, verbose = FALSE)
 ```
 
 ### Comparison

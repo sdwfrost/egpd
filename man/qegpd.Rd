@@ -4,7 +4,17 @@
 \alias{qegpd}
 \title{Quantile function of the Extended GPD}
 \usage{
-qegpd(p, prob = NA, kappa = NA, delta = NA, sigma = NA, xi = NA, type = 1)
+qegpd(
+  p,
+  prob = NA,
+  kappa = NA,
+  delta = NA,
+  sigma = NA,
+  xi = NA,
+  type = 1,
+  lower.tail = TRUE,
+  log.p = FALSE
+)
 }
 \arguments{
 \item{p}{probabilities}
@@ -20,10 +30,27 @@ qegpd(p, prob = NA, kappa = NA, delta = NA, sigma = NA, xi = NA, type = 1)
 \item{xi}{GPD shape parameter}
 
 \item{type}{integer 1-6 specifying G type}
+
+\item{lower.tail}{logical; if TRUE (default), probabilities are \eqn{P(X \le q)},
+otherwise \eqn{P(X > q)}}
+
+\item{log.p}{logical; if TRUE, probabilities \code{p} are given as \code{log(p)}}
 }
 \value{
 Quantile values
 }
 \description{
-Quantile function of the Extended GPD
+Shape zero uses the exponential limit. Log-scale probabilities
+(\code{log.p = TRUE}) are inverted on the log scale, so tail probabilities
+below the double-precision range still give finite quantiles. The mixture
+carrier (type 6), the lower tails of the truncated-normal and
+truncated-beta carriers (types 2 and 3), the truncated-beta carrier with
+very small or extreme positive \code{kappa}, and carrier-5 probabilities whose intermediate value
+\eqn{p^{2/\kappa}} is below the double range are inverted by a log-scale
+root search with relative accuracy.
+}
+\details{
+Parameters required by \code{type} (the GPD \code{sigma} and \code{xi} and the
+  carrier parameters) must be supplied: a missing one is an error, whereas
+  supplied \code{NA} values give \code{NA} results.
 }
