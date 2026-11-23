@@ -13,8 +13,7 @@ rqr_summary <- function(family, gen, forms, S = 6) {
     fit <- egpd(forms, data = data.frame(y = y), family = family, trace = 0)
     r <- rqresid(fit, seed = i)
     expect_length(r, length(y))
-    ## An extreme heavy-tail draw can saturate the CDF (F(y) rounds to 1),
-    ## giving qnorm(1) = Inf which rqresid maps to NA; almost all are finite.
+    ## Allow for a numerical tail evaluation that cannot resolve a bound.
     expect_gt(mean(is.finite(r)), 0.95)
     m[i] <- mean(r, na.rm = TRUE); s[i] <- sd(r, na.rm = TRUE)
   }

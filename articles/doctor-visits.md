@@ -67,20 +67,20 @@ summary(fit1)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)      0.2       0.31    0.65    0.259
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)      0.2       0.31    0.65    0.517
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.92       0.15   -6.23 2.28e-10
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.92       0.15   -6.23 4.56e-10
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     1.47       0.39    3.77 8.31e-05
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     1.47       0.39    3.77 0.000166
 
     logitpi
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.49       0.08   -6.26 1.91e-10
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.49       0.08   -6.26 3.82e-10
 
     ** Smooth terms **
 
@@ -88,13 +88,13 @@ summary(fit1)
 cat("Log-likelihood:", logLik(fit1), "\n")
 ```
 
-    Log-likelihood: -3868.713 
+    Log-likelihood: -3865.037 
 
 ``` r
 cat("AIC:", AIC(fit1), "\n")
 ```
 
-    AIC: 7745.425 
+    AIC: 7738.074 
 
 ### ZIDEGPD Model 2: Mixture of power transformations with zero-inflation
 
@@ -104,43 +104,35 @@ Six parameters: sigma, xi, kappa1, dkappa, p, pi.
 fit2 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa1 = ~ 1, ldkappa = ~ 1,
                   logitp = ~ 1, logitpi = ~ 1),
              data = df, family = "zidegpd", zidegpd.args = list(m = 2))
-```
-
-    Final Hessian of negative penalized log-likelihood not numerically positive definite.
-
-``` r
 summary(fit2)
 ```
-
-    Warning in sqrt(obj$Vp[cbind(id2, id2)]): NaNs produced
-    Warning in sqrt(obj$Vp[cbind(id2, id2)]): NaNs produced
 
 
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)      0.2       0.31    0.65    0.259
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.35       0.19    1.81   0.0708
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.92       0.15   -6.23 2.28e-10
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -1.45       0.21   -6.92 4.51e-12
 
     logkappa1
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.44        NaN     NaN      NaN
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     1.39       0.27    5.21  1.9e-07
 
     logdkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     1.03        NaN     NaN      NaN
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     5.06       0.39   12.91   <2e-16
 
     logitp
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)   -15.39    1721.72   -0.01    0.496
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     2.56       0.26    9.79   <2e-16
 
     logitpi
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.49       0.08   -6.26 1.91e-10
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.48       0.07   -7.03 2.05e-12
 
     ** Smooth terms **
 
@@ -148,13 +140,19 @@ summary(fit2)
 cat("Log-likelihood:", logLik(fit2), "\n")
 ```
 
-    Log-likelihood: -3870.55 
+    Log-likelihood: -3860.456 
 
 ``` r
 cat("AIC:", AIC(fit2), "\n")
 ```
 
-    AIC: 7753.101 
+    AIC: 7732.912 
+
+The mixture weight `p` allocates non-structural observations between the
+two power components; it is distinct from the structural-zero
+probability `pi`. Allowing two powers gains 4.58 log-likelihood units
+over model 1. The AIC comparison below accounts for the two additional
+parameters.
 
 ### ZIDEGPD Model 3: Incomplete beta with zero-inflation
 
@@ -170,19 +168,19 @@ summary(fit3)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.86        0.3    2.85   0.0022
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.86        0.3    2.85  0.00439
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -1.28       0.19   -6.87 3.29e-12
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -1.28       0.19   -6.87 6.58e-12
 
     logdelta
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.22       1.11     0.2     0.42
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.22       1.11     0.2     0.84
 
     logitpi
-                Estimate Std. Error t value Pr(>|t|)
+                Estimate Std. Error z value Pr(>|z|)
     (Intercept)     -0.7       0.07  -10.65   <2e-16
 
     ** Smooth terms **
@@ -191,13 +189,13 @@ summary(fit3)
 cat("Log-likelihood:", logLik(fit3), "\n")
 ```
 
-    Log-likelihood: -3871.392 
+    Log-likelihood: -3867.716 
 
 ``` r
 cat("AIC:", AIC(fit3), "\n")
 ```
 
-    AIC: 7750.784 
+    AIC: 7743.432 
 
 ### ZIDEGPD Model 4: Power-beta with zero-inflation
 
@@ -214,24 +212,24 @@ summary(fit4)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.25       0.39   -0.65    0.258
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.38       0.32    1.19    0.236
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -1.02       0.21   -4.82 7.25e-07
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.97       0.17   -5.82 5.83e-09
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     1.57       0.43    3.67 0.000123
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     1.63       0.48    3.38 0.000722
 
     logdelta
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -9.09    2843.62       0    0.499
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     1.09        0.8    1.36    0.175
 
     logitpi
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.48       0.08   -6.31 1.43e-10
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.48       0.07   -6.49  8.4e-11
 
     ** Smooth terms **
 
@@ -239,13 +237,13 @@ summary(fit4)
 cat("Log-likelihood:", logLik(fit4), "\n")
 ```
 
-    Log-likelihood: -3869.405 
+    Log-likelihood: -3864.624 
 
 ``` r
 cat("AIC:", AIC(fit4), "\n")
 ```
 
-    AIC: 7748.81 
+    AIC: 7739.249 
 
 ### ZIDEGPD Model 5: Truncated normal with zero-inflation
 
@@ -261,20 +259,20 @@ summary(fit5)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.51       0.19    2.75  0.00298
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.51       0.19    2.75  0.00596
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.97       0.15   -6.65 1.48e-11
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.97       0.15   -6.65 2.96e-11
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     2.27        0.4    5.76 4.32e-09
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     2.27        0.4    5.76 8.63e-09
 
     logitpi
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.54        0.1   -5.34 4.65e-08
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.54        0.1   -5.34 9.29e-08
 
     ** Smooth terms **
 
@@ -282,13 +280,13 @@ summary(fit5)
 cat("Log-likelihood:", logLik(fit5), "\n")
 ```
 
-    Log-likelihood: -3868.477 
+    Log-likelihood: -3864.801 
 
 ``` r
 cat("AIC:", AIC(fit5), "\n")
 ```
 
-    AIC: 7744.953 
+    AIC: 7737.602 
 
 ### ZIDEGPD Model 6: Truncated beta with zero-inflation
 
@@ -304,20 +302,20 @@ summary(fit6)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.57       0.18    3.11 0.000929
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.57       0.18    3.11  0.00186
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)       -1       0.15   -6.59 2.14e-11
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)       -1       0.15   -6.59 4.27e-11
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     1.67       0.35    4.82  7.2e-07
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     1.67       0.35    4.82 1.44e-06
 
     logitpi
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.49       0.08   -6.34 1.14e-10
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.49       0.08   -6.34 2.27e-10
 
     ** Smooth terms **
 
@@ -325,13 +323,13 @@ summary(fit6)
 cat("Log-likelihood:", logLik(fit6), "\n")
 ```
 
-    Log-likelihood: -3868.112 
+    Log-likelihood: -3864.437 
 
 ``` r
 cat("AIC:", AIC(fit6), "\n")
 ```
 
-    AIC: 7744.225 
+    AIC: 7736.873 
 
 ## Model comparison
 
@@ -349,12 +347,12 @@ aic_table
 ```
 
           Model npar    logLik      AIC
-    1 ZIDEGPD-1    4 -3868.713 7745.425
-    2 ZIDEGPD-2    6 -3870.550 7753.101
-    3 ZIDEGPD-3    4 -3871.392 7750.784
-    4 ZIDEGPD-4    5 -3869.405 7748.810
-    5 ZIDEGPD-5    4 -3868.477 7744.953
-    6 ZIDEGPD-6    4 -3868.112 7744.225
+    1 ZIDEGPD-1    4 -3865.037 7738.074
+    2 ZIDEGPD-2    6 -3860.456 7732.912
+    3 ZIDEGPD-3    4 -3867.716 7743.432
+    4 ZIDEGPD-4    5 -3864.624 7739.249
+    5 ZIDEGPD-5    4 -3864.801 7737.602
+    6 ZIDEGPD-6    4 -3864.437 7736.873
 
 ## Goodness of fit
 
@@ -434,13 +432,13 @@ fit_degpd1 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa = ~ 1),
 cat("DEGPD-1  AIC:", AIC(fit_degpd1), "\n")
 ```
 
-    DEGPD-1  AIC: 7783.052 
+    DEGPD-1  AIC: 7777.539 
 
 ``` r
 cat("ZIDEGPD-1 AIC:", AIC(fit1), "\n")
 ```
 
-    ZIDEGPD-1 AIC: 7745.425 
+    ZIDEGPD-1 AIC: 7738.074 
 
 ``` r
 cat("Estimated zero-inflation probability:", round(pi1, 3), "\n")

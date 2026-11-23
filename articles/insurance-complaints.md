@@ -47,7 +47,7 @@ scale.
 
 ### DEGPD Model 1: Power transformation
 
-Model 1 uses $G(u) = u^\kappa$ with three parameters: sigma, xi, kappa.
+Model 1 uses G(u) = u^kappa with three parameters: sigma, xi, kappa.
 
 ``` r
 df <- data.frame(y = y, x = rep(1, length(y)))
@@ -60,16 +60,16 @@ summary(fit1)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.23       0.27   -0.85    0.198
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.23       0.27   -0.85    0.397
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.32       0.08   -4.06 2.44e-05
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.32       0.08   -4.06 4.89e-05
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.35       0.22    1.57    0.058
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.35       0.22    1.57    0.116
 
     ** Smooth terms **
 
@@ -77,13 +77,13 @@ summary(fit1)
 cat("Log-likelihood:", logLik(fit1), "\n")
 ```
 
-    Log-likelihood: -3645.223 
+    Log-likelihood: -3642.467 
 
 ``` r
 cat("AIC:", AIC(fit1), "\n")
 ```
 
-    AIC: 7296.447 
+    AIC: 7290.933 
 
 ### DEGPD Model 2: Mixture of power transformations
 
@@ -94,40 +94,31 @@ sigma, xi, kappa1, dkappa, p.
 fit2 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, lkappa1 = ~ 1, ldkappa = ~ 1,
                   logitp = ~ 1),
              data = df, family = "degpd", degpd.args = list(m = 2))
-```
-
-    Final Hessian of negative penalized log-likelihood not numerically positive definite.
-
-``` r
 summary(fit2)
 ```
-
-    Warning in sqrt(obj$Vp[cbind(id2, id2)]): NaNs produced
-    Warning in sqrt(obj$Vp[cbind(id2, id2)]): NaNs produced
-    Warning in sqrt(obj$Vp[cbind(id2, id2)]): NaNs produced
 
 
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)   -13.18        NaN     NaN      NaN
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.29       0.16    1.82   0.0688
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.24       0.03   -8.11 2.63e-16
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.78       0.15   -5.36 8.36e-08
 
     logkappa1
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     3.66        NaN     NaN      NaN
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.03       0.13   -0.22    0.829
 
     logdkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     16.9        NaN     NaN      NaN
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     5.64       0.39   14.63   <2e-16
 
     logitp
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.58       0.12    -4.7 1.32e-06
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     4.03       0.29   13.82   <2e-16
 
     ** Smooth terms **
 
@@ -135,13 +126,17 @@ summary(fit2)
 cat("Log-likelihood:", logLik(fit2), "\n")
 ```
 
-    Log-likelihood: -3646.202 
+    Log-likelihood: -3638.066 
 
 ``` r
 cat("AIC:", AIC(fit2), "\n")
 ```
 
-    AIC: 7302.405 
+    AIC: 7286.132 
+
+The two-power mixture gains 4.40 log-likelihood units over model 1. The
+second power has weight `1 - p`, not `p`; a small fitted weight does not
+by itself mean the components coincide.
 
 ### DEGPD Model 3: Incomplete beta transformation
 
@@ -158,16 +153,16 @@ summary(fit3)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.02       0.15   -0.15    0.439
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.02       0.15   -0.15    0.878
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.34       0.08   -4.29 8.93e-06
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.34       0.08   -4.29 1.79e-05
 
     logdelta
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     2.02       0.73    2.75  0.00295
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     2.02       0.73    2.75  0.00589
 
     ** Smooth terms **
 
@@ -175,13 +170,13 @@ summary(fit3)
 cat("Log-likelihood:", logLik(fit3), "\n")
 ```
 
-    Log-likelihood: -3645.448 
+    Log-likelihood: -3642.691 
 
 ``` r
 cat("AIC:", AIC(fit3), "\n")
 ```
 
-    AIC: 7296.895 
+    AIC: 7291.382 
 
 ### DEGPD Model 4: Power-beta transformation
 
@@ -194,38 +189,47 @@ fit4 <- egpd(list(lsigma = y ~ 1, lxi = ~ 1, ldelta = ~ 1, lkappa = ~ 1),
 summary(fit4)
 ```
 
+    Warning in sqrt(obj$Vp[cbind(id2, id2)]): NaNs produced
+
 
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.22       0.28   -0.77    0.221
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.23       0.27   -0.85    0.397
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.32       0.08   -4.05  2.6e-05
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.32       0.08   -4.06 4.89e-05
 
     logdelta
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     4.52       7.23    0.62    0.266
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)   100.69        NaN     NaN      NaN
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     1.02       0.28    3.62 0.000146
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     1.04       0.22    4.73  2.3e-06
 
     ** Smooth terms **
+
+    Note: the Hessian behind the standard errors is singular (numerical rank 3 of 4 estimated coefficients; `hessian.rank`, see ?egpd): they do not reflect the uncertainty along the unidentified direction(s).
 
 ``` r
 cat("Log-likelihood:", logLik(fit4), "\n")
 ```
 
-    Log-likelihood: -3646.155 
+    Log-likelihood: -3642.467 
 
 ``` r
 cat("AIC:", AIC(fit4), "\n")
 ```
 
-    AIC: 7300.31 
+    AIC: 7290.933 
+
+Here the summary notes a singular Hessian: `logdelta` runs to a plateau
+of its link (delta grows without bound, see `fit4$plateau`), where model
+4 reduces to model 1, so delta is not identified; the log-likelihood and
+AIC equal model 1’s.
 
 ### DEGPD Model 5: Truncated normal transformation
 
@@ -242,16 +246,16 @@ summary(fit5)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     -0.2       0.21   -0.94    0.175
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     -0.2       0.21   -0.94    0.348
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.31       0.08   -3.95 3.91e-05
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.31       0.08   -3.96 7.55e-05
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.65       0.59    1.11    0.133
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.65       0.59    1.11    0.266
 
     ** Smooth terms **
 
@@ -259,13 +263,13 @@ summary(fit5)
 cat("Log-likelihood:", logLik(fit5), "\n")
 ```
 
-    Log-likelihood: -3645.066 
+    Log-likelihood: -3642.309 
 
 ``` r
 cat("AIC:", AIC(fit5), "\n")
 ```
 
-    AIC: 7296.131 
+    AIC: 7290.617 
 
 ### DEGPD Model 6: Truncated beta transformation
 
@@ -282,16 +286,16 @@ summary(fit6)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.13       0.19   -0.68    0.249
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.13       0.19   -0.67    0.502
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -0.32       0.08   -4.09 2.16e-05
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -0.32       0.08   -4.07 4.68e-05
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.45       0.24    1.86   0.0317
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.45       0.24    1.84   0.0651
 
     ** Smooth terms **
 
@@ -299,13 +303,13 @@ summary(fit6)
 cat("Log-likelihood:", logLik(fit6), "\n")
 ```
 
-    Log-likelihood: -3645.199 
+    Log-likelihood: -3642.442 
 
 ``` r
 cat("AIC:", AIC(fit6), "\n")
 ```
 
-    AIC: 7296.398 
+    AIC: 7290.884 
 
 ## Model comparison
 
@@ -322,12 +326,12 @@ aic_table
 ```
 
         Model npar    logLik      AIC
-    1 DEGPD-1    3 -3645.223 7296.447
-    2 DEGPD-2    5 -3646.202 7302.405
-    3 DEGPD-3    3 -3645.448 7296.895
-    4 DEGPD-4    4 -3646.155 7300.310
-    5 DEGPD-5    3 -3645.066 7296.131
-    6 DEGPD-6    3 -3645.199 7296.398
+    1 DEGPD-1    3 -3642.467 7290.933
+    2 DEGPD-2    5 -3638.066 7286.132
+    3 DEGPD-3    3 -3642.691 7291.382
+    4 DEGPD-4    4 -3642.467 7290.933
+    5 DEGPD-5    3 -3642.309 7290.617
+    6 DEGPD-6    3 -3642.442 7290.884
 
 ## Goodness of fit
 
@@ -387,11 +391,6 @@ qqnorm(r5, main = "Q-Q Plot (DEGPD-5)", pch = 20, col = "grey60")
 qqline(r5, col = "red")
 
 r6 <- rqresid(fit6)
-```
-
-    Warning in qnorm(u): NaNs produced
-
-``` r
 qqnorm(r6, main = "Q-Q Plot (DEGPD-6)", pch = 20, col = "grey60")
 qqline(r6, col = "red")
 ```

@@ -15,8 +15,11 @@
 ## ---- inverse-G (quantile) helpers, used for prediction/simulation ----
 ## qbell() (native theta) is defined in R/bell_dist.R; .bell_theta_from_mean()
 ## (theta = W0(mu)) in R/bell_gamlss.R.
+## They take the family's response parameters in order; the zero-inflated ones include pi.
 .iG_bell    <- function(v, mu)    qbell(v, theta = .bell_theta_from_mean(mu))  # mean
 .iG_bellnat <- function(v, theta) qbell(v, theta = theta)                     # native
+.iG_zibell    <- function(v, mu, pi)    qzibell(v, theta = .bell_theta_from_mean(mu), pi = pi)
+.iG_zibellnat <- function(v, theta, pi) qzibell(v, theta = theta, pi = pi)
 
 ## ---- Bell, mean parameterisation (1 par: log mu) ----
 
@@ -66,7 +69,7 @@
              likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 .zibell1fns <- list(d0 = .zibell1.d0, d120 = .zibell1.d12, d340 = NULL, m = 1,
-                    iG = .iG_bell)
+                    iG = .iG_zibell)
 
 ## ---- ZIBell, native parameterisation (2 par: log theta, logit pi) ----
 
@@ -83,4 +86,4 @@
                 likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 .zibellnat1fns <- list(d0 = .zibellnat1.d0, d120 = .zibellnat1.d12, d340 = NULL,
-                       m = 1, iG = .iG_bellnat)
+                       m = 1, iG = .iG_zibellnat)

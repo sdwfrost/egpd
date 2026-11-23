@@ -26,7 +26,8 @@ pbgpd(
 
 \item{dbulk}{bulk density supported on \eqn{[0, 1]}. This is used to
 validate the blended construction, even for \code{pbgpd()} and
-\code{qbgpd()}.}
+\code{qbgpd()}. An explicit \code{log} argument on this callback lets
+\code{dbgpd(log = TRUE)} retain bulk densities below the linear range.}
 
 \item{qbulk}{bulk quantile function supported on \eqn{[0, 1]}.}
 
@@ -38,11 +39,25 @@ validate the blended construction, even for \code{pbgpd()} and
 \item{pb}{upper bulk quantile used to end blending and recover the exact GP
 tail.}
 
-\item{c1, c2}{Beta weighting-function shape parameters.}
+\item{c1, c2}{Beta weighting-function shape parameters, both greater than
+3: Majumder and Richards (p. 12) assume \eqn{c_1, c_2 > 3}, which makes
+the second derivative of the log-density continuous. Smaller values are
+rejected by all four functions.}
 }
 \value{
 CDF values.
 }
 \description{
 CDF of the blended generalized Pareto distribution
+}
+\details{
+Numerical validation uses spatial and Beta-weight quantile
+  knots plus local density minimization between knots, so narrow blending
+  transitions are not skipped. This is not a monotonicity proof for
+  arbitrary user-supplied bulk functions. The source construction and
+  negative-density caveat are in the original-author preprint
+  arXiv:2504.19994v2, Eqs. (4)--(6).
+}
+\seealso{
+\code{\link{bgpd}} for the construction and its reference.
 }

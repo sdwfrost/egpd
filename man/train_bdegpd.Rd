@@ -5,7 +5,7 @@
 \title{\[Experimental\] Train a neural estimator for bivariate discrete EGPD}
 \usage{
 train_bdegpd(
-  savepath = "inst/models",
+  savepath = NULL,
   family = c("bdegpd", "bzidegpd"),
   estimator = c("both", "npe", "nbe"),
   K = NULL,
@@ -13,14 +13,16 @@ train_bdegpd(
   epochs = NULL,
   stopping_epochs = 10,
   quick = FALSE,
-  mc.cores = parallel::detectCores() - 1L,
+  mc.cores = NULL,
   seed = 1L,
   verbose = TRUE
 )
 }
 \arguments{
 \item{savepath}{character; directory to save trained model files (.bson).
-Created if it does not exist.}
+Created if it does not exist. The default \code{NULL} uses
+\code{file.path(tools::R_user_dir("egpd", "data"), "models")} and reports
+it in a message.}
 
 \item{family}{character; \code{"bdegpd"} (6 parameters) or \code{"bzidegpd"}
 (7 parameters, adds pi0).}
@@ -30,7 +32,9 @@ Created if it does not exist.}
 
 \item{K}{integer; number of training parameter sets to sample from the prior.}
 
-\item{m}{integer vector; range of sample sizes for simulated datasets.}
+\item{m}{integer vector; range of sample sizes for simulated datasets.
+Recorded in the model sidecar; inference warns when the number of
+observations falls outside \code{range(m)}.}
 
 \item{epochs}{integer; maximum number of training epochs.}
 
@@ -38,9 +42,14 @@ Created if it does not exist.}
 
 \item{quick}{logical; if \code{TRUE}, uses reduced training settings.}
 
-\item{mc.cores}{integer; number of parallel cores for data simulation.}
+\item{mc.cores}{integer; number of parallel cores for data simulation.
+\code{NULL} (default) uses \code{parallel::detectCores() - 1}. Forced to
+1 on Windows and capped at 2 when \code{_R_CHECK_LIMIT_CORES_} is set
+(as by \code{R CMD check --as-cran}).}
 
-\item{seed}{integer or \code{NULL}; random seed for reproducibility.}
+\item{seed}{integer or \code{NULL}; seeds R, per-dataset parallel
+simulations, and Julia's \code{Random.seed!}. Backend/version-specific
+nondeterminism may remain.}
 
 \item{verbose}{logical; if \code{TRUE}, print progress messages.}
 }
@@ -50,10 +59,20 @@ A named list of file paths to saved .bson model files (invisible).
 \description{
 Trains Neural Posterior Estimator (NPE) and/or Neural Bayesian Estimator
 (NBE) networks for bivariate discrete EGPD inference (BDEGPD or BZIDEGPD).
-Requires Julia (>= 1.11) with NeuralEstimators.jl and Flux.jl installed,
-plus the R packages \pkg{JuliaConnectoR} and \pkg{NeuralEstimators}.
+Requires Julia (>= 1.11) with NeuralEstimators.jl (>= 0.3 for training),
+Flux.jl, BSON.jl and Optimisers.jl installed (in Julia,
+\code{using Pkg; Pkg.add(["NeuralEstimators", "Flux", "BSON", "Optimisers"])}),
+plus the R packages \pkg{JuliaConnectoR} and \pkg{NeuralEstimators} (see
+"Supported Julia/R versions" in \code{\link{train_begpd}}).
 }
 \details{
+Newly trained models require their generated \code{.bson.metadata.rds}
+compatibility sidecars. No bundled .bson models are shipped; train
+compatible weights and pass \code{model.path}. Compatibility does not
+establish calibration. The sidecar also records the training sample-size
+range and backend versions (see \code{\link{train_begpd}}, including the
+supported Julia/R version pairings).
+
 This function is \strong{experimental} and its interface may change.
 
 The training procedure mirrors \code{\link{train_begpd}} but uses

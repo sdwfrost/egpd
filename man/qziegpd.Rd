@@ -12,7 +12,9 @@ qziegpd(
   delta = NA,
   sigma = NA,
   xi = NA,
-  type = 1
+  type = 1,
+  lower.tail = TRUE,
+  log.p = FALSE
 )
 }
 \arguments{
@@ -31,10 +33,22 @@ qziegpd(
 \item{xi}{GPD shape parameter}
 
 \item{type}{integer 1-6 specifying G type}
+
+\item{lower.tail}{logical; if TRUE (default), probabilities are \eqn{P(X \le q)},
+otherwise \eqn{P(X > q)}}
+
+\item{log.p}{logical; if TRUE, probabilities \code{p} are given as \code{log(p)}}
 }
 \value{
 Quantile values
 }
 \description{
-Quantile function of the Zero-Inflated Extended GPD
+Probabilities at or below \code{pi} return zero, with no epsilon subtraction.
+With \code{pi = 1}, all valid probabilities return zero. Otherwise the upper
+endpoint is returned at \code{p = 1}, including infinity for unbounded support.
+}
+\details{
+Parameters required by \code{type} (\code{pi}, the GPD \code{sigma} and \code{xi}
+  and the carrier parameters) must be supplied: a missing one is an error,
+  whereas supplied \code{NA} values give \code{NA} results.
 }

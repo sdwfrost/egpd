@@ -16,7 +16,9 @@ knitr::opts_chunk$set(
 )
 has_julia_support <- requireNamespace("JuliaConnectoR", quietly = TRUE) &&
   requireNamespace("NeuralEstimators", quietly = TRUE) &&
-  nzchar(Sys.which("julia"))
+  nzchar(Sys.which("julia")) &&
+  all(file.exists(paste0(system.file("models",
+    c("BDEGPD_NPE.bson", "BZIDEGPD_NPE.bson"), package = "egpd"), ".metadata.rds")))
 ```
 
 The `egpd` package provides **experimental** bivariate discrete EGPD
@@ -92,7 +94,7 @@ Y <- rbdegpd(2000, kappa = 2, sigma = 1, xi = 0.1,
 head(Y)
 cat("Dimensions:", nrow(Y), "x", ncol(Y), "\n")
 cat("Storage mode:", storage.mode(Y), "\n")
-cat("Range Y1:", range(Y[, 1]), "  Range Y2:", range(Y[, 2]), "\n")
+cat("Range Y1:", range(Y[, 1]), "  Range Y2:", range(Y[, 2]), fill = TRUE)
 ```
 
 Since the data are integers, scatter plots benefit from jittering to
@@ -105,10 +107,14 @@ plot(jitter(Y[, 1]), jitter(Y[, 2]), pch = 20, cex = 0.3,
      col = adjustcolor("steelblue", 0.4))
 ```
 
-### Marginal distributions
+### Marginal and radial distributions
 
-The marginal distributions of a BDEGPD are univariate discrete EGPD
-(DEGPD):
+Per Alotaibi et al. (2025, Section 2.3.1), the continuous radial sum
+$R = Y_1^* + Y_2^*$ follows a univariate $\mathrm{EGPD}(\kappa, \sigma, \xi)$,
+whereas each continuous coordinate $Y_j^* = R W_j$ is an angular fraction of
+$R$ and is **not** univariate EGPD. Consequently, the marginal distributions
+of a BDEGPD ($Y_j = \lfloor Y_j^* \rfloor$) are **not** univariate discrete
+EGPD (DEGPD), although they inherit flexible bulk-to-tail behavior from $R$:
 
 ```{r marginals, fig.width = 8, fig.height = 4}
 op <- par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -131,7 +137,7 @@ Y_zi <- rbzidegpd(2000, kappa = 2, sigma = 1, xi = 0.1,
                    thL = 5, thU = 5, thw = 0.2, pi0 = 0.3)
 
 joint_zeros <- mean(Y_zi[, 1] == 0 & Y_zi[, 2] == 0)
-cat("Proportion of joint (0,0) rows:", round(joint_zeros, 3), "\n")
+cat("Proportion of joint (0,0) rows:", round(joint_zeros, 3), fill = TRUE)
 cat("(Expected >= pi0 = 0.3 due to natural zeros)\n")
 ```
 
@@ -146,10 +152,10 @@ set.seed(123)
 n <- 3000
 
 scenarios <- list(
-  "Light tails, weak dep.\n(kappa=3, xi=0.05, thL=thU=10)" = list(
+  "Light tails, concentrated angles\n(kappa=3, xi=0.05, thL=thU=10)" = list(
     kappa = 3, sigma = 1, xi = 0.05, thL = 10, thU = 10, thw = 0.25
   ),
-  "Heavy tails, strong dep.\n(kappa=1, xi=0.3, thL=thU=1)" = list(
+  "Heavy tails, dispersed angles\n(kappa=1, xi=0.3, thL=thU=1)" = list(
     kappa = 1, sigma = 2, xi = 0.3, thL = 1, thU = 1, thw = 0.25
   ),
   "Asymmetric tails\n(kappa=0.5, thU=0.5)" = list(
@@ -180,12 +186,13 @@ par(op)
 
 **Key observations:**
 
-- **Light tails + weak dependence** ($\theta_L = \theta_U = 10$):
-  Most mass near zero, observations are roughly independent.
-- **Heavy tails + strong dependence** ($\theta_L = \theta_U = 1$):
-  Larger values, strong clustering along the diagonal.
-- **Asymmetric tails** ($\theta_U = 0.5$): Upper tail exhibits strong
-  dependence (both components tend to be simultaneously large).
+- **Light tails + concentrated angles** ($\theta_L = \theta_U = 10$):
+  Angles tend towards equal splitting and hence positive dependence,
+  not independence.
+- **Heavy tails + dispersed angles** ($\theta_L = \theta_U = 1$):
+  Larger radial values, with angles more dispersed than in the first case.
+- **Asymmetric tails** ($\theta_U = 0.5$): Upper-regime angles tend
+  towards the axes rather than the diagonal.
 - **Zero-inflation** ($\pi_0 = 0.4$): Prominent spike at $(0, 0)$ beyond
   what the base model produces.
 
@@ -255,9 +262,9 @@ Neural Bayes estimation requires Julia (>= 1.11):
 install.packages("JuliaConnectoR")
 remotes::install_github("msainsburydale/NeuralEstimators")
 
-# Julia packages (run in Julia REPL)
+# Julia packages (run in Julia REPL; training needs NeuralEstimators.jl >= 0.3)
 # using Pkg
-# Pkg.add(["NeuralEstimators", "Flux"])
+# Pkg.add(["NeuralEstimators", "Flux", "BSON", "Optimisers"])
 ```
 
 ### Fitting BDEGPD with NPE
@@ -363,8 +370,25 @@ par(op)
 
 ## 7. Training custom models
 
-The bundled `.bson` models were trained on broad uniform priors. For
-specific applications you may want to train on a narrower prior.
+No pre-trained `.bson` models are bundled with `egpd`. Train compatible
+weights with `train_bdegpd()`, pass the saved `.bson` path via `model.path`,
+and retain the generated `.bson.metadata.rds` sidecars (contract v3). Do not
+relabel old weights. NPE uses a likelihood-to-evidence ratio network rather
+than a normalising flow; posterior draws come from adaptive importance
+sampling of prior $\times$ learned ratio, and the effective sample size and
+number of distinct draws are printed with the fit (with a warning below an
+ESS of 200). The sidecar records the training sample-size range and backend
+versions, and `distfit()` warns when the data size, the data support
+(non-negative integers) or the loaded NeuralEstimators.jl version differ from
+training (see `?train_begpd` for supported Julia/R version pairings).
+Compatibility metadata does not establish calibration. The training priors
+are also the priors used by the importance sampler.
+
+The training `seed` controls R simulations across parallel core counts and
+explicitly calls Julia's `Random.seed!`. Backend/version nondeterminism may
+remain; mocked R tests do not verify Julia runtime execution or calibration.
+Large finite discrete counts use integer-valued double storage instead of
+overflowing R's 32-bit integer range.
 
 ```{r train-bdegpd, eval = FALSE}
 # Quick training (for testing)
@@ -412,4 +436,4 @@ American Statistician*, 78(1), 1--14.
 
 Naveau, P., Huser, R., Ribereau, P., and Hannart, A. (2016). Modeling
 jointly low, moderate, and heavy rainfall intensities without a threshold
-selection. *Water Resources Research*, 52(4), 2897--2911.
+selection. *Water Resources Research*, 52(4), 2753--2769.

@@ -131,6 +131,7 @@ test_that("DEGPD model 5 fits and recovers parameters", {
 })
 
 test_that("DEGPD model 6 fits and recovers parameters", {
+  skip_on_cran()
   set.seed(202)
   y <- rdiscegpd(1000, sigma = 3, xi = 0.2, kappa = 2, type = 3)
   df <- data.frame(y = y)
@@ -147,6 +148,7 @@ test_that("DEGPD model 6 fits and recovers parameters", {
 # ---- ZIDEGPD model fitting ----
 
 test_that("ZIDEGPD model 5 fits and recovers parameters", {
+  skip_on_cran()
   set.seed(301)
   y <- rzidiscegpd(1000, pi = 0.3, sigma = 3, xi = 0.2, kappa = 2, type = 2)
   df <- data.frame(y = y)
@@ -160,6 +162,7 @@ test_that("ZIDEGPD model 5 fits and recovers parameters", {
 })
 
 test_that("ZIDEGPD model 6 fits and recovers parameters", {
+  skip_on_cran()
   set.seed(302)
   y <- rzidiscegpd(1000, pi = 0.3, sigma = 3, xi = 0.2, kappa = 2, type = 3)
   df <- data.frame(y = y)
@@ -175,6 +178,7 @@ test_that("ZIDEGPD model 6 fits and recovers parameters", {
 # ---- Predictions and diagnostics ----
 
 test_that("quantile predictions work for models 5 and 6", {
+  skip_on_cran()
   set.seed(401)
   y <- rdiscegpd(500, sigma = 3, xi = 0.2, kappa = 2, type = 2)
   df <- data.frame(y = y)
@@ -199,6 +203,7 @@ test_that("quantile predictions work for models 5 and 6", {
 })
 
 test_that("rqresid works for models 5 and 6", {
+  skip_on_cran()
   set.seed(501)
   y <- rdiscegpd(500, sigma = 3, xi = 0.2, kappa = 2, type = 2)
   df <- data.frame(y = y)
@@ -223,6 +228,7 @@ test_that("rqresid works for models 5 and 6", {
 })
 
 test_that("vcov works for DEGPD models 5 and 6", {
+  skip_on_cran()
   set.seed(601)
   y <- rdiscegpd(500, sigma = 3, xi = 0.2, kappa = 2, type = 2)
   df <- data.frame(y = y)

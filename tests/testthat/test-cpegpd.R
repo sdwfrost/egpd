@@ -35,8 +35,12 @@ test_that("qcpegpd inverts pcpegpd", {
   pvals <- c(0.1, 0.25, 0.5, 0.75, 0.9)
   q <- qcpegpd(pvals, lambda = 2, sigma = 2, xi = 0.1, kappa = 1.5, type = 1)
 
-  expect_true(all(q >= 0))
-  expect_true(all(diff(q) >= 0))
+  ## generalised inverse on the lattice {0, h, 2h, ...}, h = 0.2: the smallest
+  ## lattice point whose CDF reaches p
+  expect_equal(q / 0.2, round(q / 0.2))
+  cdf <- function(v) pcpegpd(v, lambda = 2, sigma = 2, xi = 0.1, kappa = 1.5, type = 1)
+  expect_true(all(cdf(q) >= pvals))
+  expect_true(all(cdf(q - 0.2) < pvals))
 })
 
 test_that("distfit with family='cpegpd' type 1 converges on simulated data", {
@@ -62,9 +66,10 @@ test_that("distfit cpegpd parameter recovery", {
                 lambda = true_lambda, type = 1)
   fit <- distfit(x, type = 1, family = "cpegpd")
 
-  expect_true(fit$estimate["sigma"] > 0.5 && fit$estimate["sigma"] < 5)
-  expect_true(fit$estimate["kappa"] > 0.3 && fit$estimate["kappa"] < 5)
-  expect_true(fit$estimate["lambda"] > 0.5 && fit$estimate["lambda"] < 5)
+  ## every parameter, xi included, within 4 standard errors of the truth
+  truth <- c(sigma = true_sigma, xi = true_xi, kappa = true_kappa, lambda = true_lambda)
+  expect_true(all(is.finite(fit$sd)))
+  expect_true(all(abs(fit$estimate[names(truth)] - truth) < 4 * fit$sd[names(truth)]))
 })
 
 test_that("distfit cpegpd with fix.arg works", {
@@ -107,4 +112,21 @@ test_that("distfit cpegpd plot does not error", {
   fit <- distfit(x, type = 1, family = "cpegpd")
 
   expect_no_error(plot(fit))
+})
+test_that("compound distribution queries preserve NA and NaN separately", {
+  for (f in list(dcpdegpd, pcpdegpd, qcpdegpd, dcpegpd, pcpegpd, qcpegpd)) {
+    run <- function(z, rate) f(z, lambda=rate, sigma=1.5, xi=0, kappa=1, K=50)
+    expect_identical(run(c(0,NA_real_,NaN),.8)[2:3], c(NA_real_,NaN))
+    expect_identical(run(c(0,NaN),NA_real_), c(NA_real_,NaN))
+    expect_true(is.nan(run(NA_real_,NaN)))
+  }
+})
+
+test_that("compound distribution diagnostics distinguish parameter length from domain", {
+  for (f in list(dcpegpd,dcpdegpd)) {
+    expect_error(f(0,lambda=c(5,5),sigma=1,xi=0,kappa=1), "scalar: lambda")
+    expect_error(f(0,lambda=5,sigma=c(1,1),xi=0,kappa=1), "scalar: sigma")
+    expect_error(f(0,lambda=-5,sigma=1,xi=0,kappa=1), "positive and finite")
+    expect_length(f(c(0,1),lambda=5,sigma=1,xi=0,kappa=1),2L)
+  }
 })

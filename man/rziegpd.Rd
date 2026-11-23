@@ -38,3 +38,10 @@ Random non-negative samples
 \description{
 Random generation from the Zero-Inflated Extended GPD
 }
+\details{
+Parameters required by \code{type} (\code{pi}, the GPD \code{sigma} and \code{xi}
+  and the carrier parameters) must be supplied: a missing one is an error,
+  whereas supplied \code{NA} values give \code{NA} results.
+  For the random generators, \code{n} follows base R: if \code{length(n) > 1}
+  its length is used, so \code{numeric(0)} gives \code{numeric(0)}.
+}

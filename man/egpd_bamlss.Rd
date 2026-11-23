@@ -7,12 +7,14 @@
 egpd_bamlss(m = 1, ...)
 }
 \arguments{
-\item{m}{integer 1--4 selecting the G transformation:
+\item{m}{integer 1--6 selecting the G transformation:
 \describe{
   \item{1}{Power: \eqn{G(u) = u^\kappa}}
   \item{2}{Mixture: \eqn{G(u) = p u^{\kappa} + (1-p) u^{\delta}}}
   \item{3}{Incomplete beta}
   \item{4}{Power-beta}
+  \item{5}{Truncated normal}
+  \item{6}{Truncated beta}
 }}
 
 \item{...}{arguments passed to link specification}
@@ -23,4 +25,17 @@ An object of class \code{family.bamlss}
 \description{
 Creates a \code{family.bamlss} object for fitting continuous
 Extended Generalized Pareto Distribution models with \code{bamlss()}.
+}
+\details{
+Quantile residuals use the fitted CDF, randomized over its jumps for
+count responses and at zero for zero-inflated continuous responses.
+Response residuals subtract the distributional mean, not the GPD scale.
+EGPD means integrate the survivor in GPD hazard coordinates to resolve
+concentration near a finite endpoint. Discrete means sum the survivor at
+positive integers, with a tail integral and a relative error bound of
+\eqn{10^{-7}} (an error is reported if the bound is not reached).
+Zero inflation scales the mean by \eqn{1-\pi} before conversion from
+log units, so the component mean need not itself fit in a double. For
+\eqn{\xi\ge1} with a nonzero component weight, the mean is infinite
+and a response residual is undefined.
 }

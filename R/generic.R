@@ -5,8 +5,8 @@
 R <- suppressWarnings(chol(Sig, pivot = TRUE))
 piv <- order(attr(R, "pivot"))
 r <- attr(R, "rank")
-V <- R[1:r, piv]
-Y <- crossprod(V, matrix(rnorm(n * r), r))
+V <- R[seq_len(r), piv, drop=FALSE]
+Y <- crossprod(V, matrix(rnorm(n * r), nrow=r, ncol=n))
 Y + as.vector(mu)
 }
 
@@ -33,10 +33,9 @@ return(A)
 .solve_egpd <- function(H) {
 H2 <- .precondition(H)
 H2 <- .perturb(H2)
-D <- attr(H2, "d")
-D <- diag(D, length(D))
 R <- attr(H2, "chol")
-crossprod(backsolve(R, D, transpose=TRUE))
+attr(R, "d") <- attr(H2, "d")
+.precond_solve(R, diag(nrow(H)))
 }
 
 .precond_solve <- function(L, x) {
@@ -72,48 +71,74 @@ out
 
 ## smoothing matrix manipulation functions
 
-.makeS <- function(lst, sp) {
-Reduce("+", Map("*", attr(lst, "Sl"), sp))
+.makeS <- function(lst, sp, spSl = Map("*", attr(lst, "Sl"), sp)) {
+S0 <- attr(lst, "S0")
+if (is.null(S0)) Reduce("+", spSl) else Reduce("+", spSl, init = S0)
 }
 
-.joinSmooth <- function(lst) {
-nms <- c("S", "first.para", "last.para", "rank", "null.space.dim")
-nbi <- sapply(lst, function(x) x$nb)
-starts <- cumsum(c(0, nbi))
-if (length(lst) == 1) {
-  lst <- lst[[1]]$smooth
-} else {
-  lst <- lapply(lst, function(x) x$smooth)
-  smooths <- sapply(lst, length) > 0
-  for (i in which(smooths)) {
-    for (j in seq_along(lst[[i]])) {
-      lst[[i]][[j]]$first.para <- lst[[i]][[j]]$first.para + starts[i]
-      lst[[i]][[j]]$last.para <- lst[[i]][[j]]$last.para + starts[i]
+## S(rho) = S0 + sum_j exp(rho_j) Sl[[j]], on the tempered likelihood.
+## Accumulate tied penalties before fitting, but keep the original small
+## smooth blocks and their map for the stable blockwise log determinant.
+.joinSmooth <- function(lst, gamma = 1) {
+  nb <- sum(vapply(lst, "[[", 0L, "nb"))
+  nsp <- sum(vapply(lst, function(g) length(g$sp), 0L))
+  mats <- vector("list", 1L + nsp)  # fixed, then one per independent log-sp
+  out <- list()
+  index <- integer(0)
+  lsp0 <- numeric(0)
+  b <- p <- 0L
+  for (g in lst) {
+    id <- g$sp.index
+    id[id > 0L] <- id[id > 0L] + p
+    off <- g$lsp0
+    off[id == 0L] <- off[id == 0L] - log(gamma)
+    index <- c(index, id)
+    lsp0 <- c(lsp0, off)
+    k <- 0L
+    for (sm in g$smooth) {
+      sm <- sm[c("S", "first.para", "last.para", "rank", "null.space.dim")]
+      sm$first.para <- sm$first.para + b
+      sm$last.para <- sm$last.para + b
+      if (!length(sm$null.space.dim)) sm$null.space.dim <- 0
+      out[[length(out) + 1L]] <- sm
+      ii <- sm$first.para:sm$last.para
+      for (S in sm$S) {
+        k <- k + 1L
+        j <- 1L + id[k]
+        if (is.null(mats[[j]])) mats[[j]] <- matrix(0, nb, nb)
+        mats[[j]][ii, ii] <- mats[[j]][ii, ii] + exp(off[k]) * S
+      }
     }
+    b <- b + g$nb
+    p <- p + length(g$sp)
   }
-lst <- unlist(lst, recursive=FALSE)
+  structure(out, nb = nb, Sl = mats[-1L], S0 = mats[[1L]],
+            sp.index = index, lsp0 = unname(lsp0))
 }
-out <- lapply(lst, function(x) subset(x, names(x) %in% nms))
-lst2 <- list()
-nb <- tail(starts, 1)
-for (i in seq_along(lst)) {
-  temp <- list()
-  ind <- lst[[i]]$first.para:lst[[i]]$last.para
-  for (j in seq_along(lst[[i]]$S)) {
-    temp2 <- matrix(0, nb, nb)
-      temp2[ind, ind] <- lst[[i]]$S[[j]]
-    temp[[j]] <- temp2
-  }
-  lst2[[i]] <- temp
+
+.full_lsp <- function(Sdata, rho) {
+  attr(Sdata, "lsp0") + c(0, rho)[1L + attr(Sdata, "sp.index")]
 }
-lst2 <- unlist(lst2, recursive=FALSE)
-for (i in seq_along(out)) {
-  if (length(out[[i]]$null.space.dim) == 0)
-    out[[i]]$null.space.dim <- 0
-}
-attr(out, "Sl") <- lst2
-attr(out, "nb") <- nb
-out
+
+## Read top-level sp on the unscaled likelihood. An expanded vector (e.g.
+## from full.sp) is allowed, but cannot untie an id or override a fixed term.
+.fixed_rho <- function(sp, Sdata, gamma) {
+  if (!is.numeric(sp) || !is.null(dim(sp)) || any(!is.finite(sp) | sp < 0))
+    stop("`sp` must be a finite non-negative numeric vector.", call. = FALSE)
+  n <- length(attr(Sdata, "Sl"))
+  id <- attr(Sdata, "sp.index")
+  rho <- log(as.numeric(sp)) - log(gamma)
+  if (length(sp) == n) return(rho)
+  if (length(sp) == 1L && n > 0L) return(rep(rho, n))
+  if (length(sp) != length(id))
+    stop(sprintf("Expected %d independent smoothing parameters or %d penalty multipliers in `sp`.",
+                 n, length(id)), call. = FALSE)
+  first <- match(seq_len(n), id)
+  pars <- rho[first] - attr(Sdata, "lsp0")[first]
+  full <- .full_lsp(Sdata, pars)
+  if (!all(full == rho | abs(full - rho) <= 1e-12))
+    stop("`sp` conflicts with a term-level fixed or shared smoothing parameter.", call. = FALSE)
+  pars
 }
 
 .grad.R <- function(pars, Sdata, R, eps, likfns, likdata, H0=NULL) {
@@ -133,6 +158,11 @@ if (inherits(choliH, "try-error")) choliH <- attr(.perturb(iH), "chol")
 }
 
 ## other stuff
+
+.aux_response_name <- function(name, used) {
+  while (name %in% used) name <- paste0(name, ".")
+  name
+}
 
 .padWithVec <- function(df, vec, nm) {
 df <- df[1,]

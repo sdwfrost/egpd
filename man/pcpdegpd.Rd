@@ -19,11 +19,13 @@ pcpdegpd(
 \arguments{
 \item{q}{numeric vector of quantiles}
 
-\item{lambda}{Poisson rate parameter (> 0)}
+\item{lambda}{Scalar Poisson rate (> 0). The distribution parameters
+describe one common severity and rate; they are not recycled over queries.}
 
 \item{prob}{G-transformation parameter (type 6 only)}
 
-\item{kappa}{G-transformation parameter}
+\item{kappa}{G-transformation parameter; for type 2, zero is the
+uniform-carrier limit (floored GPD severity).}
 
 \item{delta}{G-transformation parameter}
 
@@ -33,7 +35,8 @@ pcpdegpd(
 
 \item{type}{integer 1-6 specifying G-transformation type}
 
-\item{K}{grid size for Panjer recursion (default: max(max(x), 100) + 50)}
+\item{K}{grid size for Panjer recursion (default: covers finite queries
+with a grid margin; the quantile function defaults to 5000).}
 }
 \value{
 numeric vector of cumulative probabilities

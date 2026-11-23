@@ -7,14 +7,15 @@
 rcomppareto(n, spec, alpha = 1, theta = 1, ...)
 }
 \arguments{
-\item{n}{number of observations.}
+\item{n}{number of observations; if \code{length(n) != 1}, the length is taken to
+be the number required (\code{numeric(0)} gives none), as in \code{\link[stats]{runif}}.}
 
 \item{spec}{body distribution specification. Currently one of
 \code{"lnorm"}, \code{"gamma"}, \code{"weibull"}, or \code{"exp"}.}
 
 \item{alpha}{positive Pareto shape parameter.}
 
-\item{theta}{positive splice point and Pareto scale parameter.}
+\item{theta}{positive splice point and Lomax scale parameter.}
 
 \item{...}{body-distribution parameters for the chosen \code{spec}.}
 }

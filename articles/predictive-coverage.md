@@ -10,6 +10,11 @@ This vignette demonstrates its use for all three fitting approaches —
 calibration plots that compare nominal and empirical coverage across a
 range of levels.
 
+Supply one observed response in `y` for each prediction row. For
+in-sample coverage, use the rows retained by the fit, in fitting order.
+For held-out coverage, use the responses in the same order as the rows
+of `newdata`.
+
 ## Setup
 
 ``` r
@@ -66,16 +71,16 @@ summary(fit_e)
     ** Parametric terms **
 
     logscale
-                Estimate Std. Error t value Pr(>|t|)
+                Estimate Std. Error z value Pr(>|z|)
     (Intercept)     1.14        0.1   11.58   <2e-16
 
     logshape
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)    -2.12       0.36   -5.87 2.23e-09
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)    -2.12       0.36   -5.87 4.47e-09
 
     logkappa
-                Estimate Std. Error t value Pr(>|t|)
-    (Intercept)     0.63       0.09    7.33 1.17e-13
+                Estimate Std. Error z value Pr(>|z|)
+    (Intercept)     0.63       0.09    7.33 2.33e-13
 
     ** Smooth terms **
 
@@ -97,8 +102,12 @@ fit_b <- bamlss(list(y ~ 1, ~ 1, ~ 1),
 
 ### Parameter estimates
 
+`predict(type = "response")` returns one column per distributional
+parameter plus an `xi` column that duplicates `shape`, so we select the
+columns by name.
+
 ``` r
-pars_e <- predict(fit_e, type = "response")[1, ]
+pars_e <- predict(fit_e, type = "response")[1, c("scale", "shape", "kappa")]
 mu_g    <- exp(coef(fit_g, what = "mu"))
 sigma_g <- exp(coef(fit_g, what = "sigma"))
 nu_g    <- exp(coef(fit_g, what = "nu"))
@@ -117,15 +126,21 @@ data.frame(
 ```
 
       parameter true   egpd gamlss bamlss
-    1     sigma 3.00 3.1202 3.1009 3.1162
-    2        xi 0.15 0.1198 0.1221 0.1203
-    3     kappa 2.00 1.8744 1.8838 1.8763
+    1     sigma 3.00 3.1202 3.1202 3.1162
+    2        xi 0.15 0.1198 0.1198 0.1203
+    3     kappa 2.00 1.8744 1.8744 1.8763
 
 ## 3. Predictive coverage at the 95% level
 
 We evaluate both **plug-in** prediction (parameters fixed at their point
-estimates) and **parametric** prediction (parameters perturbed on the
-link scale to account for estimation uncertainty).
+estimates) and **parametric** prediction, which accounts for estimation
+uncertainty by giving each simulated response its own parameter draw: a
+multivariate normal draw of the coefficients for `egpd`, normal
+perturbations of each linear predictor for `gamlss`, and the posterior
+(MCMC) samples for `bamlss`, with one response simulated per posterior
+draw. The `bamlss` fits therefore keep the default sampler: a fit made
+with `sampler = FALSE` has no samples, and `method = "parametric"` stops
+with an error for it.
 
 ``` r
 set.seed(1)
@@ -155,12 +170,12 @@ data.frame(
 ```
 
       approach     method coverage nominal
-    1     egpd    plug-in    0.952    0.95
-    2     egpd parametric    0.944    0.95
-    3   gamlss    plug-in    0.961    0.95
-    4   gamlss parametric    0.954    0.95
-    5   bamlss    plug-in    0.949    0.95
-    6   bamlss parametric    0.953    0.95
+    1     egpd    plug-in    0.979    0.95
+    2     egpd parametric    0.979    0.95
+    3   gamlss    plug-in    0.978    0.95
+    4   gamlss parametric    0.979    0.95
+    5   bamlss    plug-in    0.981    0.95
+    6   bamlss parametric    0.979    0.95
 
 All approaches achieve empirical coverage close to the nominal 95%
 level. The parametric method tends to produce slightly wider intervals
@@ -361,11 +376,16 @@ cat("Test x range:", round(range(df_test$x), 3), "\n")
 
 ### Fit models on training data only
 
+The gamlss model uses the parametric formula `y ~ x`, which is correctly
+specified here ($\log\sigma$ is linear in $x$): parametric coverage at
+new data needs a parametric gamlss formula, because additive smoothers
+such as `pb()` have no standard errors at new covariate values.
+
 ``` r
 fit_e_tr <- egpd(list(lsigma = y ~ s(x, k = 10), lxi = ~ 1, lkappa = ~ 1),
                  data = df_train, family = "degpd", degpd.args = list(m = 1))
 
-fit_g_tr <- gamlss(y ~ pb(x), sigma.formula = ~ 1, nu.formula = ~ 1,
+fit_g_tr <- gamlss(y ~ x, sigma.formula = ~ 1, nu.formula = ~ 1,
                    data = df_train, family = DEGPD1(),
                    control = gamlss.control(n.cyc = 200, trace = FALSE))
 
@@ -411,11 +431,11 @@ data.frame(
 
       approach     method coverage nominal
     1     egpd    plug-in    0.960    0.95
-    2     egpd parametric    0.960    0.95
-    3   gamlss    plug-in    0.945    0.95
-    4   gamlss parametric    0.950    0.95
-    5   bamlss    plug-in    0.955    0.95
-    6   bamlss parametric    0.960    0.95
+    2     egpd parametric    0.965    0.95
+    3   gamlss    plug-in    0.965    0.95
+    4   gamlss parametric    0.965    0.95
+    5   bamlss    plug-in    0.970    0.95
+    6   bamlss parametric    0.965    0.95
 
 ### Forecast calibration across levels
 
@@ -549,12 +569,12 @@ data.frame(
 ```
 
       approach    evaluation coverage nominal
-    1     egpd     in-sample    0.935    0.95
-    2     egpd out-of-sample    0.960    0.95
-    3   gamlss     in-sample    0.945    0.95
-    4   gamlss out-of-sample    0.950    0.95
-    5   bamlss     in-sample    0.944    0.95
-    6   bamlss out-of-sample    0.960    0.95
+    1     egpd     in-sample    0.965    0.95
+    2     egpd out-of-sample    0.965    0.95
+    3   gamlss     in-sample    0.962    0.95
+    4   gamlss out-of-sample    0.965    0.95
+    5   bamlss     in-sample    0.964    0.95
+    6   bamlss out-of-sample    0.965    0.95
 
 Both in-sample and out-of-sample coverage are close to the nominal 95%
 level, confirming that the models generalise well to unseen data within
@@ -564,28 +584,34 @@ the covariate range.
 
 For discrete data, equal-tailed intervals may not be optimal because the
 probability mass is concentrated on integers. The `use_shortest = TRUE`
-option computes the shortest (highest density region) interval instead.
+option computes the shortest contiguous integer interval with at least
+the nominal mass instead (the lowest one when several intervals of that
+width qualify). This need not be the highest-density region (HDR), even
+for a unimodal pmf: with probabilities 0.25, 0.26, 0.27 and 0.22 on 0,
+1, 2, 3 and level 0.5, the interval returned is {0, 1}, whereas the HDR
+is {1, 2}. For a multimodal pmf (e.g. zero-inflated) the HDR need not be
+an interval at all.
 
 ``` r
 set.seed(4)
 
 cov_eq  <- predictive_coverage(fit_e, y, level = 0.95, nsim = 3000,
                                 method = "plug-in", use_shortest = FALSE)
-cov_hdr <- predictive_coverage(fit_e, y, level = 0.95, nsim = 3000,
-                                method = "plug-in", use_shortest = TRUE)
+cov_short <- predictive_coverage(fit_e, y, level = 0.95, nsim = 3000,
+                                  method = "plug-in", use_shortest = TRUE)
 
 data.frame(
-  interval_type    = c("Equal-tailed", "Shortest (HDR)"),
-  coverage         = round(c(cov_eq$coverage, cov_hdr$coverage), 4),
+  interval_type    = c("Equal-tailed", "Shortest contiguous"),
+  coverage         = round(c(cov_eq$coverage, cov_short$coverage), 4),
   mean_width       = round(c(mean(cov_eq$U - cov_eq$L),
-                              mean(cov_hdr$U - cov_hdr$L)), 2),
+                              mean(cov_short$U - cov_short$L)), 2),
   row.names        = NULL
 )
 ```
 
-       interval_type coverage mean_width
-    1   Equal-tailed    0.948      16.61
-    2 Shortest (HDR)    0.955      13.85
+            interval_type coverage mean_width
+    1        Equal-tailed    0.979      17.09
+    2 Shortest contiguous    0.953      13.60
 
 The shortest interval achieves similar coverage with narrower (or equal)
 interval width, making it the more efficient choice for discrete data.
@@ -605,8 +631,8 @@ supported frameworks. Key takeaways:
   confirming that the models generalise well.
 - Prediction interval plots show how the interval widens in regions of
   higher variability, and highlight outlying observations.
-- For discrete data, the **shortest (HDR)** interval is more efficient
-  than equal-tailed intervals.
+- For discrete data, the **shortest contiguous** interval is more
+  efficient than equal-tailed intervals.
 - Calibration plots are a useful diagnostic: deviations from the
   diagonal signal model misspecification or inadequate uncertainty
   quantification.

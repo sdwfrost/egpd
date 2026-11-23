@@ -73,6 +73,11 @@ cat("Log-likelihood:", logLik(fit2), "\n")
 cat("AIC:", AIC(fit2), "\n")
 ```
 
+The two-power mixture gains
+`r sprintf("%.2f", as.numeric(logLik(fit2)) - as.numeric(logLik(fit1)))`
+log-likelihood units over model 1. The second power has weight `1 - p`, not
+`p`; a small fitted weight does not by itself mean the components coincide.
+
 ### DEGPD Model 3: Incomplete beta transformation
 
 Model 3 uses an incomplete beta transformation with three parameters:
@@ -98,6 +103,10 @@ summary(fit4)
 cat("Log-likelihood:", logLik(fit4), "\n")
 cat("AIC:", AIC(fit4), "\n")
 ```
+
+Here the summary notes a singular Hessian: `logdelta` runs to a plateau of its
+link (delta grows without bound, see `fit4$plateau`), where model 4 reduces to
+model 1, so delta is not identified; the log-likelihood and AIC equal model 1's.
 
 ### DEGPD Model 5: Truncated normal transformation
 

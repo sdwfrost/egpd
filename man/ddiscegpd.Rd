@@ -4,7 +4,16 @@
 \alias{ddiscegpd}
 \title{Density of the Discrete Extended GPD}
 \usage{
-ddiscegpd(x, prob = NA, kappa = NA, delta = NA, sigma = NA, xi = NA, type = 1)
+ddiscegpd(
+  x,
+  prob = NA,
+  kappa = NA,
+  delta = NA,
+  sigma = NA,
+  xi = NA,
+  type = 1,
+  log = FALSE
+)
 }
 \arguments{
 \item{x}{non-negative integer values}
@@ -20,10 +29,21 @@ ddiscegpd(x, prob = NA, kappa = NA, delta = NA, sigma = NA, xi = NA, type = 1)
 \item{xi}{GPD shape parameter}
 
 \item{type}{integer 1-6 specifying G type}
+
+\item{log}{logical: return log-PMF?}
 }
 \value{
 PMF values
 }
 \description{
-Density of the Discrete Extended GPD
+Mass is zero off the non-negative integer lattice. The PMF
+\eqn{H(x+1) - H(x)} is differenced on the log scale in whichever tail of
+\eqn{H} both values are small (and integrated by Gauss-Legendre quadrature
+far in the upper tail), so \code{log = TRUE} stays accurate where the mass
+underflows.
+}
+\details{
+Parameters required by \code{type} (the GPD \code{sigma} and \code{xi} and the
+  carrier parameters) must be supplied: a missing one is an error, whereas
+  supplied \code{NA} values give \code{NA} results.
 }

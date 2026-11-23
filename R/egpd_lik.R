@@ -1,5 +1,12 @@
 ## Continuous EGPD negative log-likelihood functions
 ## Adapted from evgam by Ben Youngman
+## Native continuous objectives use the exponential limit at xi=0. Where the
+## generated closed-form derivatives are unreliable (xi near 0, y/sigma near 0,
+## delta * A near 0 for carriers 3/4) or overflow (e.g. next to the xi < 0
+## endpoint), d12 uses exact forward-mode derivatives of that same objective,
+## and d34 (where available) uses predictor-scale stencils kept inside the support.
+## Carrier-3 d34 rows next to the endpoint or far in the tail instead combine the
+## carrier-1 forms (the GPD part) with exact derivatives of the carrier's delta term.
 
 ## model 1 ##
 
@@ -28,24 +35,11 @@ p * v^kappa1 + (1 - p) * v^kappa2
 }
 
 .iG2i_egpd <- function(v, kappa1, kappa2, p) {
- if (v <= 0)
-   return(0)
- if (v >= 1)
-   return(1)
- if (abs(kappa1 - kappa2) < sqrt(.Machine$double.eps))
-   return(v^(1 / kappa1))
- vv <- range(c(v^(1 / kappa1), v^(1 / kappa2)))
- d <- max(diff(vv), .Machine$double.eps)
- lo <- vv[1]
- while(.G2_egpd(lo, kappa1, kappa2, p) - v > 0 && lo > 0) lo <- max(0, lo - d)
- hi <- vv[2]
- while(.G2_egpd(hi, kappa1, kappa2, p) - v < 0 && hi < 1) hi <- min(1, hi + d)
- uniroot(function(x) .G2_egpd(x, kappa1, kappa2, p) - v, c(lo, hi))$root
+ q.G(v, type = 6, kappa = kappa1, delta = kappa2, prob = p)
 }
 
 .iG2_egpd <- function(v, kappa1, kappa2, p) {
-n <- length(v)
-vapply(seq_len(n), function(i) .iG2i_egpd(v[i], kappa1[i], kappa2[i], p[i]), double(1))
+mapply(.iG2i_egpd, v, kappa1, kappa2, p, USE.NAMES = FALSE)
 }
 
 .egpd2.d0 <- function(pars, likdata) {
@@ -80,7 +74,7 @@ egpd3d12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), lik
 egpd3d34(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
-.iG3_egpd <- function(v, delta) 1 - qbeta(1 - v, 1/delta, 2)^(1/delta)
+.iG3_egpd <- function(v, delta) q.G(v, type = 4L, delta = delta)
 
 .egpd3fns <- list(d0=.egpd3.d0, d120=.egpd3.d12, d340=.egpd3.d34, m=3, iG=.iG3_egpd)
 
@@ -100,7 +94,7 @@ egpd4d12(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), lik
 egpd4d34(split(pars, factor(likdata$idpars, levels = seq_along(likdata$X))), likdata$X[[1]], likdata$X[[2]], likdata$X[[3]], likdata$X[[4]], likdata$y[,1], likdata$dupid, likdata$duplicate, likdata$offsets)
 }
 
-.iG4_egpd <- function(v, delta, kappa) 1 - qbeta(1 - v^(2/kappa), 1/delta, 2)^(1/delta)
+.iG4_egpd <- function(v, delta, kappa) q.G(v, type = 5L, delta = delta, kappa = kappa)
 
 .egpd4fns <- list(d0=.egpd4.d0, d120=.egpd4.d12, d340=NULL, m=4, iG=.iG4_egpd)
 

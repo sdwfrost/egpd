@@ -36,5 +36,14 @@ degpd_density(
 Density values
 }
 \description{
-Density of the Extended GPD
+The shape-zero case uses the exact exponential GPD limit. Inside the support
+the carrier density is evaluated from the GPD log-survival, which keeps the
+far tail accurate when \eqn{1 - F_{GPD}(x)} is below machine precision. Values below zero,
+at or beyond a finite upper endpoint, or at infinity have density zero
+(log-density \code{-Inf}).
+}
+\details{
+Parameters required by \code{type} (the GPD \code{sigma} and \code{xi} and the
+  carrier parameters) must be supplied: a missing one is an error, whereas
+  supplied \code{NA} values give \code{NA} results.
 }

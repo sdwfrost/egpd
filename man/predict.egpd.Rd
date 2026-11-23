@@ -18,13 +18,20 @@
 \arguments{
 \item{object}{a fitted \code{egpd} object}
 
-\item{newdata}{a data frame}
+\item{newdata}{a data frame. A missing input to one linear predictor
+gives a missing value for that predictor on that row; other rows
+retain their own design values and offsets. Evaluated predictor terms
+must have one row per prediction row. Supply row-specific covariates
+and offsets as columns rather than vectors in the formula environment.}
 
 \item{type}{a character string: "link", "response", "lpmatrix", or "quantile"}
 
 \item{prob}{a scalar or vector of probabilities for quantile estimation}
 
-\item{se.fit}{logical: should standard errors be returned? Defaults to FALSE}
+\item{se.fit}{logical: should standard errors be returned? Defaults to FALSE.
+Response-scale delta-method SEs are zero on a flat part of a clamped
+inverse link. At the kink there is no derivative, so the SE is
+\code{NA} unless the linear predictor has zero uncertainty.}
 
 \item{marginal}{logical: should uncertainty integrate out smoothing parameter uncertainty? Defaults to TRUE}
 
@@ -33,7 +40,35 @@
 \item{...}{unused}
 }
 \value{
-A data frame, list, or design matrix depending on \code{type}
+Depending on \code{type}:
+  \describe{
+    \item{\code{"link"}}{a data frame with one column per linear predictor,
+      named by its link (e.g. \code{logscale}, \code{logshape}), including
+      offsets.}
+    \item{\code{"response"}}{a data frame with one column per distributional
+      parameter on its natural scale, named by parameter (e.g. \code{scale},
+      \code{shape}, \code{kappa}, \code{pi}), clamped to the same safe interior
+      as the likelihood. For the EGPD families (\code{"egpd"}, \code{"degpd"},
+      \code{"zidegpd"}, \code{"ztdegpd"}) a further column \code{xi} repeats
+      \code{shape}, the GPD tail index, as a convenience alias; the data frame
+      therefore has one more column than the model has parameters, so select
+      columns by name (\code{pars$shape}, \code{pars[["kappa"]]}), not by
+      position or \code{ncol()}.}
+    \item{\code{"quantile"}}{a data frame with one column per probability,
+      named \code{"q:<prob>"} with the probability to 15 significant digits
+      (e.g. \code{"q:0.95"}, \code{"q:0.9995"}).}
+    \item{\code{"lpmatrix"}}{a list of design matrices, one per linear
+      predictor, with the offsets in \code{attr(, "offsets")}. They are in the
+      basis of the fitted coefficients (the matrix times the predictor's
+      coefficients, plus its offset, is the linear predictor); for \code{t2()}
+      terms this is \pkg{mgcv}'s fit basis, not the prediction basis of
+      \code{mgcv::predict.gam()}.}
+  }
+  With \code{se.fit = TRUE} (link or response), a list with elements
+  \code{fitted} and \code{se.fit} (for the response scale, delta-method
+  standard errors: the link-scale standard error times the absolute value of the
+  inverse link's derivative, which is negative for a decreasing
+  \code{custom.fns$unlink}).
 }
 \description{
 Predictions from a fitted \code{egpd} object

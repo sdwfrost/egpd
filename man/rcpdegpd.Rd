@@ -9,11 +9,13 @@ rcpdegpd(n, lambda, prob = NA, kappa = NA, delta = NA, sigma, xi, type = 1)
 \arguments{
 \item{n}{number of observations}
 
-\item{lambda}{Poisson rate parameter (> 0)}
+\item{lambda}{Scalar Poisson rate (> 0). The distribution parameters
+describe one common severity and rate; they are not recycled over queries.}
 
 \item{prob}{G-transformation parameter (type 6 only)}
 
-\item{kappa}{G-transformation parameter}
+\item{kappa}{G-transformation parameter; for type 2, zero is the
+uniform-carrier limit (floored GPD severity).}
 
 \item{delta}{G-transformation parameter}
 
@@ -28,7 +30,8 @@ integer vector of length \code{n}
 }
 \description{
 Direct simulation: draw \eqn{N \sim \mathrm{Poisson}(\lambda)}, then
-sum \eqn{N} i.i.d. Discrete-EGPD draws.
+sum \eqn{N} i.i.d. Discrete-EGPD draws. Missing required parameters are an
+error; supplied \code{NA} parameters give \code{NA} draws with a warning.
 }
 \seealso{
 \code{\link{dcpdegpd}}, \code{\link{pcpdegpd}},

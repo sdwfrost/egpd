@@ -4,7 +4,17 @@
 \alias{qdiscegpd}
 \title{Quantile function of the Discrete Extended GPD}
 \usage{
-qdiscegpd(p, prob = NA, kappa = NA, delta = NA, sigma = NA, xi = NA, type = 1)
+qdiscegpd(
+  p,
+  prob = NA,
+  kappa = NA,
+  delta = NA,
+  sigma = NA,
+  xi = NA,
+  type = 1,
+  lower.tail = TRUE,
+  log.p = FALSE
+)
 }
 \arguments{
 \item{p}{probabilities}
@@ -20,10 +30,20 @@ qdiscegpd(p, prob = NA, kappa = NA, delta = NA, sigma = NA, xi = NA, type = 1)
 \item{xi}{GPD shape parameter}
 
 \item{type}{integer 1-6 specifying G type}
+
+\item{lower.tail}{logical; if TRUE (default), probabilities are \eqn{P(X \le q)},
+otherwise \eqn{P(X > q)}}
+
+\item{log.p}{logical; if TRUE, probabilities \code{p} are given as \code{log(p)}}
 }
 \value{
 Quantile values (non-negative integers)
 }
 \description{
 Quantile function of the Discrete Extended GPD
+}
+\details{
+Parameters required by \code{type} (the GPD \code{sigma} and \code{xi} and the
+  carrier parameters) must be supplied: a missing one is an error, whereas
+  supplied \code{NA} values give \code{NA} results.
 }

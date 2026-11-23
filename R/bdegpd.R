@@ -15,7 +15,8 @@
 #' @param thU positive numeric; upper tail dependence parameter (beta shape).
 #' @param thw numeric in (0, 0.5); weight mixing parameter.
 #'
-#' @return An \code{n} by 2 integer matrix with columns \code{Y1} and \code{Y2}.
+#' @return An \code{n} by 2 integer-valued matrix with columns \code{Y1} and
+#'   \code{Y2}; double storage is used outside the R integer range.
 #'
 #' @details
 #' The BDEGPD constructs bivariate discrete observations by generating
@@ -36,7 +37,8 @@ rbdegpd <- function(n, kappa, sigma, xi, thL, thU, thw) {
   Y <- rbegpd(n, kappa = kappa, sigma = sigma, xi = xi,
                thL = thL, thU = thU, thw = thw)
   Y <- floor(Y)
-  storage.mode(Y) <- "integer"
+  if (any(!is.finite(Y))) stop("Simulated counts exceed finite numeric range.")
+  if (all(Y <= .Machine$integer.max)) storage.mode(Y) <- "integer"
   Y
 }
 
@@ -50,7 +52,8 @@ rbdegpd <- function(n, kappa, sigma, xi, thL, thU, thw) {
 #' @inheritParams rbdegpd
 #' @param pi0 numeric in (0, 1); joint zero-inflation probability.
 #'
-#' @return An \code{n} by 2 integer matrix with columns \code{Y1} and \code{Y2}.
+#' @return An \code{n} by 2 integer-valued matrix with columns \code{Y1} and
+#'   \code{Y2}; double storage is used outside the R integer range.
 #'
 #' @details
 #' This function is \strong{experimental} and its interface may change.
@@ -60,12 +63,13 @@ rbdegpd <- function(n, kappa, sigma, xi, thL, thU, thw) {
 #' @examples
 #' Y <- rbzidegpd(1000, kappa = 2, sigma = 1, xi = 0.1,
 #'                thL = 5, thU = 5, thw = 0.2, pi0 = 0.3)
-#' mean(Y[,1] == 0 & Y[,2] == 0)  # approximately 0.3
+#' ## at least pi0 = 0.3; here about 0.73, as rbdegpd() rows are often (0, 0) too
+#' mean(Y[,1] == 0 & Y[,2] == 0)
 #'
 #' @export
 rbzidegpd <- function(n, kappa, sigma, xi, thL, thU, thw, pi0) {
   ## Validate pi0
-  if (!is.numeric(pi0) || length(pi0) != 1 || pi0 <= 0 || pi0 >= 1)
+  if (!is.numeric(pi0) || length(pi0) != 1 || !is.finite(pi0) || pi0 <= 0 || pi0 >= 1)
     stop("'pi0' must be a number in (0, 1)")
 
   ## Generate BDEGPD
@@ -83,27 +87,46 @@ rbzidegpd <- function(n, kappa, sigma, xi, thL, thU, thw, pi0) {
 #'
 #' Trains Neural Posterior Estimator (NPE) and/or Neural Bayesian Estimator
 #' (NBE) networks for bivariate discrete EGPD inference (BDEGPD or BZIDEGPD).
-#' Requires Julia (>= 1.11) with NeuralEstimators.jl and Flux.jl installed,
-#' plus the R packages \pkg{JuliaConnectoR} and \pkg{NeuralEstimators}.
+#' Requires Julia (>= 1.11) with NeuralEstimators.jl (>= 0.3 for training),
+#' Flux.jl, BSON.jl and Optimisers.jl installed (in Julia,
+#' \code{using Pkg; Pkg.add(["NeuralEstimators", "Flux", "BSON", "Optimisers"])}),
+#' plus the R packages \pkg{JuliaConnectoR} and \pkg{NeuralEstimators} (see
+#' "Supported Julia/R versions" in \code{\link{train_begpd}}).
 #'
 #' @param savepath character; directory to save trained model files (.bson).
-#'   Created if it does not exist.
+#'   Created if it does not exist. The default \code{NULL} uses
+#'   \code{file.path(tools::R_user_dir("egpd", "data"), "models")} and reports
+#'   it in a message.
 #' @param family character; \code{"bdegpd"} (6 parameters) or \code{"bzidegpd"}
 #'   (7 parameters, adds pi0).
 #' @param estimator character; which estimator(s) to train: \code{"both"}
 #'   (default), \code{"npe"}, or \code{"nbe"}.
 #' @param K integer; number of training parameter sets to sample from the prior.
 #' @param m integer vector; range of sample sizes for simulated datasets.
+#'   Recorded in the model sidecar; inference warns when the number of
+#'   observations falls outside \code{range(m)}.
 #' @param epochs integer; maximum number of training epochs.
 #' @param stopping_epochs integer; early stopping patience.
 #' @param quick logical; if \code{TRUE}, uses reduced training settings.
 #' @param mc.cores integer; number of parallel cores for data simulation.
-#' @param seed integer or \code{NULL}; random seed for reproducibility.
+#'   \code{NULL} (default) uses \code{parallel::detectCores() - 1}. Forced to
+#'   1 on Windows and capped at 2 when \code{_R_CHECK_LIMIT_CORES_} is set
+#'   (as by \code{R CMD check --as-cran}).
+#' @param seed integer or \code{NULL}; seeds R, per-dataset parallel
+#'   simulations, and Julia's \code{Random.seed!}. Backend/version-specific
+#'   nondeterminism may remain.
 #' @param verbose logical; if \code{TRUE}, print progress messages.
 #'
 #' @return A named list of file paths to saved .bson model files (invisible).
 #'
 #' @details
+#' Newly trained models require their generated \code{.bson.metadata.rds}
+#' compatibility sidecars. No bundled .bson models are shipped; train
+#' compatible weights and pass \code{model.path}. Compatibility does not
+#' establish calibration. The sidecar also records the training sample-size
+#' range and backend versions (see \code{\link{train_begpd}}, including the
+#' supported Julia/R version pairings).
+#'
 #' This function is \strong{experimental} and its interface may change.
 #'
 #' The training procedure mirrors \code{\link{train_begpd}} but uses
@@ -118,13 +141,13 @@ rbzidegpd <- function(n, kappa, sigma, xi, thL, thU, thw, pi0) {
 #' }
 #'
 #' @export
-train_bdegpd <- function(savepath = "inst/models",
+train_bdegpd <- function(savepath = NULL,
                           family = c("bdegpd", "bzidegpd"),
                           estimator = c("both", "npe", "nbe"),
                           K = NULL, m = NULL,
                           epochs = NULL, stopping_epochs = 10,
                           quick = FALSE,
-                          mc.cores = parallel::detectCores() - 1L,
+                          mc.cores = NULL,
                           seed = 1L, verbose = TRUE) {
 
   family    <- match.arg(family)
@@ -132,8 +155,7 @@ train_bdegpd <- function(savepath = "inst/models",
   is_zi     <- family == "bzidegpd"
   d         <- if (is_zi) 7L else 6L
 
-  ## Windows guard
-  if (.Platform$OS.type == "windows") mc.cores <- 1L
+  mc.cores <- .sanitize_mc_cores(mc.cores)
 
   ## Check Julia dependencies
   .check_julia_deps()
@@ -149,12 +171,12 @@ train_bdegpd <- function(savepath = "inst/models",
     epochs <- epochs %||% 100L
   }
 
-  if (!is.null(seed)) set.seed(seed)
-
-  dir.create(savepath, recursive = TRUE, showWarnings = FALSE)
+  savepath <- .neural_savepath(savepath)
 
   ## Initialize Julia session and architecture
   .init_julia_begpd()
+  .neural_seed(seed)
+  if (!is.null(seed)) set.seed(seed)
 
   ## --- Prior sampler ---
   sampler <- function(K) {
@@ -174,7 +196,7 @@ train_bdegpd <- function(savepath = "inst/models",
 
   ## --- Data simulator ---
   simulator <- function(Theta, m, mc.cores) {
-    parallel::mclapply(seq_len(ncol(Theta)), function(k) {
+    .neural_simulate(seq_len(ncol(Theta)), function(k) {
       m_k <- if (length(m) > 1) sample(m, 1) else m
       theta_k <- Theta[, k]
       if (is_zi) {
@@ -222,12 +244,13 @@ train_bdegpd <- function(savepath = "inst/models",
   prefix <- cfg$file_prefix
 
   paths <- list()
+  training <- .neural_training_record(m, K, epochs, stopping_epochs, seed)
 
   ## --- Train NPE ---
   if (estimator %in% c("both", "npe")) {
     if (verbose) message("Training NPE for ", family, "...")
     npe <- .init_npe_begpd(d = d)
-    npe <- NeuralEstimators::train(
+    npe <- .neural_train(
       npe,
       theta_train = theta_train,
       theta_val   = theta_val,
@@ -238,7 +261,8 @@ train_bdegpd <- function(savepath = "inst/models",
       savepath    = file.path(savepath, paste0(prefix, "NPE"))
     )
     npe_path <- file.path(savepath, paste0(prefix, "NPE.bson"))
-    NeuralEstimators::savestate(npe, npe_path)
+    .neural_savestate(npe, npe_path)
+    .write_neural_metadata(npe_path, family, "npe", training = training)
     paths$npe <- npe_path
     if (verbose) message("NPE saved to ", npe_path)
   }
@@ -247,7 +271,7 @@ train_bdegpd <- function(savepath = "inst/models",
   if (estimator %in% c("both", "nbe")) {
     if (verbose) message("Training NBE for ", family, "...")
     nbe <- .init_nbe_begpd(d = d)
-    nbe <- NeuralEstimators::train(
+    nbe <- .neural_train(
       nbe,
       theta_train = theta_train,
       theta_val   = theta_val,
@@ -258,7 +282,8 @@ train_bdegpd <- function(savepath = "inst/models",
       savepath    = file.path(savepath, paste0(prefix, "NBE"))
     )
     nbe_path <- file.path(savepath, paste0(prefix, "NBE.bson"))
-    NeuralEstimators::savestate(nbe, nbe_path)
+    .neural_savestate(nbe, nbe_path)
+    .write_neural_metadata(nbe_path, family, "nbe", training = training)
     paths$nbe <- nbe_path
     if (verbose) message("NBE saved to ", nbe_path)
   }

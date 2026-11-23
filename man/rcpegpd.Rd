@@ -4,16 +4,28 @@
 \alias{rcpegpd}
 \title{Random generation from Compound Poisson-EGPD}
 \usage{
-rcpegpd(n, lambda, prob = NA, kappa = NA, delta = NA, sigma, xi, type = 1)
+rcpegpd(
+  n,
+  lambda,
+  prob = NA,
+  kappa = NA,
+  delta = NA,
+  sigma,
+  xi,
+  type = 1,
+  h = 0.2
+)
 }
 \arguments{
 \item{n}{number of observations}
 
-\item{lambda}{Poisson rate parameter (> 0)}
+\item{lambda}{Scalar Poisson rate (> 0). The distribution parameters
+describe one common severity and rate; they are not recycled over queries.}
 
 \item{prob}{G-transformation parameter (type 6 only)}
 
-\item{kappa}{G-transformation parameter}
+\item{kappa}{G-transformation parameter; for type 2, zero is the
+uniform-carrier limit (ordinary GPD severity before gauge rounding).}
 
 \item{delta}{G-transformation parameter}
 
@@ -22,10 +34,31 @@ rcpegpd(n, lambda, prob = NA, kappa = NA, delta = NA, sigma, xi, type = 1)
 \item{xi}{GPD shape parameter}
 
 \item{type}{integer 1-6 specifying G-transformation type}
+
+\item{h}{gauge resolution (default 0.2, as in \code{dcpegpd()}); each
+event amount is rounded up to a multiple of \code{h}. Use \code{h = 0}
+for the continuous sum.}
 }
 \value{
-numeric vector of length n
+numeric vector of length \code{n}; multiples of \code{h} when
+  \code{h > 0}
 }
 \description{
-Direct simulation: draw N ~ Poisson(lambda), then sum N iid EGPD draws.
+Draws \eqn{N \sim \mathrm{Poisson}(\lambda)} and \eqn{N} EGPD event
+amounts, rounds each amount up to a multiple of \code{h} and returns the
+sum: a draw of \eqn{S_h = \sum_{i=1}^{N} h \lceil X_i / h \rceil}, which
+has exactly the law of \code{\link{dcpegpd}}, \code{\link{pcpegpd}} and
+\code{\link{qcpegpd}} for the same \code{h} (Ailliot et al. 2026,
+Appendix F). Such draws can be passed directly to
+\code{distfit(family = "cpegpd")} or \code{\link{fit_aggregate_egpd}}
+with matching \code{cpegpd.h}.
+}
+\details{
+\code{h = 0} returns the continuous compound sum
+\eqn{S = \sum_{i=1}^{N} X_i}, whose law d/p/qcpegpd approximate only as
+\eqn{h \to 0} (\eqn{S_h \ge S}, with \eqn{E[S_h] - E[S]} about
+\eqn{\lambda h / 2}).
+
+Missing required parameters are an error and supplied \code{NA}
+parameters give \code{NA} draws with a warning (see \code{\link{dcpegpd}}).
 }

@@ -39,9 +39,12 @@ rgwaring(n, mu = 1, k = 1, rho = 2.5)
 
 \item{p}{vector of probabilities}
 
-\item{max.value}{largest count searched when inverting the cdf}
+\item{max.value}{largest count searched when inverting the cdf; nonattaining
+caps return \code{NA} with a warning. Invalid probabilities return \code{NaN},
+with endpoints 0 and \code{Inf}.}
 
-\item{n}{number of draws}
+\item{n}{number of draws; if \code{length(n) != 1}, the length is taken to be
+the number required (\code{numeric(0)} gives none), as in \code{\link[stats]{rpois}}}
 }
 \value{
 a numeric vector
@@ -53,4 +56,34 @@ The three-parameter generalized Waring distribution in the mean parameterisation
 placing it in the Frechet domain, unlike the negative binomial, PIG, generalized Poisson
 or Poisson-lognormal. The mean exists for \code{rho > 1} and the variance for
 \code{rho > 2}. Setting \code{k = 1} recovers the Waring distribution.
+}
+\details{
+As \code{rho -> Inf} with \code{mu} and \code{k} fixed it tends to the negative binomial
+with \code{size = k}, and as \code{rho} and \code{k} grow with \code{rho >> k} to the
+Poisson; these functions stay accurate along the way. When fitted by
+\code{egpd(family = "gwaring")} the likelihood is evaluated with the parameters clamped to
+\code{mu} in \code{[1e-10, 1e12]}, \code{k} in \code{[1e-8, 1e15]} and \code{rho} in
+\code{[1 + 1e-6, 1e15]}. At \code{rho = 1e15} the distribution differs from its
+negative-binomial limit only by \code{O(1/rho)}, and the Poisson limit is approached most
+closely at \code{k = sqrt(mu rho)}, inside the bound on \code{k}. Beyond a bound the
+likelihood is flat (a fit to light-tailed data can drift there), and \code{predict()}
+reports the clamped values.
+
+Tail probabilities beyond the run of the probability mass function that the functions sum
+come from a beta-negative-binomial mixture integral. Against 512-bit references it is
+accurate to about 1e-11 (relative) throughout and beyond the fitting bounds. Its one known
+limitation is a shape \code{k > 1e15}, beyond the fitting bound, with the tail evaluated at
+a count above 1000: \code{P(Y > q)} can then be off by up to about 1e-3 (relative), though by
+less than 1e-9 for counts up to 2e4, and \code{P(Y <= q)} by up to 1e-3 times
+\code{P(Y > q)}. When a call uses such a value, \code{pgwaring()}, \code{qgwaring()} and
+\code{rgwaring()} return it unchanged and warn once, with a warning of class
+\code{"egpd_gwaring_accuracy"}. Calls that use only lower-tail probabilities on the
+probability scale (\code{lower.tail = TRUE, log.p = FALSE}, and \code{rgwaring()}, which
+inverts them) warn only where that \code{P(Y > q)} exceeds 1e-8, since below it they are
+accurate to about 1e-11.
+\code{suppressWarnings(expr, classes = "egpd_gwaring_accuracy")} silences the warning.
+At a CDF jump, \code{qgwaring()} allows for numerical rounding: targets
+within the comparison tolerance need not give the strict inverse of an
+arbitrary-precision CDF. An ordinary upper probability above one half
+is inverted using the smaller lower probability \code{1 - p}.
 }

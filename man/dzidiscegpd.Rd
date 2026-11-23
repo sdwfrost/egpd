@@ -12,7 +12,8 @@ dzidiscegpd(
   delta = NA,
   sigma = NA,
   xi = NA,
-  type = 1
+  type = 1,
+  log = FALSE
 )
 }
 \arguments{
@@ -31,10 +32,18 @@ dzidiscegpd(
 \item{xi}{GPD shape parameter}
 
 \item{type}{integer 1-6 specifying G type}
+
+\item{log}{logical: return log-PMF?}
 }
 \value{
 PMF values
 }
 \description{
-Density of the Zero-Inflated Discrete Extended GPD
+Numeric arguments, including carrier parameters, are recycled to their
+common maximum length.
+}
+\details{
+Parameters required by \code{type} (\code{pi}, the GPD \code{sigma} and \code{xi}
+  and the carrier parameters) must be supplied: a missing one is an error,
+  whereas supplied \code{NA} values give \code{NA} results.
 }

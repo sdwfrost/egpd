@@ -56,11 +56,12 @@ data.frame(
   quantile = round(qvals, 3),
   cdf_back = round(do.call(pcomppareto, c(list(q = qvals), args)), 6)
 )
-#>   prob quantile cdf_back
-#> 1 0.50    1.834     0.50
-#> 2 0.90    9.021     0.90
-#> 3 0.99   44.153     0.99
 ```
+
+      prob quantile cdf_back
+    1 0.50    1.834     0.50
+    2 0.90    9.021     0.90
+    3 0.99   44.153     0.99
 
 The returned probabilities agree with the inputs, showing the usual
 `p(q(p)) = p` roundtrip.
@@ -80,7 +81,7 @@ plot(grid, dens_vals, type = "l", lwd = 2,
 abline(v = args$theta, lty = 2, col = "grey50")
 ```
 
-![](../articles/composite-pareto_files/figure-gfm/standalone-curves-1.png)<!-- -->
+![](composite-pareto_files/figure-gfm/standalone-curves-1.png)
 
 ``` r
 par(op)
@@ -101,11 +102,12 @@ data.frame(
     c(list(x = c(args$theta - eps, args$theta, args$theta + eps)), args)
   )
 )
-#>          x    density
-#> 1 3.199999 0.07977388
-#> 2 3.200000 0.07977382
-#> 3 3.200001 0.07977378
 ```
+
+             x    density
+    1 3.199999 0.07977388
+    2 3.200000 0.07977382
+    3 3.200001 0.07977378
 
 The values are nearly identical, reflecting the continuity built into
 the construction.
@@ -132,12 +134,13 @@ data.frame(
     "lograte, logalpha, logtheta"
   )
 )
-#>      spec        standalone_parameters                      gam_formula_names
-#> 1   lnorm meanlog, sdlog, alpha, theta  meanlog, logsdlog, logalpha, logtheta
-#> 2   gamma   shape, scale, alpha, theta logshape, logscale, logalpha, logtheta
-#> 3 weibull   shape, scale, alpha, theta logshape, logscale, logalpha, logtheta
-#> 4     exp           rate, alpha, theta            lograte, logalpha, logtheta
 ```
+
+         spec        standalone_parameters                      gam_formula_names
+    1   lnorm meanlog, sdlog, alpha, theta  meanlog, logsdlog, logalpha, logtheta
+    2   gamma   shape, scale, alpha, theta logshape, logscale, logalpha, logtheta
+    3 weibull   shape, scale, alpha, theta logshape, logscale, logalpha, logtheta
+    4     exp           rate, alpha, theta            lograte, logalpha, logtheta
 
 The exponential-body case is especially convenient for regression
 examples because it only needs three parameter formulas.
@@ -180,8 +183,9 @@ fit <- suppressMessages(
 )
 
 fit$convergence
-#> [1] 0
 ```
+
+    [1] 0
 
 The fitted response-scale parameters can be predicted in the usual way.
 
@@ -191,14 +195,15 @@ pars_hat <- predict(fit, newdata = pred_grid, type = "response")
 rate_true <- exp(-0.2 + 1.0 * sin(pi * pred_grid$x))
 
 head(round(pars_hat, 3))
-#>    rate alpha theta
-#> 1 0.688 1.338  3.43
-#> 2 0.654 1.338  3.43
-#> 3 0.622 1.338  3.43
-#> 4 0.591 1.338  3.43
-#> 5 0.562 1.338  3.43
-#> 6 0.535 1.338  3.43
 ```
+
+       rate alpha theta
+    1 0.688 1.338  3.43
+    2 0.654 1.338  3.43
+    3 0.622 1.338  3.43
+    4 0.591 1.338  3.43
+    5 0.562 1.338  3.43
+    6 0.535 1.338  3.43
 
 ``` r
 plot(pred_grid$x, pars_hat$rate, type = "l", lwd = 2,
@@ -212,7 +217,7 @@ legend("topright",
        bty = "n")
 ```
 
-![](../articles/composite-pareto_files/figure-gfm/gam-plot-1.png)<!-- -->
+![](composite-pareto_files/figure-gfm/gam-plot-1.png)
 
 In this setup, the fitted smooth tracks the nonlinear truth well rather
 than shrinking toward a nearly linear trend. Note that recovering
@@ -236,19 +241,21 @@ round(
   ),
   3
 )
-#>   q:0.5  q:0.9  q:0.99
-#> 1 2.565 16.492 107.904
-#> 2 2.565 16.492 107.904
-#> 3 2.565 16.492 107.904
 ```
+
+      q:0.5  q:0.9  q:0.99
+    1 2.565 16.492 107.904
+    2 1.093  8.462  63.032
+    3 0.424  1.500  10.433
 
 Randomized quantile residuals are available as well.
 
 ``` r
 summary(rqresid(fit, seed = 1))
-#>      Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
-#> -3.530068 -0.637197 -0.001519  0.004450  0.689844  3.382021
 ```
+
+         Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+    -3.530068 -0.637197 -0.001519  0.004450  0.689844  3.382021 
 
 ## 5. Intercept-only four-parameter fits
 

@@ -20,11 +20,13 @@ qcpegpd(
 \arguments{
 \item{p}{numeric vector of probabilities}
 
-\item{lambda}{Poisson rate parameter (> 0)}
+\item{lambda}{Scalar Poisson rate (> 0). The distribution parameters
+describe one common severity and rate; they are not recycled over queries.}
 
 \item{prob}{G-transformation parameter (type 6 only)}
 
-\item{kappa}{G-transformation parameter}
+\item{kappa}{G-transformation parameter; for type 2, zero is the
+uniform-carrier limit (ordinary GPD severity before gauge rounding).}
 
 \item{delta}{G-transformation parameter}
 
@@ -34,13 +36,25 @@ qcpegpd(
 
 \item{type}{integer 1-6 specifying G-transformation type}
 
-\item{h}{bin width for discretization (default 0.2)}
+\item{h}{positive gauge resolution: event amounts are rounded up to
+multiples of \code{h} (default 0.2).}
 
-\item{K}{number of bins (default: ceiling(max(x)/h) + 50)}
+\item{K}{number of bins (default: covers finite queries with a grid margin).
+Quantile functions default to 5000 bins.}
 }
 \value{
-numeric vector of quantiles
+numeric vector of quantiles (multiples of \code{h})
 }
 \description{
-Quantile function of Compound Poisson-EGPD
+Quantiles of the gauge-discretised compound sum
+\eqn{S_h = \sum_{i=1}^{N} h \lceil X_i / h \rceil} described in
+\code{\link{dcpegpd}} (Ailliot et al. 2026, Appendix F).
+}
+\details{
+Returns the smallest lattice point \eqn{kh} with
+  \eqn{P(S_h \le kh) \ge p}, and \code{Inf} at probability one for a
+  nondegenerate compound distribution. Invalid probabilities produce
+  \code{NaN}. If a probability in \eqn{(0,1)} exceeds the grid CDF, an
+  error requests a larger \code{K}; the endpoint is never returned as a
+  false quantile.
 }

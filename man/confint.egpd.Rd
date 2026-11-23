@@ -4,27 +4,138 @@
 \alias{confint.egpd}
 \title{Confidence intervals for egpd model parameters}
 \usage{
-\method{confint}{egpd}(object, parm = NULL, level = 0.95, method = c("wald", "profile"), ...)
+\method{confint}{egpd}(
+  object,
+  parm = NULL,
+  level = 0.95,
+  method = c("wald", "profile"),
+  marginal = TRUE,
+  newdata = NULL,
+  ...
+)
 }
 \arguments{
 \item{object}{A fitted \code{egpd} object.}
 
 \item{parm}{Which parameters to compute CIs for.  \code{NULL} (default)
-selects the intercept of each distributional parameter.  Can also be a
+selects the intercept or fixed offset-only term of each distributional
+parameter. Can also be a
 character vector of stripped parameter names (e.g. \code{"scale"},
-\code{"shape"}) or an integer vector of coefficient indices.}
+\code{"shape"}; aliases \code{"sigma"}/\code{"psi"} and \code{"xi"}
+are accepted) or of full coefficient names (e.g. \code{"logscale_x"}), or an
+integer vector of coefficient indices. Requesting a parameter by name whose
+predictor has no intercept is an error. With \code{newdata}, a character
+vector of parameter names (default: all parameters).}
 
-\item{level}{Confidence level (default 0.95).}
+\item{level}{Confidence level in \eqn{[0,1]} (default 0.95). At level 1
+there is no finite likelihood-ratio cutoff: profile limits are the
+link-scale boundaries, transformed for response-scale rows. Parameters
+held fixed retain their point intervals. If a custom inverse link has
+a restricted domain and its two limits do not bound the fitted value,
+a 100\% response-scale interval is not available.}
 
 \item{method}{Either \code{"wald"} (default) or \code{"profile"}.  Profile
 likelihood CIs are only available for intercept-only models (no smooth
-terms or covariates beyond an intercept).}
+terms or covariates beyond an intercept), and not with \code{newdata}. A
+profile interval can extend to the boundary of the parameter space (see
+Value); an endpoint that cannot be bracketed otherwise is \code{NA}, with a
+warning. The profile is that of the log-likelihood itself, compared with the
+chi-squared cutoff: a fit made with \code{gamma != 1} (see \code{\link{egpd}})
+is profiled without dividing the log-likelihood by \code{gamma}, since, as in
+\pkg{mgcv}, \code{gamma} only affects how smoothing parameters are selected. A
+sandwich-adjusted fit is profiled on its adjusted log-likelihood. GPIG
+and ZIGPIG profiles use the fit's saved likelihood evaluator, not the
+current global setting; older fits without these settings must be refitted.}
+
+\item{marginal}{Logical; for \code{method = "wald"}, use \code{object$Vc}
+(accounting for smoothing-parameter uncertainty) when \code{TRUE}, the
+default (as in \code{\link{predict.egpd}}); \code{FALSE} uses \code{object$Vp}.}
+
+\item{newdata}{Optional data frame. If supplied, Wald intervals for the
+distributional parameters themselves are returned at each of its rows: the
+interval for the linear predictor (including offsets) is transformed by the
+fitted inverse link, including count-family clamps. The same clamps
+apply to parameter-level Wald intervals without \code{newdata}, but
+not to coefficient-scale intervals.}
 
 \item{...}{Not used.}
 }
 \value{
-A matrix with columns \code{"lower"} and \code{"upper"}, on the
-  response (natural) scale.  Rows are named by parameter.
+A matrix with columns \code{"lower"} and \code{"upper"}.
+  \itemize{
+    \item Without \code{newdata}, a coefficient that alone determines its
+      parameter -- the intercept of an intercept-only predictor (plus any
+      constant offset), or a pinned offset-only term -- gives a
+      \emph{parameter-level} interval on the response (natural) scale, using the
+      fitted inverse link (including bounded shape links, and
+      \code{custom.fns$unlink} for \code{family = "custom"}); its row is named by
+      the parameter (e.g. \code{"scale"}). A decreasing inverse link (a
+      \code{custom.fns$unlink} such as \code{1/eta} or \code{exp(-eta)}) maps the
+      upper link-scale limit to the lower response-scale one, so
+      \code{"lower"} never exceeds \code{"upper"} (here and with
+      \code{newdata}). Pinned (constant offset-only)
+      parameters have degenerate intervals at their fixed values. The
+      generalized Waring \eqn{\rho}, log-linked although its parameter space is
+      \eqn{\rho > 1}, is evaluated by the likelihood (and reported by
+      \code{\link{predict.egpd}}) as at least \eqn{1 + 10^{-6}}, so a lower
+      limit that would fall below that is \eqn{1 + 10^{-6}}.
+    \item Every other coefficient (slopes, smooth coefficients, and intercepts of
+      predictors with covariates or varying offsets) gives an interval for the
+      coefficient itself on the link scale; its row is named by the full
+      coefficient name (e.g. \code{"logscale_x"}). Transforming such an
+      interval by the inverse link would not be an interval for any parameter.
+    \item With \code{newdata}, rows are named \code{"<parameter>[<row>]"} and
+      all intervals are on the response scale (\eqn{\rho} as above). A row whose
+      linear predictor involves a coefficient without positive variance (an
+      unidentified one) has \code{NA} limits, as without \code{newdata}; a
+      pinned parameter has a degenerate interval at its fixed value.
+    \item For \code{method = "profile"}, the search for each limit starts from the
+      estimate in steps of the coefficient's standard error, or, where that is not a
+      usable scale -- the Hessian behind the standard errors is singular
+      (\code{hessian.rank}, see \code{\link{egpd}}), or the variance is zero or
+      negligible -- of \eqn{0.1 (|\hat\beta| + 1)}{0.1 (|estimate| + 1)}. Each
+      point of the profile is fitted from the estimates of the other coefficients.
+      Where hard count-family bounds can be imposed on the nuisance intercepts,
+      they are optimised within those bounds, using inward differences at an edge
+      and comparing an interior start for a nuisance estimate on a clamp.
+      On weakly identified fits that start can lie on a plateau or in another basin
+      far from the estimate, where the fit overstates the deviance and would cut the
+      interval short, so a finite limit is accepted only once the point just beyond
+      it still exceeds the cutoff when refitted from the solution at its neighbour
+      inside the interval, from the estimates with every coefficient whose standard
+      error exceeds 10 set to 0, from all coefficients 0, and at the end of a short
+      continuation from the estimate. For a model-4 carrier with a free nuisance
+      \eqn{\delta}, starts near both limiting carriers are also checked: the better
+      branch can change between the estimate and the limit. If a checked point is
+      below the cutoff, the search continues outward, each
+      point also fitted from the solution at the nearest point below the cutoff,
+      whose value replaces the first where it is lower by more than 0.01; so where
+      the fits from the estimates attain the minimum the interval is unchanged. Fits
+      with a deviance below that of the estimate, or with a coefficient beyond 700 in
+      absolute value on its link scale (where floating-point evaluation of the
+      likelihood fails), are not used.
+      If the profile deviance is still below the chi-squared cutoff 96 steps from the
+      estimate and has levelled off (it changes by less than 0.001 between 48 and 96
+      steps), the interval extends to the boundary of the parameter space in that
+      direction.
+      The endpoint is then the limit of the inverse link as the link-scale
+      coefficient tends to \code{-Inf} or \code{Inf}: for example 0 (lower) or
+      \code{Inf} (upper) for a log-link parameter such as the shape \eqn{\xi},
+      0 or 1 for logit, probit and cloglog links, and 0 or \code{xi.max} for the
+      bounded shape link (\eqn{1 + 10^{-6}} for a lower generalized Waring
+      \eqn{\rho}, as above). Link-scale rows report \code{-Inf} or \code{Inf}.
+    \item For \code{method = "profile"}, each profile point refits the other
+      coefficients. If one of these fits reaches a log-likelihood more than 0.05
+      above the fitted one (a profile deviance below \eqn{-0.1}), the fit is not the
+      maximum likelihood estimate (as \pkg{MASS}'s \code{profile.glm()} reports, the
+      profile "has found a better solution"): a warning of class
+      \code{"egpd_profile_better_fit"}, given once per call, reports the largest
+      gain found and the coefficient whose profile found it. The intervals are still
+      those of the profile relative to the fit, which is not optimal; refit the
+      model, e.g. from other starting values (\code{inits}) or, for families
+      \code{"egpd"}, \code{"degpd"}, \code{"zidegpd"} and \code{"comppareto"}, with
+      \code{restarts = TRUE}, and profile the new fit.
+  }
 }
 \description{
 Confidence intervals for egpd model parameters

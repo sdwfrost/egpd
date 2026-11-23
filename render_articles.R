@@ -21,10 +21,13 @@ for (rmd in rmd_files) {
   writeLines(txt, tmp)
 
   fmt <- rmarkdown::github_document(html_preview = FALSE)
+  # Knit in vignettes/ so vignettes can read their data files
+  # (e.g. parameter-coverage-results.rds)
   rmarkdown::render(
     tmp,
     output_format = fmt,
     output_dir = articles_dir,
+    knit_root_dir = normalizePath("vignettes"),
     quiet = TRUE
   )
 

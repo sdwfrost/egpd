@@ -90,10 +90,13 @@ test_that("a log-link fit reports the log-likelihood its own density implies", {
   d$season <- (seq_len(n) %% 52) / 52
   d$cases <- rnbinom(n, size = 2, mu = 20 + 15 * sin(2 * pi * d$season))
 
-  fit <- egpd(list(lsigma = cases ~ s(t, k = 10) + s(season, bs = "cc", k = 6),
+  expect_warning(
+    fit <- egpd(list(lsigma = cases ~ s(t, k = 10) + s(season, bs = "cc", k = 6),
                    lxi = ~1, lkappa = ~1),
               data = d, family = "degpd", degpd.args = list(m = 1),
-              restarts = FALSE, trace = 0, knots = list(season = c(0, 1)))
+              restarts = FALSE, trace = 0, knots = list(season = c(0, 1))),
+    "analytic DEGPD d34 is unstable near zero shape"
+  )
 
   pa <- as.data.frame(predict(fit, type = "response"))
   manual <- sum(dDEGPD1(d$cases, mu = pa$scale, sigma = pa$shape, nu = pa$kappa,

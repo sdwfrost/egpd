@@ -1,15 +1,244 @@
+## Inverse links shared by predictions, parameter draws, and confidence intervals.
+## A custom family's own inverse link (custom.fns$unlink, by predictor) takes
+## precedence; otherwise the link is the one named by the predictor's prefix.
+.strip_link <- function(name) sub("^(cloglog|probit|logit|log)", "", name)
+
+.egpd_invlink <- function(object, name, eta, deriv = FALSE) {
+  if (identical(object$family, "custom")) {
+    i <- match(name, names(object)[seq_len(object$ngam)])
+    ul <- object$likfns$unlink
+    fn <- if (!is.na(i) && i <= length(ul)) ul[[i]] else NULL
+    if (!is.null(fn)) {
+      if (!deriv) return(.egpd_apply_unlink(fn, eta, name))
+      dfn <- attr(fn, "deriv")
+      if (!is.null(dfn)) return(.egpd_apply_unlink(dfn, eta, name))
+      ## no derivative supplied: a central difference, with a relative step near
+      ## the optimum eps^(1/3) for its truncation and rounding errors
+      h <- 6e-6 * pmax(abs(eta), 1)
+      return((.egpd_apply_unlink(fn, eta + h, name) -
+              .egpd_apply_unlink(fn, eta - h, name)) / (2 * h))
+    }
+  }
+  if (identical(name, "logshape") && isTRUE(object$likdata$bounded.xi) &&
+      !isTRUE(object$likfns$identity.xi)) {
+    a <- object$likdata$xi.max
+    t <- exp(eta) / a
+    if (!deriv) return(-a * expm1(-t))
+    out <- exp(eta - t)
+    out[is.infinite(t) & !is.na(t)] <- 0
+    return(out)
+  }
+  if (startsWith(name, "logit")) {
+    p <- plogis(eta)
+    return(if (deriv) p * (1 - p) else p)
+  }
+  if (startsWith(name, "probit"))
+    return(if (deriv) dnorm(eta) else pnorm(eta))
+  if (startsWith(name, "cloglog")) {
+    if (!deriv) return(-expm1(-exp(eta)))
+    out <- exp(eta - exp(eta))
+    out[is.infinite(eta) & eta > 0] <- 0
+    return(out)
+  }
+  if (startsWith(name, "log")) return(exp(eta))
+  if (deriv) return(eta * 0 + 1)
+  eta
+}
+
+## Apply a user-supplied (custom-family) inverse link, or its derivative, keeping the
+## shape of `eta` (a vector, or the observation-by-draw matrix of simulate()).
+.egpd_apply_unlink <- function(fn, eta, name) {
+  out <- fn(eta)
+  if (is.numeric(out) && length(out) == 1L) out <- rep(out, length(eta))
+  if (!is.numeric(out) || length(out) != length(eta))
+    stop("custom.fns$unlink for '", name, "' must return one number per value of ",
+         "its linear predictor", call. = FALSE)
+  attributes(out) <- attributes(eta)
+  out
+}
+
+## Effective response-scale bounds used by the count likelihoods.
+.egpd_count_bounds <- function(family) {
+  switch(as.vector(family),
+         gpig = , gpignat = , zigpig = , zigpignat =  # eta_to_abc in src/gpig.cpp
+           c(a_lo = 1e-3, a_hi = 1 - 1e-6, c_lo = 1e-6, c_hi = 1 - 1e-6),
+         cmp = cmp_bounds_cpp(), prl = prl_bounds_cpp(),
+         gpois = , plnorm = , gwaring = cf_bounds_cpp()[[family]],
+         ztgwaring = cf_bounds_cpp()[["gwaring"]], NULL)
+}
+
+.egpd_param_bounds <- function(bd, name, link = FALSE) {
+  key <- paste0(.strip_link(name), c("_lo", "_hi"))
+  if (!all(key %in% names(bd))) return(NULL)
+  lim <- unname(bd[key])
+  if (!link) return(lim)
+  if (startsWith(name, "logit")) qlogis(lim) else log(lim)
+}
+
+## Response-scale parameters clamped to the safe interior that the likelihood itself
+## uses, so that predict() and simulate() describe the model that was fitted. `pars`
+## is any named list of vectors or matrices (a data frame from predict(), or the
+## draw matrices of simulate()); entries are matched by name.
+.egpd_clamp_response <- function(pars, family, bd = .egpd_count_bounds(family)) {
+  for (pn in names(pars)) {
+    lim <- .egpd_param_bounds(bd, pn)
+    if (length(lim)) pars[[pn]] <- pmin(pmax(pars[[pn]], lim[1]), lim[2])
+  }
+  pars
+}
+
+## Arguments of the EGPD distribution functions (sigma, xi, kappa, delta, prob, type)
+## from response-scale parameters, matched by name. Model 2's second power is
+## kappa2 = kappa1 + dkappa.
+.egpd_dist_args <- function(pars, m) {
+  out <- list(sigma = pars[["scale"]], xi = pars[["shape"]],
+              type = c(1L, 6L, 4L, 5L, 2L, 3L)[m])
+  if (m %in% c(1L, 4L, 5L, 6L)) out$kappa <- pars[["kappa"]]
+  if (m %in% c(3L, 4L)) out$delta <- pars[["delta"]]
+  if (m == 2L) {
+    out$kappa <- pars[["kappa1"]]
+    out$delta <- pars[["kappa1"]] + pars[["dkappa"]]
+    out$prob  <- pars[["p"]]
+  }
+  out
+}
+
+## Keep familiar short labels unless two distinct probabilities need more
+## digits to distinguish them (e.g. the largest double below one and one).
+.egpd_qnames <- function(prob) {
+  if (!length(prob)) return(character(0))
+  p <- unique(prob)
+  lab <- vapply(p, format, character(1), digits = 15)
+  dup <- duplicated(lab) | duplicated(lab, fromLast = TRUE)
+  if (any(dup)) lab[dup] <- vapply(p[dup], format, character(1), digits = 17)
+  paste0("q:", lab[match(prob, p)])
+}
+
+## Quantiles at probabilities `prob` for response-scale parameters `pars` (a data
+## frame or named list of equal-length vectors, by parameter name, as returned by
+## predict(type = "response") before the `xi` alias is added). Returns a
+## length(rows) x length(prob) matrix. Shared by predict() and simulate().
+.egpd_quantile <- function(object, pars, prob) {
+  family <- object$family
+  pars <- as.data.frame(pars, optional = TRUE)
+  nms <- names(pars)
+  ndat <- nrow(pars)
+  nprob <- length(prob)
+  out <- matrix(NA_real_, ndat, nprob)
+  if (family %in% c("custom", "comppareto")) q_fn <- object$likfns$q
+
+  if (family %in% c("egpd", "degpd", "zidegpd", "ztdegpd"))
+    q_args <- .egpd_dist_args(pars, object$likfns$m)
+
+  for (j in seq_len(nprob)) {
+    pj <- prob[j]
+
+    if (family == "custom") {
+      if (length(nms) == 1) {
+        out[, j] <- q_fn(pj, pars[,1])
+      } else if (length(nms) == 2) {
+        out[, j] <- q_fn(pj, pars[,1], pars[,2])
+      } else if (length(nms) == 3) {
+        out[, j] <- q_fn(pj, pars[,1], pars[,2], pars[,3])
+      } else {
+        out[, j] <- q_fn(pj, pars[,1], pars[,2], pars[,3], pars[,4])
+      }
+    } else if (family == "comppareto") {
+      out[, j] <- do.call(q_fn, c(list(pj), unname(as.list(pars[seq_along(nms)]))))
+    } else if (family == "egpd") {
+      out[, j] <- do.call(qegpd, c(list(p = rep(pj, ndat)), q_args))
+    } else if (family == "degpd") {
+      out[, j] <- do.call(qdiscegpd, c(list(p = rep(pj, ndat)), q_args))
+    } else if (family == "zidegpd") {
+      out[, j] <- do.call(qzidiscegpd, c(list(p = rep(pj, ndat), pi = pars[["pi"]]), q_args))
+    } else if (family %in% c("ztdegpd", "ztgwaring")) {
+      out[, j] <- .zt_quantile(family, pars, rep(pj, ndat))
+    } else if (family == "gpd") {
+      out[, j] <- .qgpd(pj, 0, pars[,1], pars[,2])
+    } else if (family == "pig") {
+      out[, j] <- qpig(rep(pj, ndat), mu = pars$mu, sigma = pars$sigma)
+    } else if (family == "zipig") {
+      out[, j] <- qzipig(rep(pj, ndat), mu = pars$mu, sigma = pars$sigma, pi = pars$pi)
+    } else if (family == "gpig") {
+      out[, j] <- qGPIG(rep(pj, ndat), mu = pars$mu, sigma = pars$a, nu = pars$c)
+    } else if (family == "gpignat") {
+      out[, j] <- qgpig(rep(pj, ndat), a = pars$a, b = pars$b, c = pars$c)
+    } else if (family == "zigpig") {
+      out[, j] <- qZIGPIG(rep(pj, ndat), mu = pars$mu, sigma = pars$a, nu = pars$c, tau = pars$pi)
+    } else if (family == "zigpignat") {
+      out[, j] <- qzigpig(rep(pj, ndat), a = pars$a, b = pars$b, c = pars$c, pi = pars$pi)
+    } else if (family == "bell") {
+      out[, j] <- qBELL(rep(pj, ndat), mu = pars$mu)
+    } else if (family == "bellnat") {
+      out[, j] <- qbell(rep(pj, ndat), theta = pars$theta)
+    } else if (family == "zibell") {
+      out[, j] <- qZIBELL(rep(pj, ndat), mu = pars$mu, sigma = pars$pi)
+    } else if (family == "zibellnat") {
+      out[, j] <- qzibell(rep(pj, ndat), theta = pars$theta, pi = pars$pi)
+    } else if (family == "cmp") {
+      out[, j] <- vapply(seq_len(ndat), function(i) qcmp(pj, mu = pars$mu[i], nu = pars$nu[i]), numeric(1))
+    } else if (family == "prl") {
+      out[, j] <- vapply(seq_len(ndat), function(i) qprl(pj, tau = .prl_tau_from_mu(pars$mu[i])), numeric(1))
+    } else if (family == "gpois") {
+      out[, j] <- vapply(seq_len(ndat), function(i) qgpois(pj, mu = pars$mu[i], lambda = pars$lambda[i]), numeric(1))
+    } else if (family == "gwaring") {
+      out[, j] <- vapply(seq_len(ndat), function(i) qgwaring(pj, mu = pars$mu[i], k = pars$k[i], rho = pars$rho[i]), numeric(1))
+    } else if (family == "plnorm") {
+      out[, j] <- vapply(seq_len(ndat), function(i) qpoislnorm(pj, mu = pars$mu[i], sigma = pars$sigma[i]), numeric(1))
+    } else {
+      stop("invalid family for quantile prediction")
+    }
+  }
+  out
+}
+
 #' Predictions from a fitted \code{egpd} object
 #'
 #' @param object a fitted \code{egpd} object
-#' @param newdata a data frame
+#' @param newdata a data frame. A missing input to one linear predictor
+#'   gives a missing value for that predictor on that row; other rows
+#'   retain their own design values and offsets. Evaluated predictor terms
+#'   must have one row per prediction row. Supply row-specific covariates
+#'   and offsets as columns rather than vectors in the formula environment.
 #' @param type a character string: "link", "response", "lpmatrix", or "quantile"
 #' @param prob a scalar or vector of probabilities for quantile estimation
-#' @param se.fit logical: should standard errors be returned? Defaults to FALSE
+#' @param se.fit logical: should standard errors be returned? Defaults to FALSE.
+#'   Response-scale delta-method SEs are zero on a flat part of a clamped
+#'   inverse link. At the kink there is no derivative, so the SE is
+#'   \code{NA} unless the linear predictor has zero uncertainty.
 #' @param marginal logical: should uncertainty integrate out smoothing parameter uncertainty? Defaults to TRUE
 #' @param trace an integer controlling output verbosity
 #' @param ... unused
 #'
-#' @return A data frame, list, or design matrix depending on \code{type}
+#' @return Depending on \code{type}:
+#'   \describe{
+#'     \item{\code{"link"}}{a data frame with one column per linear predictor,
+#'       named by its link (e.g. \code{logscale}, \code{logshape}), including
+#'       offsets.}
+#'     \item{\code{"response"}}{a data frame with one column per distributional
+#'       parameter on its natural scale, named by parameter (e.g. \code{scale},
+#'       \code{shape}, \code{kappa}, \code{pi}), clamped to the same safe interior
+#'       as the likelihood. For the EGPD families (\code{"egpd"}, \code{"degpd"},
+#'       \code{"zidegpd"}, \code{"ztdegpd"}) a further column \code{xi} repeats
+#'       \code{shape}, the GPD tail index, as a convenience alias; the data frame
+#'       therefore has one more column than the model has parameters, so select
+#'       columns by name (\code{pars$shape}, \code{pars[["kappa"]]}), not by
+#'       position or \code{ncol()}.}
+#'     \item{\code{"quantile"}}{a data frame with one column per probability,
+#'       named \code{"q:<prob>"} with the probability to 15 significant digits
+#'       (e.g. \code{"q:0.95"}, \code{"q:0.9995"}).}
+#'     \item{\code{"lpmatrix"}}{a list of design matrices, one per linear
+#'       predictor, with the offsets in \code{attr(, "offsets")}. They are in the
+#'       basis of the fitted coefficients (the matrix times the predictor's
+#'       coefficients, plus its offset, is the linear predictor); for \code{t2()}
+#'       terms this is \pkg{mgcv}'s fit basis, not the prediction basis of
+#'       \code{mgcv::predict.gam()}.}
+#'   }
+#'   With \code{se.fit = TRUE} (link or response), a list with elements
+#'   \code{fitted} and \code{se.fit} (for the response scale, delta-method
+#'   standard errors: the link-scale standard error times the absolute value of the
+#'   inverse link's derivative, which is negative for a decreasing
+#'   \code{custom.fns$unlink}).
 #'
 #' @export
 predict.egpd <- function(object, newdata, type="link", prob=NULL, se.fit=FALSE, marginal=TRUE,
@@ -32,7 +261,6 @@ if (family == "zidegpd") {
 }
 if (family == "custom") {
   q_fn <- object$likfns$q
-  unlink_fns <- object$likfns$unlink
 }
 if (family == "comppareto") {
   q_fn <- object$likfns$q
@@ -114,190 +342,52 @@ if (se.fit) {
 }
 
 if (type %in% c("response", "quantile")) {
-
-  if (family == "custom") {
-    for (i in seq_along(nms)) {
-      if (se.fit) {
-        if (!is.null(attr(unlink_fns[[i]], "deriv")))
-          std.err[, i] <- attr(unlink_fns[[i]], "deriv")(out[, i]) * std.err[, i]
+  bd <- .egpd_count_bounds(family)
+  for (i in seq_along(nms)) {
+    ## delta method: |d par / d eta| times the link-scale SE (a custom.fns$unlink
+    ## may be decreasing, e.g. 1/eta). A pin has SE zero without evaluating
+    ## a derivative, whose finite-difference probes could leave its domain.
+    val <- .egpd_invlink(object, nms[i], out[, i])
+    if (se.fit && type == "response" && !.is_pinned_block(object[[i]]$X)) {
+      slope <- .egpd_invlink(object, nms[i], out[, i], deriv = TRUE)
+      lim <- .egpd_param_bounds(bd, nms[i], link = TRUE)
+      if (length(lim)) {
+        eta <- out[, i]
+        slope[which(eta < lim[1] | eta > lim[2])] <- 0
+        slope[which(eta %in% lim & std.err[, i] > 0)] <- NA_real_
       }
-      if (!is.null(unlink_fns[[i]]))
-        out[, i] <- unlink_fns[[i]](out[, i])
+      std.err[, i] <- abs(slope) * std.err[, i]
     }
-  } else {
-    unlink <- which(substr(nms, 1, 3) == "log")
-    for (i in unlink) {
-      if (substr(nms[i], 1, 5) == "logit") {
-        ## logit link: pi = 1/(1+exp(-eta)), d(pi)/d(eta) = pi*(1-pi)
-        out[, i] <- 1 / (1 + exp(-out[, i]))
-        if (se.fit & type == "response")
-          std.err[, i] <- out[, i] * (1 - out[, i]) * std.err[, i]
-      } else {
-        ## log link: theta = exp(eta), d(theta)/d(eta) = theta
-        out[, i] <- exp(out[, i])
-        if (se.fit & type == "response")
-          std.err[, i] <- out[, i] * std.err[, i]
-      }
-    }
+    out[, i] <- val
   }
 
-  nms <- sub("^cloglog", "", nms)
-  nms <- sub("^probit", "", nms)
-  nms <- sub("^logit", "", nms)
-  nms <- sub("^log", "", nms)
+  nms <- .strip_link(nms)
   names(out) <- nms
 
   if (se.fit & type == "response")
     names(std.err) <- nms
 
-  ## Match the boundary guard applied inside the likelihood (src/gpig.cpp,
-  ## eta_to_abc): the GPIG/ZIGPIG tail exponent a and down-weighting c are
-  ## clamped to the same safe interior. In the likelihood a flat region beyond
-  ## the clamp lets the optimiser leave eta unbounded, so the plain inverse link
-  ## above can reconstruct an a/c marginally outside the bound; clamping here
-  ## makes predict() (and the quantiles below) agree with the fitted model.
-  if (family %in% c("gpig", "gpignat", "zigpig", "zigpignat")) {
-    if ("a" %in% names(out)) out[["a"]] <- pmin(pmax(out[["a"]], 1e-3), 1 - 1e-6)
-    if ("c" %in% names(out)) out[["c"]] <- pmin(pmax(out[["c"]], 1e-6), 1 - 1e-6)
-  }
-  ## The same guard for the count families of src/countfams.cpp. It matters most for the
-  ## generalized Waring: rho -> Inf is its negative-binomial limit, and since rho enters the
-  ## likelihood only through the clamp, the optimiser can push eta3 arbitrarily far with no
-  ## change in fit. Unclamped, predict() then reports rho = Inf (or 1e220) while the fitted
-  ## model actually used rho = 1e6 -- a boundary fit that looks like a converged one.
-  if (family == "cmp") {
-    bd <- cmp_bounds_cpp()                # single source of truth: the C++ clamps
-    if ("mu" %in% names(out)) out[["mu"]] <- pmin(pmax(out[["mu"]], bd[["mu_lo"]]), bd[["mu_hi"]])
-    if ("nu" %in% names(out)) out[["nu"]] <- pmin(pmax(out[["nu"]], bd[["nu_lo"]]), bd[["nu_hi"]])
-  }
-  if (family == "prl" && "mu" %in% names(out)) {
-    bd <- prl_bounds_cpp()                # single source of truth: the C++ clamp
-    out[["mu"]] <- pmin(pmax(out[["mu"]], bd[["mu_lo"]]), bd[["mu_hi"]])
-  }
-  if (family %in% c("gpois", "gwaring", "plnorm")) {
-    bd <- cf_bounds_cpp()[[family]]        # single source of truth: the C++ clamps
-    for (pn in c("mu", "lambda", "k", "rho", "sigma")) {
-      lo <- paste0(pn, "_lo"); hi <- paste0(pn, "_hi")
-      if (pn %in% names(out) && lo %in% names(bd))
-        out[[pn]] <- pmin(pmax(out[[pn]], bd[[lo]]), bd[[hi]])
-    }
-  }
-
-  ## issue #2: report the *bounded* tail index for DEGPD model 1 fitted with a
-  ## finite xi.max, matching the link used in the likelihood. The unlink above
-  ## produced exp(eta); map it through xi = xi.max*(1 - exp(-exp(eta)/xi.max)).
-  ## Applied before the quantile block so quantiles use the same bounded xi.
-  if (isTRUE(object$likdata$bounded.xi) && "shape" %in% names(out)) {
-    a <- object$likdata$xi.max
-    out[["shape"]] <- a * (1 - exp(-out[["shape"]] / a))
-  }
+  out <- .egpd_clamp_response(out, family, bd)
 
   if (type == "quantile") {
 
-    pars <- out
-    nprob <- length(prob)
-    out <- matrix(NA, ndat, nprob)
-
-    for (j in seq_len(nprob)) {
-      pj <- prob[j]
-
-      if (family == "egpd") {
-        if (egpd_m %in% c(1, 3, 5, 6)) {
-          pj <- egpd_iG(pj, pars[, 3])
-        } else {
-          if (egpd_m == 2) {
-            # Reparameterization: col 4 is exp(ldkappa) = kappa2 - kappa1; need kappa2 = kappa1 + dkappa
-            kappa2 <- pars[, 3] + pars[, 4]
-            pj <- egpd_iG(pj, pars[, 3], kappa2, pars[, 5])
-          } else {
-            pj <- egpd_iG(pj, pars[, 3], pars[, 4])
-          }
-        }
-      }
-
-      if (family == "degpd") {
-        if (degpd_m %in% c(1, 3, 5, 6)) {
-          pj <- degpd_iG(pj, pars[, 3])
-        } else {
-          if (degpd_m == 2) {
-            # Reparameterization: col 4 is exp(ldkappa) = kappa2 - kappa1; need kappa2 = kappa1 + dkappa
-            kappa2 <- pars[, 3] + pars[, 4]
-            pj <- degpd_iG(pj, pars[, 3], kappa2, pars[, 5])
-          } else {
-            pj <- degpd_iG(pj, pars[, 3], pars[, 4])
-          }
-        }
-      }
-
-      if (family == "zidegpd") {
-        if (zidegpd_m %in% c(1, 3, 5, 6)) {
-          pj <- ((pj - pars[, 4]) / (1 - pars[, 4])) - (1e-7)
-          pj <- ifelse(pj > 0, pj, 0)
-          pj <- zidegpd_iG(pj, pars[, 3])
-        } else {
-          if (zidegpd_m == 2) {
-            pj <- ((pj - pars[, 6]) / (1 - pars[, 6])) - (1e-7)
-            pj <- ifelse(pj > 0, pj, 0)
-            # Reparameterization: col 4 is exp(ldkappa) = kappa2 - kappa1; need kappa2 = kappa1 + dkappa
-            kappa2 <- pars[, 3] + pars[, 4]
-            pj <- zidegpd_iG(pj, pars[, 3], kappa2, pars[, 5])
-          } else {
-            pj <- ((pj - pars[, 5]) / (1 - pars[, 5])) - (1e-7)
-            pj <- ifelse(pj > 0, pj, 0)
-            if (zidegpd_m == 4) {
-              pj <- zidegpd_iG(pj, pars[, 4], pars[, 3])
-            } else {
-              pj <- zidegpd_iG(pj, pars[, 3], pars[, 4])
-            }
-          }
-        }
-      }
-
-      if (family == "custom") {
-        if (length(nms) == 1) {
-          out[, j] <- q_fn(pj, pars[,1])
-        } else if (length(nms) == 2) {
-          out[, j] <- q_fn(pj, pars[,1], pars[,2])
-        } else if (length(nms) == 3) {
-          out[, j] <- q_fn(pj, pars[,1], pars[,2], pars[,3])
-        } else {
-          out[, j] <- q_fn(pj, pars[,1], pars[,2], pars[,3], pars[,4])
-        }
-      } else if (family == "comppareto") {
-        if (length(nms) == 3) {
-          out[, j] <- q_fn(pj, pars[,1], pars[,2], pars[,3])
-        } else {
-          out[, j] <- q_fn(pj, pars[,1], pars[,2], pars[,3], pars[,4])
-        }
-      } else {
-        if (family %in% c("gpd", "egpd")) {
-          out[, j] <- .qgpd(pj, 0, pars[,1], pars[,2])
-        } else if (family == "degpd") {
-          out[, j] <- ceiling(.qgpd(pj, 0, pars[,1], pars[,2])) - 1
-          out[, j][out[, j] < 0] <- 0
-        } else if (family == "zidegpd") {
-          out[, j] <- ceiling(.qgpd(pj, 0, pars[,1], pars[,2])) - 1
-          out[, j][out[, j] < 0] <- 0
-        } else {
-          stop("invalid family for quantile prediction")
-        }
-      }
-    }
-
     if (se.fit) {
-      if (family %in% c("egpd", "degpd", "zidegpd"))
-        stop("Standard errors not yet available for this family.")
+      stop("Standard errors not yet available for quantile predictions.")
     }
 
+    out <- .egpd_quantile(object, out, prob)
     out <- as.data.frame(out)
-    names(out) <- paste("q", round(prob, 3), sep=":")
+    names(out) <- .egpd_qnames(prob)
 
   } ## end quantile
 
   ## Convenience alias: the GPD tail index is returned in the column named
   ## "shape" (from the logshape/shape link). Many users reach for `xi`; expose
   ## it as an alias so `pars[["xi"]]` does not silently return NULL (see #5).
+  ## Only for the EGPD families, where "shape" is the tail index: for CompPareto
+  ## "shape" is the body (gamma/Weibull) shape.
   if (type == "response" && is.data.frame(out) &&
+      family %in% c("egpd", "degpd", "zidegpd", "ztdegpd") &&
       "shape" %in% names(out) && !("xi" %in% names(out))) {
     out$xi <- out[["shape"]]
   }
@@ -319,22 +409,54 @@ return(out)
 }
 
 
-#' Randomized quantile residuals for a fitted \code{egpd} model
+#' Randomized Quantile Residuals
 #'
 #' Computes randomized quantile residuals (Dunn & Smyth, 1996) for
 #' discrete or continuous EGPD models. For discrete models, a uniform
 #' random variate is drawn between the lower and upper CDF bounds at
 #' each observation and transformed to the normal scale via
-#' \code{qnorm}. For continuous models, the CDF value is transformed
-#' directly.
+#' \code{\link{qnorm}}. For continuous models, the CDF value is transformed
+#' directly. Extreme upper-tail residuals use log survival probabilities so
+#' that a CDF rounded to one does not hide a finite residual.
 #'
-#' @param object a fitted \code{egpd} object
+#' For a well-specified model the residuals should be approximately
+#' standard normal. The generic \code{rqresid} dispatches to the
+#' \code{rqresid.egpd} method for objects of class \code{"egpd"}.
+#'
+#' The method supports every \code{\link{egpd}} family except
+#' \code{"custom"}: the EGPD families (\code{"egpd"}, \code{"degpd"},
+#' \code{"zidegpd"}, \code{"ztdegpd"}) with all model types (1--6), the
+#' composite-Pareto family (\code{"comppareto"}), and the count families
+#' \code{"pig"}, \code{"zipig"}, \code{"gpig"}, \code{"gpignat"},
+#' \code{"zigpig"}, \code{"zigpignat"}, \code{"bell"}, \code{"bellnat"},
+#' \code{"zibell"}, \code{"zibellnat"}, \code{"cmp"}, \code{"prl"},
+#' \code{"gpois"}, \code{"gwaring"}, \code{"ztgwaring"} and
+#' \code{"plnorm"}. The fit must keep its data (the default
+#' \code{removeData = FALSE}). A non-\code{NULL} \code{seed} is passed to
+#' \code{\link{set.seed}}, so it resets the global random number stream.
+#'
+#' @param object a fitted \code{\link{egpd}} object
 #' @param seed optional random seed for reproducibility
 #' @param ... unused
 #'
 #' @return A numeric vector of randomized quantile residuals on the
-#'   standard normal scale
+#'   standard normal scale. Values that are infinite are replaced with
+#'   \code{NA}.
 #'
+#' @references
+#' Dunn, P. K. and Smyth, G. K. (1996).
+#' Randomized quantile residuals.
+#' \emph{Journal of Computational and Graphical Statistics}, 5(3), 236--244.
+#' \doi{10.1080/10618600.1996.10474708}
+#'
+#' @seealso \code{\link{egpd}}, \code{\link{predict.egpd}}
+#'
+#' @examples
+#' set.seed(42)
+#' dat <- data.frame(y = regpd(200, sigma = 1, xi = 0.2, kappa = 2, type = 1))
+#' fit <- egpd(y ~ 1, data = dat, family = "egpd", egpd.args = list(m = 1))
+#' r <- rqresid(fit, seed = 1)
+#' qqnorm(r); qqline(r)
 #' @export
 rqresid <- function(object, ...) UseMethod("rqresid")
 
@@ -347,108 +469,64 @@ rqresid.egpd <- function(object, seed = NULL, ...) {
     stop("rqresid requires the original data; refit with removeData = FALSE", call. = FALSE)
 
   family <- object$family
-  if (family == "comppareto") {
-    p_fn <- object$likfns$p
-    m <- NULL
-    dtype <- NULL
-  } else {
-    m <- object$likfns$m
-    type_map <- c(1L, 6L, 4L, 5L, 2L, 3L)
-    dtype <- type_map[m]
-  }
-
-  ## response vector
   y <- object$data[[object$response.name]]
-  n <- length(y)
-
-  ## predicted parameters on response scale
   pars <- predict(object, type = "response")
-
-  ## Count families (PIG/GPIG/Bell and their zero-inflated variants) use their
-  ## own mean-convention CDFs rather than the EGPD sigma/xi/kappa structure.
-  ## Randomized quantile residual: u ~ Unif(F(y-1), F(y)), r = qnorm(u).
-  count_fams <- c("pig", "zipig", "gpig", "zigpig", "bell", "zibell")
-  if (family %in% count_fams) {
-    cdf <- switch(family,
-      pig    = function(q) ppig(q, mu = pars$mu, sigma = pars$sigma),
-      zipig  = function(q) pzipig(q, mu = pars$mu, sigma = pars$sigma, pi = pars$pi),
-      gpig   = function(q) pGPIG(q, mu = pars$mu, sigma = pars$a, nu = pars$c),
-      zigpig = function(q) pZIGPIG(q, mu = pars$mu, sigma = pars$a, nu = pars$c,
-                                   tau = pars$pi),
-      bell   = function(q) pBELL(q, mu = pars$mu),
-      zibell = function(q) pZIBELL(q, mu = pars$mu, sigma = pars$pi))
-    p_upper <- cdf(y)
-    p_lower <- cdf(y - 1)
-    p_lower[y == 0] <- 0
-    r <- qnorm(runif(n, p_lower, p_upper))
-    r[is.infinite(r)] <- NA
-    return(r)
+  pfun <- switch(family, egpd = pegpd, degpd = , ztdegpd = pdiscegpd, zidegpd = pzidiscegpd,
+                 comppareto = pcomppareto, pig = ppig, zipig = pzipig, gpig = pGPIG,
+                 gpignat = pgpig, zigpig = pZIGPIG, zigpignat = pzigpig,
+                 bell = pBELL, bellnat = pbell, zibell = pZIBELL, zibellnat = pzibell,
+                 cmp = pcmp, prl = pprl, gpois = pgpois, gwaring = , ztgwaring = pgwaring,
+                 plnorm = ppoislnorm, stop("rqresid not implemented for family '", family, "'"))
+  args <- switch(family,
+    egpd = , degpd = , zidegpd = , ztdegpd = .egpd_dist_args(pars, object$likfns$m),
+    comppareto = c(list(spec = object$likfns$spec),
+                   .comppareto_named_pars(object$likfns$spec, as.list(pars[seq_len(object$ngam)]))),
+    gpig = list(mu = pars$mu, sigma = pars$a, nu = pars$c),
+    zigpig = list(mu = pars$mu, sigma = pars$a, nu = pars$c, tau = pars$pi),
+    zibell = list(mu = pars$mu, sigma = pars$pi),
+    prl = list(tau = .prl_tau_from_mu(pars$mu)),
+    as.list(pars))
+  if (family == "zidegpd") args$pi <- pars$pi
+  base <- function(q, i, lower) {
+    a <- lapply(args, function(v) if (length(v) == 1L) v else v[i])
+    do.call(pfun, c(list(q = q, lower.tail = lower, log.p = TRUE), a))
   }
-
-  if (family != "comppareto") {
-    sigma <- pars[[1]]
-    xi    <- pars[[2]]
-
-    ## build CDF arguments depending on model type
-    cdf_args <- list(sigma = sigma, xi = xi, type = dtype)
-    if (m == 1) {
-      cdf_args$kappa <- pars[[3]]
-    } else if (m == 2) {
-      cdf_args$kappa <- pars[[3]]                  # kappa1
-      cdf_args$delta <- pars[[3]] + pars[[4]]      # kappa2 = kappa1 + dkappa
-      cdf_args$prob  <- pars[[5]]
-    } else if (m == 3) {
-      cdf_args$delta <- pars[[3]]
-    } else if (m == 4) {
-      cdf_args$delta <- pars[[4]]
-      cdf_args$kappa <- pars[[3]]
-    } else if (m %in% c(5, 6)) {
-      cdf_args$kappa <- pars[[3]]
+  rows <- seq_along(y)
+  cdf <- base
+  if (family %in% c("ztdegpd", "ztgwaring")) {
+    ## S(k | Y > 0) = S(k)/S(0); do not subtract a zero mass rounded to one.
+    ls0 <- base(0, rows, FALSE)
+    cdf <- function(q, i, lower) {
+      ls <- pmin(0, base(q, i, FALSE) - ls0[i])
+      ls[q < 1] <- 0
+      if (!lower) return(ls)
+      lf <- .log1mexp(ls)
+      ## When the conditional CDF is tiny, the two log survivors above
+      ## can coincide. Difference the lower CDFs instead if they resolve it.
+      j <- which(q >= 1 & lf < log(sqrt(.Machine$double.eps)))
+      if (length(j)) {
+        hi <- base(q[j], i[j], TRUE)
+        lo <- base(0, i[j], TRUE)
+        k <- which(lo < hi)
+        lf[j[k]] <- hi[k] + .log1mexp(lo[k] - hi[k]) - ls0[i[j[k]]]
+      }
+      lf
     }
   }
 
-  if (family == "egpd") {
-    ## continuous: residual = qnorm(F(y))
-    cdf_args$q <- y
-    Fu <- do.call(pegpd, cdf_args)
-    r  <- qnorm(Fu)
-  } else if (family == "degpd") {
-    ## discrete: randomize between F(y-1) and F(y)
-    cdf_args$q <- y
-    p_upper <- do.call(pdiscegpd, cdf_args)
-    cdf_args$q <- y - 1
-    p_lower <- do.call(pdiscegpd, cdf_args)
-    p_lower[y == 0] <- 0
-    u <- runif(n, p_lower, p_upper)
-    r <- qnorm(u)
-  } else if (family == "zidegpd") {
-    ## zero-inflated discrete
-    if (m %in% c(1, 3, 5, 6)) {
-      pi_val <- pars[[4]]
-    } else if (m == 2) {
-      pi_val <- pars[[6]]
-    } else {
-      pi_val <- pars[[5]]
-    }
-    cdf_args$pi <- pi_val
-    cdf_args$q  <- y
-    p_upper <- do.call(pzidiscegpd, cdf_args)
-    cdf_args$q <- y - 1
-    p_lower <- do.call(pzidiscegpd, cdf_args)
-    p_lower[y == 0] <- 0
-    u <- runif(n, p_lower, p_upper)
-    r <- qnorm(u)
-  } else if (family == "comppareto") {
-    if (length(pars) == 3L) {
-      Fu <- p_fn(y, pars[[1]], pars[[2]], pars[[3]])
-    } else {
-      Fu <- p_fn(y, pars[[1]], pars[[2]], pars[[3]], pars[[4]])
-    }
-    r <- qnorm(Fu)
-  } else {
-    stop("rqresid not implemented for family '", family, "'")
+  lp <- cdf(y, rows, TRUE)
+  upper <- !is.na(lp) & lp > -sqrt(.Machine$double.eps)
+  if (any(upper)) lp[upper] <- cdf(y[upper], rows[upper], FALSE)
+  if (!family %in% c("egpd", "comppareto")) {
+    prev <- rep(NA_real_, length(y))
+    if (any(!upper)) prev[!upper] <- cdf(y[!upper] - 1, rows[!upper], TRUE)
+    if (any(upper)) prev[upper] <- cdf(y[upper] - 1, rows[upper], FALSE)
+    ## U = (1-w) F(y-1) + w F(y); 1-U is the same mixture of survivors.
+    w <- runif(length(y))
+    lp <- .logspace_add(log1p(-w) + prev, log(w) + lp)
   }
-
-  r[is.infinite(r)] <- NA
+  r <- qnorm(pmin(lp, 0), log.p = TRUE)
+  r[upper] <- -r[upper]
+  r[is.infinite(r)] <- NA_real_
   return(r)
 }

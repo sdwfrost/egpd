@@ -20,3 +20,8 @@ W_0(\mu)}). Bell is a one-parameter family, so \code{mu} is the only
 parameter. The distribution functions use the package closed form (there is
 no \code{gamlss.dist} Bell).
 }
+\details{
+Quantile residuals randomize between the CDF at the preceding count and
+at the observed count. Response residuals subtract the component mean
+\code{mu}, or \eqn{(1-\pi)\mu} for a zero-inflated family.
+}

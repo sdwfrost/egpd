@@ -25,3 +25,7 @@ Transformation density values
 \description{
 Transformation density for EGPD
 }
+\details{
+Carrier parameters required by \code{type} must be supplied: a missing
+  one is an error, whereas supplied \code{NA} values give \code{NA} results.
+}

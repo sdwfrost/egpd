@@ -30,11 +30,29 @@ regpd(
 
 \item{type}{integer 1-6 specifying G type}
 
-\item{unifsamp}{optional uniform samples}
+\item{unifsamp}{optional uniform samples, recycled to length \code{n}; when
+supplied the draws are the GPD quantiles of
+\code{r.G(n, ..., unifsamp = unifsamp)}, i.e. inverse-CDF sampling (for
+\code{type = 6} the mixture component is still drawn at random; see
+\code{\link{r.G}}).}
 }
 \value{
 Random samples
 }
 \description{
 Random generation from the Extended GPD
+}
+\details{
+Parameters required by \code{type} (the GPD \code{sigma} and \code{xi} and the
+  carrier parameters) must be supplied: a missing one is an error, whereas
+  supplied \code{NA} values give \code{NA} results.
+  For the random generators, \code{n} follows base R: if \code{length(n) > 1}
+  its length is used, so \code{numeric(0)} gives \code{numeric(0)}.
+
+  Where the carrier draw lies within rounding of 1 -- a power
+  \eqn{U^{1/\kappa}} with \eqn{\kappa > 10^4} (carriers 1 and 6, and
+  \eqn{U^{2/\kappa}} with \eqn{\kappa > 2 \times 10^4} for carrier 5) or a
+  draw that rounded to 1 although \eqn{U < 1} -- the GPD quantile is taken
+  from the log survival probability computed from \eqn{U}, as in
+  \code{\link{qegpd}}, so the draws stay finite and inside the support.
 }

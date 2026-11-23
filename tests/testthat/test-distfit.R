@@ -152,7 +152,7 @@ test_that("distfit with custom start values works", {
 test_that("distfit type 6 continuous EGPD converges", {
   set.seed(999)
   x <- regpd(500, sigma = 2, xi = 0.1, kappa = 1.5, delta = 2, prob = 0.4, type = 6)
-  fit <- distfit(x, type = 6, family = "egpd")
+  fit <- distfit(x, type = 6, family = "egpd", hessian = FALSE)
 
   expect_s3_class(fit, "distfit")
   expect_equal(fit$convergence, 0)

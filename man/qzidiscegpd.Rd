@@ -12,7 +12,9 @@ qzidiscegpd(
   delta = NA,
   sigma = NA,
   xi = NA,
-  type = 1
+  type = 1,
+  lower.tail = TRUE,
+  log.p = FALSE
 )
 }
 \arguments{
@@ -31,10 +33,22 @@ qzidiscegpd(
 \item{xi}{GPD shape parameter}
 
 \item{type}{integer 1-6 specifying G type}
+
+\item{lower.tail}{logical; if TRUE (default), probabilities are \eqn{P(X \le q)},
+otherwise \eqn{P(X > q)}}
+
+\item{log.p}{logical; if TRUE, probabilities \code{p} are given as \code{log(p)}}
 }
 \value{
 Quantile values (non-negative integers)
 }
 \description{
-Quantile function of the Zero-Inflated Discrete Extended GPD
+Returns the smallest support value with CDF at least \code{p}, without
+shifting probabilities by a fixed tolerance. With \code{pi = 1}, every valid
+probability has quantile zero; otherwise \code{p = 1} returns the upper endpoint.
+}
+\details{
+Parameters required by \code{type} (\code{pi}, the GPD \code{sigma} and \code{xi}
+  and the carrier parameters) must be supplied: a missing one is an error,
+  whereas supplied \code{NA} values give \code{NA} results.
 }

@@ -13,11 +13,19 @@
 #'
 #' @param x,q vector of counts
 #' @param p vector of probabilities
-#' @param n number of draws
+#' @param n number of draws; if \code{length(n) != 1}, the length is taken to be
+#'   the number required (\code{numeric(0)} gives none), as in \code{\link[stats]{rpois}}
 #' @param tau scale parameter, \code{tau >= 2}
 #' @param log,log.p logical; return the log density / probability
 #' @param lower.tail logical; if TRUE probabilities are \code{P[X <= x]}
-#' @param max.value largest count searched when inverting the cdf
+#' @param max.value largest count searched when inverting the cdf; a nonattaining
+#'   cap returns \code{NA} with a warning.
+#' @details The survivor has the closed form of their Eq. (3)/(4), so both tails keep full
+#'   relative accuracy. Invalid input follows \code{\link[stats]{dpois}}: an \code{NA}
+#'   parameter gives \code{NA}; an invalid one (\code{tau < 2}, \code{NaN}, infinite)
+#'   gives \code{NaN} with a warning; \code{x} that is negative or infinite has mass zero,
+#'   and a non-integer \code{x} has mass zero with a warning; probabilities outside
+#'   \eqn{[0, 1]} give \code{NaN} with a warning. Quantile endpoints are 0 and \code{Inf}.
 #' @return a numeric vector
 #' @references Alkhairy, I. (2023) Classical and Bayesian inference for the discrete
 #'   Poisson Ramos-Louzada distribution with application to COVID-19 data.
@@ -28,43 +36,37 @@ NULL
 #' @rdname prl
 #' @export
 dprl <- function(x, tau = 2.5, log = FALSE) {
-  stopifnot(tau >= 2)
-  out <- prl_logpmf_cpp(as.numeric(x), tau)
-  out[x < 0 | x != floor(x)] <- -Inf
-  if (log) out else exp(out)
+  .count_d(.prl_fam, x, list(tau = tau), log = log)
 }
 #' @rdname prl
 #' @export
 pprl <- function(q, tau = 2.5, lower.tail = TRUE, log.p = FALSE) {
-  ## Their Eq. (3)/(4): S(x) = P(X > x) = (1+1/tau)^-x tau(x+tau^2) / ((tau-1)(1+tau)^2),
-  ## so F(x) = P(X <= x) = 1 - S(x). Note S is the STRICT survivor: P(X=x) = S(x-1) - S(x).
-  x <- floor(q)
-  s <- (1 + 1 / tau)^(-x) * tau * (x + tau^2) / ((tau - 1) * (1 + tau)^2)
-  out <- ifelse(q < 0, 0, pmin(pmax(1 - s, 0), 1))
-  if (!lower.tail) out <- 1 - out
-  if (log.p) log(out) else out
+  .count_p(.prl_fam, q, list(tau = tau), lower.tail, log.p)
 }
 #' @rdname prl
 #' @export
 qprl <- function(p, tau = 2.5, lower.tail = TRUE, log.p = FALSE, max.value = 1e7) {
-  if (log.p) p <- exp(p)
-  if (!lower.tail) p <- 1 - p
-  mu <- tau^2 / (tau - 1)
-  n <- max(32, ceiling(4 * mu))
-  repeat {
-    cdf <- cumsum(dprl(0:n, tau))
-    if (max(cdf) >= max(p, na.rm = TRUE) - 1e-12 || n >= max.value) break
-    n <- min(max.value, n * 4L)
-  }
-  vapply(p, function(pp) {
-    if (is.na(pp)) return(NA_real_)
-    i <- which(cdf >= pp - 1e-12)[1]
-    if (is.na(i)) NA_real_ else i - 1
-  }, 0)
+  .count_q(.prl_fam, p, list(tau = tau), lower.tail, log.p, max.value)
 }
 #' @rdname prl
 #' @export
-rprl <- function(n, tau = 2.5) qprl(stats::runif(n), tau)
+rprl <- function(n, tau = 2.5) {
+  .count_r(.prl_fam, n, list(tau = tau), max.value = 1e7)
+}
+
+## Their Eq. (3)/(4): S(x) = P(X > x) = (1+1/tau)^-x tau (x+tau^2) / ((tau-1)(1+tau)^2), the
+## STRICT survivor (P(X = x) = S(x-1) - S(x)), used at every x.
+.prl_lsurv <- function(x, tau)
+  pmin(-x * log1p(1 / tau) + log(tau) + log(x + tau^2) - log(tau - 1) - 2 * log1p(tau), 0)
+
+.prl_fam <- list(
+  pars = "tau",
+  valid = function(p) is.finite(p$tau) & p$tau >= 2,
+  lpmf = function(n, p) prl_logpmf_cpp(0:n, p$tau),
+  lpmf_at = function(x, p) prl_logpmf_cpp(as.numeric(x), p$tau),
+  lsurv = function(k, p) .prl_lsurv(k, p$tau),
+  surv_all = TRUE,
+  init = function(p) max(32, ceiling(4 * p$tau^2 / (p$tau - 1))))
 
 ## mean <-> tau, used for starting values and by the fitter's clamp
 .prl_tau_from_mu <- function(mu) {

@@ -21,11 +21,13 @@ dcpegpd(
 \arguments{
 \item{x}{numeric vector of quantiles}
 
-\item{lambda}{Poisson rate parameter (> 0)}
+\item{lambda}{Scalar Poisson rate (> 0). The distribution parameters
+describe one common severity and rate; they are not recycled over queries.}
 
 \item{prob}{G-transformation parameter (type 6 only)}
 
-\item{kappa}{G-transformation parameter}
+\item{kappa}{G-transformation parameter; for type 2, zero is the
+uniform-carrier limit (ordinary GPD severity before gauge rounding).}
 
 \item{delta}{G-transformation parameter}
 
@@ -35,16 +37,66 @@ dcpegpd(
 
 \item{type}{integer 1-6 specifying G-transformation type}
 
-\item{h}{bin width for discretization (default 0.2)}
+\item{h}{positive gauge resolution: event amounts are rounded up to
+multiples of \code{h} (default 0.2).}
 
-\item{K}{number of bins (default: ceiling(max(x)/h) + 50)}
+\item{K}{number of bins (default: covers finite queries with a grid margin).
+Quantile functions default to 5000 bins.}
 
 \item{log}{logical; if TRUE, return log-probabilities}
 }
 \value{
 numeric vector of (log-)probabilities
+  \eqn{P(S_h = h\lceil x/h \rceil)}
 }
 \description{
-Computes the probability mass function of the Compound Poisson-EGPD
-distribution using Panjer recursion on a discretized EGPD severity.
+Lattice probabilities of the gauge-discretised compound Poisson-EGPD law
+of Ailliot, Gaetan and Naveau (2026, Definition 2.5 and Appendix F).
+}
+\details{
+The random variable is a compound Poisson sum of EGPD event amounts, each
+rounded up to the gauge resolution \eqn{h}:
+\deqn{S_h = \sum_{i=1}^{N} h \lceil X_i / h \rceil,}
+where \eqn{N \sim \mathrm{Poisson}(\lambda)} and the event amounts
+\eqn{X_i} are i.i.d. \eqn{\mathrm{EGPD}(\sigma, \xi, \kappa, \ldots)},
+independent of \eqn{N}. \eqn{S_h} lives on the lattice \eqn{\{0, h, 2h, \ldots\}}. Each event
+contributes \eqn{j \ge 1} bins with probability
+\eqn{f_j = F(jh) - F((j-1)h)} and \eqn{f_0 = 0} (Eq. (F.2)), so the zero
+atom is exactly \eqn{P(S_h = 0) = \exp(-\lambda)}, and the lattice
+probabilities follow from the Panjer recursion (Eq. (F.3)). They are exact
+for \eqn{S_h} up to truncation of the severity at \code{K} bins, and
+\code{rcpegpd()} with the same \code{h} simulates the same law.
+
+This is the model for gauge data recorded in multiples of \code{h} (for
+example 0.2 mm tipping buckets). For a continuous compound sum
+\eqn{S = \sum X_i}, \eqn{S_h \ge S} and \eqn{E[S_h] - E[S]} is about
+\eqn{\lambda h / 2}; use an \code{h} much smaller than typical event
+amounts, and \code{rcpegpd(..., h = 0)} to simulate \eqn{S} itself.
+
+\code{dcpegpd()} returns lattice probabilities, not densities: a positive
+\eqn{x} is mapped to the bin \eqn{k = \lceil x / h \rceil}, i.e.
+\eqn{P(S_h = kh)}, after snapping values within a relative
+\code{sqrt(.Machine$double.eps)} of a lattice point onto it (so
+floating-point sums of gauge data do not move up one bin). Negative
+inputs have mass zero, and \code{pcpegpd(q)} is \eqn{P(S_h \le q)}.
+Explicit grids never extrapolate past \code{K}.
+
+The parameters required by \code{type} (\code{lambda}, \code{sigma},
+\code{xi} and the carrier parameters \code{kappa}, \code{delta},
+\code{prob} that the type uses) must be supplied: a missing one is an
+error, whereas a supplied \code{NA} (\code{NaN}) gives \code{NA}
+(\code{NaN}) results, as for \code{\link{pegpd}}. Missing queries also
+preserve \code{NA} versus \code{NaN}. Other invalid parameters are errors.
+}
+\references{
+Ailliot, P., Gaetan, C. and Naveau, P. (2026). A parsimonious
+  tail compliant multiscale statistical model for aggregated rainfall.
+  \emph{Advances in Water Resources}, 208, 105216.
+  \doi{10.1016/j.advwatres.2026.105216}. Definition, equation and appendix
+  numbers on this page refer to the original-author preprint
+  arXiv:2601.08350v1.
+}
+\seealso{
+\code{\link{pcpegpd}}, \code{\link{qcpegpd}},
+  \code{\link{rcpegpd}}, \code{\link{fit_aggregate_egpd}}
 }

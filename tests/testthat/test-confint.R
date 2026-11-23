@@ -9,7 +9,7 @@ fit <- suppressMessages(
 
 # ---- vcov.egpd ----
 
-test_that("vcov returns a named matrix matching Vp", {
+test_that("vcov returns a named matrix: Vc by default, Vp with marginal = FALSE", {
   V <- vcov(fit)
   expect_true(is.matrix(V))
   expect_equal(nrow(V), length(fit$coefficients))
@@ -17,6 +17,17 @@ test_that("vcov returns a named matrix matching Vp", {
   expect_equal(unname(V), unname(fit$Vp), tolerance = 1e-12)
   expect_equal(rownames(V), names(fit$coefficients))
   expect_equal(colnames(V), names(fit$coefficients))
+
+  ## Without smooths Vc is Vp, so a smooth fit (smoothing-parameter uncertainty makes
+  ## Vc differ from Vp) is needed to tell the two defaults apart
+  set.seed(3)
+  ds <- data.frame(x = runif(200))
+  ds$y <- rbell(200, theta = exp(-0.5 + sin(2 * pi * ds$x)))
+  fs <- egpd(y ~ s(x, k = 6), data = ds, family = "bellnat")
+  expect_gt(max(abs(fs$Vc - fs$Vp)), 1e-8 * max(abs(fs$Vp)))
+  expect_equal(c(vcov(fs)), c(fs$Vc), tolerance = 1e-12)
+  expect_equal(c(vcov(fs, marginal = FALSE)), c(fs$Vp), tolerance = 1e-12)
+  expect_equal(rownames(vcov(fs)), names(fs$coefficients))
 })
 
 # ---- confint.egpd — Wald method ----
@@ -67,6 +78,8 @@ test_that("parm selects parameters by index", {
 test_that("parm errors on invalid input", {
   expect_error(confint(fit, parm = "nonexistent"), "not found")
   expect_error(confint(fit, parm = 99), "out of range")
+  expect_error(confint(fit, parm = 1.5, method = "profile"), "integer")
+  expect_error(confint(fit, parm = NA_real_), "integer")
 })
 
 # ---- level argument ----
@@ -89,9 +102,21 @@ test_that("level = 0 collapses CI to point estimate", {
   expect_equal(ci[, "lower"], ci[, "upper"])
 })
 
+test_that("a negative confidence level cannot give an ordinary-looking interval", {
+  expect_error(confint(fit, level = -0.1), "level")
+  expect_error(confint(fit, newdata = df[1L, , drop = FALSE], level = -0.1), "level")
+})
+
+test_that("one slope without an intercept is not an intercept-only profile", {
+  d <- data.frame(y = rep(1:4, 4), x = rep(c(.4, .8), 8))
+  f <- egpd(y ~ x - 1, d, family = "bell")
+  expect_error(confint(f, parm = 1, method = "profile"), "intercept-only")
+})
+
 # ---- confint.egpd — Profile method ----
 
 test_that("Profile CI returns correct structure", {
+  skip_on_cran()
   ci <- confint(fit, method = "profile")
   expect_true(is.matrix(ci))
   expect_equal(dim(ci), c(3L, 2L))
@@ -99,6 +124,7 @@ test_that("Profile CI returns correct structure", {
 })
 
 test_that("Profile CI values are valid", {
+  skip_on_cran()
   ci <- confint(fit, method = "profile")
   expect_true(all(ci[, "lower"] < ci[, "upper"]))
   expect_true(all(ci > 0))
@@ -115,6 +141,7 @@ test_that("Profile CI contains true values", {
 })
 
 test_that("Profile and Wald CI widths roughly agree", {
+  skip_on_cran()
   ci_w <- confint(fit, method = "wald")
   ci_p <- confint(fit, method = "profile")
   for (p in rownames(ci_w)) {
@@ -126,6 +153,7 @@ test_that("Profile and Wald CI widths roughly agree", {
 })
 
 test_that("Profile CI works with parm subset", {
+  skip_on_cran()
   ci <- confint(fit, parm = "scale", method = "profile")
   expect_equal(nrow(ci), 1L)
   expect_equal(rownames(ci), "scale")
@@ -134,6 +162,7 @@ test_that("Profile CI works with parm subset", {
 # ---- Profile/Wald convergence at large n ----
 
 test_that("Profile and Wald converge at large sample size", {
+  skip_on_cran()
   set.seed(99)
   y_big <- rdiscegpd(5000, sigma = 3, xi = 0.2, kappa = 2, type = 1)
   df_big <- data.frame(y = y_big)

@@ -6,56 +6,84 @@
 ##   mu    = mean            (log link),   internally theta = W0(mu)
 ##   sigma = pi, zero-inflation (ZIBell only, logit link)
 ## Bell is a one-parameter family, so the plain BELL() gamlss family has only mu;
-## ZIBELL() adds sigma as the zero-inflation probability. Derivatives of the
-## log-likelihood are obtained by central differences (.egpd_nd1 / .egpd_nd2),
-## matching the approach used for the EGPD gamlss families.
+## ZIBELL() adds sigma as the zero-inflation probability. Both use analytic
+## natural-scale scores and the per-observation BHHH curvature.
 
 ## theta = W0(mu) (Lambert W); vectorised via the C++ helper in src/bell.cpp.
 .bell_theta_from_mean <- function(mu) bell_W0_cpp(as.numeric(mu))
 
+## d log P(y) / d mu = (y - mu) / Var(Y). For a mixture zero, weight
+## this by the posterior probability of the Bell component. The right
+## derivative in sigma at zero is included (no division by sigma).
+.bell_gamlss_score <- function(y, mu, sigma = 0, inflation = FALSE) {
+  p <- .gpig_recycle(y = y, mu = mu, sigma = sigma)
+  y <- p$y; mu <- p$mu; sigma <- p$sigma
+  theta <- .bell_theta_from_mean(mu)
+  valid <- is.finite(theta) & theta > 0 & is.finite(sigma) & sigma >= 0 & sigma < 1 &
+    is.finite(y) & y >= 0 & y == floor(y)
+  score <- if (inflation) -1 / (1 - sigma) else ((y - mu) / (1 + theta)) / mu
+  zero <- which(valid & y == 0 & (inflation | sigma > 0))
+  if (length(zero)) {
+    lp0 <- -expm1(theta[zero])
+    pi <- sigma[zero]
+    score[zero] <- if (inflation) {
+      -expm1(lp0) / (pi + (1 - pi) * exp(lp0))
+    } else {
+      -plogis(lp0 - qlogis(pi)) / (1 + theta[zero])
+    }
+  }
+  score[!valid] <- NaN
+  missing <- Reduce(`|`, lapply(p, function(x) is.na(x) & !is.nan(x)))
+  score[missing] <- NA_real_
+  if (any(is.nan(score)))
+    warning("Bell score undefined for invalid parameters or observations outside the support.",
+            call. = FALSE)
+  score
+}
+
 ## ---- gamlss-convention d/p/q/r (mu = mean [, sigma = pi]) ----
 
-#' @rdname BELL
+#' @rdname bell
 #' @export
 dBELL <- function(x, mu = 1, log = FALSE) {
   dbell(x, theta = .bell_theta_from_mean(mu), log = log)
 }
-#' @rdname BELL
+#' @rdname bell
 #' @export
 pBELL <- function(q, mu = 1, lower.tail = TRUE, log.p = FALSE) {
   pbell(q, theta = .bell_theta_from_mean(mu), lower.tail = lower.tail, log.p = log.p)
 }
-#' @rdname BELL
+#' @rdname bell
 #' @export
 qBELL <- function(p, mu = 1, lower.tail = TRUE, log.p = FALSE, max.value = 1e5) {
   qbell(p, theta = .bell_theta_from_mean(mu), lower.tail = lower.tail,
         log.p = log.p, max.value = max.value)
 }
-#' @rdname BELL
+#' @rdname bell
 #' @export
 rBELL <- function(n, mu = 1) {
   rbell(n, theta = .bell_theta_from_mean(mu))
 }
 
-#' @rdname ZIBELL
+#' @rdname zibell
 #' @export
 dZIBELL <- function(x, mu = 1, sigma = 0.1, log = FALSE) {
   dzibell(x, theta = .bell_theta_from_mean(mu), pi = sigma, log = log)
 }
-#' @rdname ZIBELL
+#' @rdname zibell
 #' @export
 pZIBELL <- function(q, mu = 1, sigma = 0.1, lower.tail = TRUE, log.p = FALSE) {
   pzibell(q, theta = .bell_theta_from_mean(mu), pi = sigma,
           lower.tail = lower.tail, log.p = log.p)
 }
-#' @rdname ZIBELL
+#' @rdname zibell
 #' @export
 qZIBELL <- function(p, mu = 1, sigma = 0.1, lower.tail = TRUE, log.p = FALSE,
                     max.value = 1e5) {
   qzibell(p, theta = .bell_theta_from_mean(mu), pi = sigma,
           lower.tail = lower.tail, log.p = log.p, max.value = max.value)
 }
-#' @rdname ZIBELL
+#' @rdname zibell
 #' @export
 rZIBELL <- function(n, mu = 1, sigma = 0.1) {
   rzibell(n, theta = .bell_theta_from_mean(mu), pi = sigma)
@@ -63,46 +91,36 @@ rZIBELL <- function(n, mu = 1, sigma = 0.1) {
 
 ## ---- family builders ----
 
-#' gamlss family for the Bell distribution
-#'
+#' @details
 #' \code{BELL()} builds a \code{gamlss.family} object for fitting the Bell
-#' distribution of Castellares, Ferrari and Lemonte (2018) with \code{gamlss()},
-#' in the mean parameterisation \code{mu} = mean (log link; internally
-#' \eqn{\theta = W_0(\mu)}). Bell is a one-parameter family, so \code{mu} is the
-#' only distribution parameter. \code{dBELL}, \code{pBELL}, \code{qBELL} and
-#' \code{rBELL} are the corresponding density, distribution, quantile and
-#' simulation functions in the same parameterisation.
+#' distribution with \code{gamlss()}, in the mean parameterisation \code{mu} =
+#' mean (log link; internally \eqn{\theta = W_0(\mu)}). \code{dBELL},
+#' \code{pBELL}, \code{qBELL} and \code{rBELL} are the corresponding density,
+#' distribution, quantile and simulation functions in the same parameterisation.
+#' The natural-scale mean score is \eqn{(y-\mu)/[\mu(1+\theta)]}.
+#' Curvature uses the negative outer product of scores.
+#' @inheritSection EGPD1 GAMLSS namespace use
 #'
 #' @param mu.link link function for the mean parameter.
-#' @param x,q vector of (non-negative integer) quantiles.
-#' @param p vector of probabilities.
-#' @param n number of random values to return.
 #' @param mu mean parameter (\eqn{>0}).
-#' @param log,log.p,lower.tail,max.value as in \code{\link{bell}}.
-#' @return \code{BELL} returns a \code{gamlss.family} object.
-#' @references Castellares, F., Ferrari, S. L. P. and Lemonte, A. J. (2018). On
-#'   the Bell distribution and its associated regression model for count data.
-#'   \emph{Applied Mathematical Modelling} 56, 172-185.
-#' @seealso \code{\link{bell}} for the native \code{theta} functions.
-#' @name BELL
+#' @rdname bell
 #' @export
 BELL <- function(mu.link = "log") {
   .make_bell_gamlss("dBELL", "pBELL", "BELL", 1L, mu.link, NULL)
 }
 
-#' gamlss family for the zero-inflated Bell distribution
-#'
+#' @details
 #' \code{ZIBELL()} adds a logit-link zero-inflation probability (\code{sigma}) to
 #' \code{\link{BELL}}. \code{dZIBELL}, \code{pZIBELL}, \code{qZIBELL} and
-#' \code{rZIBELL} are the corresponding d/p/q/r functions, with \code{sigma} the
-#' zero-inflation probability.
+#' \code{rZIBELL} are the corresponding mean-parameterised d/p/q/r functions.
+#' For a zero count the Bell mean score is weighted by the conditional
+#' probability that the zero arose from the Bell component.
 #'
-#' @inheritParams BELL
+#' @param mu.link link function for the mean parameter.
 #' @param sigma.link link function for the zero-inflation parameter.
+#' @param mu mean parameter (\eqn{>0}).
 #' @param sigma zero-inflation probability \eqn{\in[0,1)}.
-#' @return \code{ZIBELL} returns a \code{gamlss.family} object.
-#' @seealso \code{\link{BELL}}; \code{\link{zibell}}.
-#' @name ZIBELL
+#' @rdname zibell
 #' @export
 ZIBELL <- function(mu.link = "log", sigma.link = "logit") {
   .make_bell_gamlss("dZIBELL", "pZIBELL", "ZIBELL", 2L, mu.link, sigma.link)
@@ -114,18 +132,17 @@ ZIBELL <- function(mu.link = "log", sigma.link = "logit") {
   mu_link <- mu.link
   gamlss.dist::checklink("mu.link", family_name, substitute(mu_link),
                          c("log", "identity", "sqrt"))
-  dfun_sym <- as.name(dfun); pfun_str <- pfun
+  dfun_sym <- call("::", quote(egpd), as.name(dfun))
+  rqres_expr <- .gamlss_rqres_expr(pfun, "Discrete", npar)
+  ## gamlss rebinds derivative bodies outside our namespace.
+  score <- quote(get(".bell_gamlss_score", envir = asNamespace("egpd")))
 
   if (npar == 1L) {
     G.dev.incr_fn <- eval(bquote(function(y, mu, ...) {
       -2 * .(dfun_sym)(y, mu = mu, log = TRUE) }))
-    dldm_fn <- eval(bquote(function(y, mu, ...)
-      egpd::.egpd_nd1(y, mu, .(dfun_sym))))
-    d2ldm2_fn <- eval(bquote(function(y, mu, ...) {
-      dl <- egpd::.egpd_nd1(y, mu, .(dfun_sym))
-      ifelse(-dl * dl < -1e-15, -dl * dl, -1e-15) }))
-    rqres_expr <- eval(bquote(expression(
-      rqres(pfun = .(pfun_str), type = "Discrete", ymin = 0, y = y, mu = mu))))
+    sm <- bquote(.(score)(y, mu))
+    dldm_fn <- eval(bquote(function(y, mu, ...) .(sm)))
+    d2ldm2_fn <- eval(bquote(function(y, mu, ...) pmin(-.(sm)^2, -1e-15)))
 
     fam <- list(
       family = c(family_name, "gamlss.family"),
@@ -145,22 +162,13 @@ ZIBELL <- function(mu.link = "log", sigma.link = "logit") {
                            c("logit", "log", "identity"))
     G.dev.incr_fn <- eval(bquote(function(y, mu, sigma, ...) {
       -2 * .(dfun_sym)(y, mu = mu, sigma = sigma, log = TRUE) }))
-    dldm_fn <- eval(bquote(function(y, mu, sigma, ...)
-      egpd::.egpd_nd2(y, mu, sigma, .(dfun_sym), idx = 1L)))
-    dldd_fn <- eval(bquote(function(y, mu, sigma, ...)
-      egpd::.egpd_nd2(y, mu, sigma, .(dfun_sym), idx = 2L)))
-    d2ldm2_fn <- eval(bquote(function(y, mu, sigma, ...) {
-      dl <- egpd::.egpd_nd2(y, mu, sigma, .(dfun_sym), idx = 1L)
-      ifelse(-dl * dl < -1e-15, -dl * dl, -1e-15) }))
-    d2ldd2_fn <- eval(bquote(function(y, mu, sigma, ...) {
-      dl <- egpd::.egpd_nd2(y, mu, sigma, .(dfun_sym), idx = 2L)
-      ifelse(-dl * dl < -1e-15, -dl * dl, -1e-15) }))
-    d2ldmdd_fn <- eval(bquote(function(y, mu, sigma, ...)
-      -egpd::.egpd_nd2(y, mu, sigma, .(dfun_sym), 1L) *
-        egpd::.egpd_nd2(y, mu, sigma, .(dfun_sym), 2L)))
-    rqres_expr <- eval(bquote(expression(
-      rqres(pfun = .(pfun_str), type = "Discrete", ymin = 0, y = y,
-            mu = mu, sigma = sigma))))
+    sm <- bquote(.(score)(y, mu, sigma))
+    sd <- bquote(.(score)(y, mu, sigma, inflation = TRUE))
+    dldm_fn <- eval(bquote(function(y, mu, sigma, ...) .(sm)))
+    dldd_fn <- eval(bquote(function(y, mu, sigma, ...) .(sd)))
+    d2ldm2_fn <- eval(bquote(function(y, mu, sigma, ...) pmin(-.(sm)^2, -1e-15)))
+    d2ldd2_fn <- eval(bquote(function(y, mu, sigma, ...) pmin(-.(sd)^2, -1e-15)))
+    d2ldmdd_fn <- eval(bquote(function(y, mu, sigma, ...) -.(sm) * .(sd)))
 
     fam <- list(
       family = c(family_name, "gamlss.family"),

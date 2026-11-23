@@ -22,7 +22,8 @@ rbdegpd(n, kappa, sigma, xi, thL, thU, thw)
 \item{thw}{numeric in (0, 0.5); weight mixing parameter.}
 }
 \value{
-An \code{n} by 2 integer matrix with columns \code{Y1} and \code{Y2}.
+An \code{n} by 2 integer-valued matrix with columns \code{Y1} and
+  \code{Y2}; double storage is used outside the R integer range.
 }
 \description{
 Generates random samples from the Bivariate Discrete Extended Generalized

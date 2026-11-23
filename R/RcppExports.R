@@ -105,6 +105,18 @@ plnorm_logpmf_cpp <- function(y, mu, sigma) {
     .Call(`_egpd_plnorm_logpmf_cpp`, y, mu, sigma)
 }
 
+plnorm_lcdf_cpp <- function(q, mu, sigma, lower) {
+    .Call(`_egpd_plnorm_lcdf_cpp`, q, mu, sigma, lower)
+}
+
+gwaring_lcdf_cpp <- function(q, mu, k, rho, lower) {
+    .Call(`_egpd_gwaring_lcdf_cpp`, q, mu, k, rho, lower)
+}
+
+count_lcse_cpp <- function(lp, reverse, ltail) {
+    .Call(`_egpd_count_lcse_cpp`, lp, reverse, ltail)
+}
+
 cf_bounds_cpp <- function() {
     .Call(`_egpd_cf_bounds_cpp`)
 }
@@ -161,12 +173,24 @@ degpd6d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_
     .Call(`_egpd_degpd6d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max, xi_identity)
 }
 
+degpd1d34 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max) {
+    .Call(`_egpd_degpd1d34`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max)
+}
+
+degpd1id34 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max) {
+    .Call(`_egpd_degpd1id34`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max)
+}
+
 degpd1id0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max) {
     .Call(`_egpd_degpd1id0`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max)
 }
 
 degpd1id12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max) {
     .Call(`_egpd_degpd1id12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets, xi_max)
+}
+
+egpd_tb_moments_cpp <- function(kappa, lo, hi) {
+    .Call(`_egpd_egpd_tb_moments_cpp`, kappa, lo, hi)
 }
 
 egpd1d0 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
@@ -239,6 +263,14 @@ armapinv <- function(x, tol) {
 
 armaginv <- function(x, tol) {
     .Call(`_egpd_armaginv`, x, tol)
+}
+
+hurdle_logodds_gap_cpp <- function(eta, p) {
+    .Call(`_egpd_hurdle_logodds_gap_cpp`, eta, p)
+}
+
+gpd_endpoint_gap_cpp <- function(x, sigma, xi) {
+    .Call(`_egpd_gpd_endpoint_gap_cpp`, x, sigma, xi)
 }
 
 gpig_set_opts <- function(method, yswitch, order, eps, sptol, ymax, nquad, normalize) {
@@ -333,6 +365,10 @@ zipig1d12 <- function(pars, X1, X2, X3, yvec, dupid, dcate, offsets) {
     .Call(`_egpd_zipig1d12`, pars, X1, X2, X3, yvec, dupid, dcate, offsets)
 }
 
+pig_logpmf_ladder_cpp <- function(N, mu, sigma) {
+    .Call(`_egpd_pig_logpmf_ladder_cpp`, N, mu, sigma)
+}
+
 prl1d0 <- function(pars, X1, yvec, dupid, dcate, offsets) {
     .Call(`_egpd_prl1d0`, pars, X1, yvec, dupid, dcate, offsets)
 }
@@ -351,6 +387,14 @@ prl_grad_cpp <- function(y, eta) {
 
 prl_bounds_cpp <- function() {
     .Call(`_egpd_prl_bounds_cpp`)
+}
+
+profile_zero_odds_cpp <- function(zeros, n, sigma, xi, kappa, delta, weight) {
+    .Call(`_egpd_profile_zero_odds_cpp`, zeros, n, sigma, xi, kappa, delta, weight)
+}
+
+two_cell_weight_cpp <- function(total, n, sigma, xi, kappa, delta, lambda, pi, compound) {
+    .Call(`_egpd_two_cell_weight_cpp`, total, n, sigma, xi, kappa, delta, lambda, pi, compound)
 }
 
 zidegpd1d0 <- function(pars, X1, X2, X3, X4, yvec, dupid, dcate, offsets) {

@@ -22,7 +22,7 @@ pcomppareto(
 
 \item{alpha}{positive Pareto shape parameter.}
 
-\item{theta}{positive splice point and Pareto scale parameter.}
+\item{theta}{positive splice point and Lomax scale parameter.}
 
 \item{lower.tail}{logical; if \code{FALSE}, return the upper tail.}
 
@@ -34,5 +34,10 @@ pcomppareto(
 Numeric vector of probabilities.
 }
 \description{
-Distribution function of the continuous composite Pareto distribution
+Below the splice point the upper tail
+\eqn{S(q) = [S_G(q) - S_G(\theta) + \phi G(\theta)] / [(1 + \phi) G(\theta)]} is computed
+from the body's own survivor \eqn{S_G} where \eqn{S(q)} is below about \code{1e-3}, as is
+\code{log.p = TRUE} near 0, so that both keep full relative accuracy when the splice
+point lies far in the body's tail and the Pareto tail weight \eqn{\phi / (1 + \phi)} is
+tiny.
 }

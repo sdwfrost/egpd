@@ -39,17 +39,78 @@ $$
 \log \lambda_d = l_0 + l_1 \log d + \cdots + l_q (\log d)^q.
 $$
 
-Here, $\lambda_d$ controls the zero mass through
-$P(A_d = 0) = \exp(-\lambda_d)$, while the positive aggregates are modeled
-through the compound Poisson EGPD law. In the current package implementation,
+Here, if the severity has zero mass $f_0$, the aggregate zero mass is
+$p_{0,d}=\exp[-\lambda_d(1-f_0)]$. Only **positive** aggregates enter the
+composite likelihood (Ailliot, Gaetan, and Naveau 2026, Eq. (4.1)), so
+$p_{0,d}$ is a property of the fitted compound law; it is not fitted to, and
+need not match, the observed proportion of zero aggregates.
+
+For continuous EGPD (`family = "cpegpd"`), the model is the law of
+**gauge-discretised** compound sums
+$$
+S_h = \sum_{i=1}^{N} h \lceil X_i / h \rceil, \qquad N \sim
+\mathrm{Poisson}(\lambda),
+$$
+in which every EGPD event amount $X_i$ is rounded up to the gauge resolution
+$h$ (`cpegpd.h`, 0.2 mm for tipping-bucket gauges). Following Ailliot, Gaetan,
+and Naveau (2026, Definition 2.5 and Appendix F, Eqs. (F.2)--(F.3)), the
+severity bins are $f_j = F(jh) - F((j-1)h)$ for $j \ge 1$ with $f_0 = 0$, which
+preserves the exact zero atom $p_{0,d} = \exp(-\lambda_d)$, and the Panjer
+recursion gives the lattice probabilities of $S_h$. A positive observation
+$x$ is scored at bin $k = \lceil x / h \rceil$ on $((k-1)h, kh]$, so no
+positive observation maps to the zero bin; values within floating-point
+rounding of a lattice point are treated as that point. `dcpegpd()`,
+`pcpegpd()`, `qcpegpd()` and `rcpegpd()` all describe this law: `rcpegpd()`
+rounds each simulated event amount up to a multiple of `h` (default 0.2, the
+same as the other three functions). `rcpegpd(..., h = 0)` returns the
+continuous compound sum $S = \sum X_i$ instead; since $S_h \ge S$ with
+$E[S_h] - E[S] \approx \lambda h / 2$, continuous data should be fitted with
+an `h` much smaller than typical event amounts. `fit_aggregate_egpd()` warns
+when the positive aggregates are off the `cpegpd.h` lattice and `cpegpd.h` is
+more than 1% of their median.
+
+For discrete EGPD (`family = "cpdegpd"`), $f_0$ is the severity's actual mass
+at zero. The positive likelihood uses $g(x)/(1-p_{0,d})$, not conditioning on
+the number of events being positive. In the current package implementation,
 `predict(..., type = "quantile")` returns **positive-part quantiles**, that
-is, quantiles conditional on the aggregate being strictly positive.
+is, quantiles conditional on the aggregate being strictly positive. Their
+probability map is $p_{0,d}+p(1-p_{0,d})$. The probability-zero quantile is
+the first positive grid point; probability one returns infinity. Insufficient
+search grids fail explicitly and require larger `K` (which may be passed via
+`K = ...` to `predict()`).
+
+This follows the conditional-probability definition in Ailliot, Gaetan and
+Naveau's original-author preprint **arXiv:2601.08350v1**, Definition 2.5
+and Appendix F, Eqs. (F.2)--(F.3). The displayed (F.1) omits a zero-atom
+subtraction; it is not used as a normalization identity here.
+
+Ailliot, Gaetan, and Naveau use non-decreasing $\sigma_d$ and $\lambda_d$
+to order return levels for positive jumps (Proposition 3.1).
+Gauge rounding preserves that ordering for `cpegpd`. For `cpdegpd`, the
+floored jump can itself be zero. The unconditional sums are still ordered,
+but conditioning on a positive sum can reverse the order. For example, with
+$\sigma_d=0.01d$, $\lambda_d=0.7$, $\kappa=0.1$ and $\xi=1.48$, the
+conditional 95th percentile is 83 at duration 1 and 81 at duration 16.
+By default the package imposes the
+stronger condition that all slope coefficients $s_1,\ldots,s_p$ and
+$l_1,\ldots,l_q$ are non-negative, so the fitted curves are non-decreasing
+for **every** $d \ge 1$. Setting
+`monotone_upto = D` imposes the paper's condition only on $[1, D]$ (via
+non-negative Bernstein coefficients of the slope of $\log\sigma_d$ and
+$\log\lambda_d$ in $\log d$), which also admits concave increasing curves;
+`predict()` then warns when asked to extrapolate beyond $D$.
+
+Unnamed sample lists are paired with durations in their supplied order
+before both are sorted; named lists are matched by duration. Each polynomial
+degree must be less than the number of distinct fitted durations. With
+only two durations, for example, use `p = 1, q = 1` or lower degrees.
 
 ## 1. A synthetic multiscale example
 
-We start from a set of aggregated samples already grouped by duration. This is
-the cleanest way to see the fitted multiscale model because the data are
-generated directly from the family used by `fit_aggregate_egpd()`.
+We start from a set of aggregated samples already grouped by duration,
+generated on the gauge grid $h\lceil X/h\rceil$ used by the Panjer likelihood.
+The loop below is what `rcpegpd(..., h = 0.2)` does, so its draws can be
+passed directly as well.
 
 ```{r multiscale-sim}
 library(egpd)
@@ -65,14 +126,11 @@ sigma_true <- exp(sigma_coef_true[1] + sigma_coef_true[2] * log(durations))
 lambda_true <- exp(lambda_coef_true[1] + lambda_coef_true[2] * log(durations))
 
 agg_samples <- setNames(lapply(seq_along(durations), function(i) {
-  rcpegpd(
-    300,
-    sigma = sigma_true[i],
-    xi = xi_true,
-    kappa = kappa_true,
-    lambda = lambda_true[i],
-    type = 1
-  )
+  vapply(rpois(300, lambda_true[i]), function(n_events) {
+    severity <- regpd(n_events, sigma = sigma_true[i], xi = xi_true,
+                       kappa = kappa_true, type = 1)
+    sum(0.2 * ceiling(severity / 0.2))
+  }, numeric(1))
 }), durations)
 
 data.frame(
@@ -175,12 +233,17 @@ plot(fit_agg)
 ## 4. Starting from a finest-scale series
 
 If you have the original non-negative series rather than precomputed
-aggregates, `fit_aggregate_egpd()` can construct the duration-specific sums
-internally.
+aggregates, `fit_aggregate_egpd()` constructs the duration-specific sums
+internally. Gauge series on the `cpegpd.h` lattice are summed exactly in
+integer units, so every window is scored at its own Panjer bin. Here the
+series is an i.i.d. sequence of finest-scale compound sums, so the true
+curves are $\sigma_d = 0.8$ (slope 0) and $\lambda_d = 0.7\,d$ (slope 1 in
+$\log d$); the starting values are chosen automatically.
 
-```{r series-fit, eval = FALSE}
+```{r series-fit}
 set.seed(4)
-x <- rcpegpd(300, sigma = 0.8, xi = 0.2, kappa = 0.35, lambda = 0.7, type = 1)
+x <- rcpegpd(1500, sigma = 0.8, xi = 0.2, kappa = 0.35,
+             lambda = 0.7, type = 1)   # gauge resolution h = 0.2
 
 fit_from_series <- fit_aggregate_egpd(
   x,
@@ -188,14 +251,30 @@ fit_from_series <- fit_aggregate_egpd(
   family = "cpegpd",
   p = 1,
   q = 1,
-  overlap = TRUE
+  overlap = TRUE,
+  keep_data = TRUE
 )
 
-predict(fit_from_series, type = "parameter")
+round(coef(fit_from_series), 3)
 ```
 
 With `overlap = TRUE`, the function uses rolling sums. Set `overlap = FALSE`
 to use non-overlapping block sums instead.
+
+### Uncertainty by block bootstrap
+
+`fit_aggregate_egpd()` returns point estimates only. Following Ailliot,
+Gaetan, and Naveau (2026, Sec. 4.1), who used blocks of two weeks and 500
+replicates, `bootstrap_aggregate_egpd()` resamples the finest-scale series in
+moving blocks, re-aggregates and refits from the original estimate, and
+returns percentile intervals for the coefficients and for $\sigma_d$ and
+$\lambda_d$. Each replicate is a full refit, so this takes a while:
+
+```{r series-boot, eval = FALSE}
+boot <- bootstrap_aggregate_egpd(fit_from_series, nboot = 200,
+                                 block_length = 48, seed = 1)
+boot
+```
 
 ## 5. Discrete aggregates
 
@@ -233,10 +312,20 @@ multiscale framework. In particular:
 
 - it uses the package's existing compound Poisson EGPD and compound Poisson
   discrete EGPD building blocks;
-- it fits a composite likelihood over **positive** aggregates, while
-  `lambda_d` captures the zero mass;
-- it enforces monotone fitted curves for `sigma_d` and `lambda_d` during
-  optimization to preserve non-crossing behavior across durations.
+- it fits a composite likelihood over **positive** aggregates only; the
+  implied zero mass ($\exp[-\lambda_d(1-f_{0,d})]$, with $f_{0,d}=0$ for
+  the gauge model) is not fitted to the observed dry fraction;
+- it enforces monotone fitted curves for `sigma_d` and `lambda_d` (for all
+  $d \ge 1$ by default, or on $[1, D]$ with `monotone_upto = D`); for
+  `cpdegpd` this is not a guarantee about positive-part quantiles;
+- the positive-part likelihood can be very flat along combinations of
+  $\kappa$, $\sigma_d$ and $\lambda_d$, and can have more than one local
+  optimum, so the default `optim.method = "auto"` runs L-BFGS-B and BFGS
+  (followed by an L-BFGS-B polish) from the same start and keeps the better
+  optimum; `fit$optim.runs` shows both runs, and a fit that does not converge
+  gives a warning;
+- uncertainty is available through the moving-block bootstrap
+  `bootstrap_aggregate_egpd()`, not from the composite likelihood itself.
 
 For single-scale aggregate modeling, or when you need the full single-duration
 density/CDF/quantile utilities directly, continue to use `distfit()` together

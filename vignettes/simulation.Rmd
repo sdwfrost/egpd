@@ -46,12 +46,15 @@ fit <- egpd(list(lpsi = y ~ 1, xi = ~ 1, lkappa = ~ 1),
 summary(fit)
 ```
 
-Compare fitted parameters with truth on the response scale:
+Compare fitted parameters with truth on the response scale.
+`predict(type = "response")` returns one column per distributional parameter
+(`scale`, `shape`, `kappa`, ...) plus an `xi` column that duplicates `shape`,
+so we select the columns by name:
 
 ```{r egpd-intercept-check}
 pars <- predict(fit, type = "response")[1, ]
 truth <- c(scale = sigma_true, shape = xi_true, kappa = kappa_true)
-cbind(true = truth, fitted = round(unlist(pars), 4))
+cbind(true = truth, fitted = round(unlist(pars[names(truth)]), 4))
 ```
 
 A Q-Q plot of randomized quantile residuals confirms the fit:
@@ -137,7 +140,7 @@ summary(fit_d)
 ```{r degpd-intercept-check}
 pars_d <- predict(fit_d, type = "response")[1, ]
 truth_d <- c(scale = sigma_true, shape = xi_true, kappa = kappa_true)
-cbind(true = truth_d, fitted = round(unlist(pars_d), 4))
+cbind(true = truth_d, fitted = round(unlist(pars_d[names(truth_d)]), 4))
 ```
 
 Compare fitted and empirical PMFs:
@@ -197,15 +200,31 @@ summary(fit_d2)
 
 Compare fitted parameters with truth on the response scale. Note the
 reparameterization: kappa2 = kappa1 + exp(ldkappa), so the model estimates
-`ldkappa` (log of the difference) rather than kappa2 directly.
+`ldkappa` (log of the difference) rather than kappa2 directly, and
+`predict()` returns `kappa1` and the difference `dkappa`.
 
 ```{r degpd2-check}
 pars_d2 <- predict(fit_d2, type = "response")[1, ]
 truth_d2 <- c(scale = sigma_true, shape = xi_true, kappa1 = kappa1_true,
               kappa2 = kappa2_true, p = prob_true)
-fitted_d2 <- round(unlist(pars_d2), 4)
-cbind(true = truth_d2, fitted = fitted_d2)
+fitted_d2 <- c(scale = pars_d2$scale, shape = pars_d2$shape,
+               kappa1 = pars_d2$kappa1,
+               kappa2 = pars_d2$kappa1 + pars_d2$dkappa,
+               p = pars_d2$p)
+cbind(true = truth_d2, fitted = round(fitted_d2, 4))
+
+# Log-likelihood at the estimates and at the true parameters
+ll_true_d2 <- sum(log(ddiscegpd(y, sigma = sigma_true, xi = xi_true,
+                                kappa = kappa1_true, delta = kappa2_true,
+                                prob = prob_true, type = 6)))
+c(fitted = as.numeric(logLik(fit_d2)), truth = ll_true_d2)
 ```
+
+The fit gives the second power a much larger value and much less weight than
+the generating model. These quite different parameter combinations give
+similar log-likelihoods per observation: the sample provides little
+information about the second power. A higher likelihood than at the
+generating parameters does not establish that the fit is a global maximum.
 
 Q-Q plot of randomized quantile residuals for the Model 2 fit:
 
@@ -245,7 +264,7 @@ summary(fit_d5)
 ```{r degpd5-check}
 pars_d5 <- predict(fit_d5, type = "response")[1, ]
 truth_d5 <- c(scale = sigma_true, shape = xi_true, kappa = kappa_true)
-cbind(true = truth_d5, fitted = round(unlist(pars_d5), 4))
+cbind(true = truth_d5, fitted = round(unlist(pars_d5[names(truth_d5)]), 4))
 ```
 
 ```{r degpd5-qq, fig.width = 5, fig.height = 5}
@@ -284,7 +303,7 @@ summary(fit_d6)
 ```{r degpd6-check}
 pars_d6 <- predict(fit_d6, type = "response")[1, ]
 truth_d6 <- c(scale = sigma_true, shape = xi_true, kappa = kappa_true)
-cbind(true = truth_d6, fitted = round(unlist(pars_d6), 4))
+cbind(true = truth_d6, fitted = round(unlist(pars_d6[names(truth_d6)]), 4))
 ```
 
 ```{r degpd6-qq, fig.width = 5, fig.height = 5}
@@ -367,7 +386,7 @@ summary(fit_zi)
 pars_zi <- predict(fit_zi, type = "response")[1, ]
 truth_zi <- c(scale = sigma_true, shape = xi_true, kappa = kappa_true,
               pi = pi_true)
-cbind(true = truth_zi, fitted = round(unlist(pars_zi), 4))
+cbind(true = truth_zi, fitted = round(unlist(pars_zi[names(truth_zi)]), 4))
 ```
 
 Q-Q plot of randomized quantile residuals for the ZIDEGPD fit:

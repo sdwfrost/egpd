@@ -2,6 +2,16 @@
 ^articles$
 ^render_articles\.R$
 ^vignettes/.*_cache$
-^derive_gradients\.py$
+^vignettes/precompute$
+^derive_.*\.py$
+^derive_degpd1_identity\.cpp\.txt$
+^models56_analytic_derivs\.md$
+^verify_degpd1_identity\.R$
+^simulations$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+^\.github$
+^\.venv$
 ^egpd\.Rcheck$
 ^egpd_.*\.tar\.gz$

@@ -76,9 +76,9 @@ summary(fit_degpd)
 
 ```{r degpd-recovery}
 truth <- c(sigma = sigma_true, xi = xi_true, kappa = kappa_true)
-est <- fit_degpd$estimate
+est <- fit_degpd$estimate[names(truth)]
 cbind(true = truth, estimate = round(est, 4),
-      SE = round(fit_degpd$sd, 4))
+      SE = round(fit_degpd$sd[names(truth)], 4))
 ```
 
 ### Diagnostics
@@ -184,9 +184,9 @@ summary(fit_zi)
 ```{r zidegpd-recovery}
 truth <- c(sigma = sigma_true, xi = xi_true,
            kappa = kappa_true, pi = pi_true)
-est <- fit_zi$estimate
+est <- fit_zi$estimate[names(truth)]
 cbind(true = truth, estimate = round(est, 4),
-      SE = round(fit_zi$sd, 4))
+      SE = round(fit_zi$sd[names(truth)], 4))
 ```
 
 ### Diagnostics
@@ -306,9 +306,9 @@ summary(fit_cpdegpd)
 ```{r cpdegpd-recovery}
 truth <- c(sigma = sigma_true, xi = xi_true,
            kappa = kappa_true, lambda = lambda_true)
-est <- fit_cpdegpd$estimate
+est <- fit_cpdegpd$estimate[names(truth)]
 cbind(true = truth, estimate = round(est, 4),
-      SE = round(fit_cpdegpd$sd, 4))
+      SE = round(fit_cpdegpd$sd[names(truth)], 4))
 ```
 
 ### Diagnostics

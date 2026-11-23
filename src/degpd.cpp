@@ -3,2230 +3,2636 @@
 #include <Rcpp.h>
 #include "gfunc_derivs.h"
 
+// Shared stabilized Jet evaluators for identity-link and log-link DEGPD models 1..6.
+arma::mat degpd_identity_eval(const Rcpp::List& pars, const std::vector<arma::mat>& X,
+                             const arma::vec& y, const arma::uvec& dupid, int dcate,
+                             const Rcpp::List& offsets, int m, bool value_only = false);
+
+arma::mat degpd_loglink_eval(const Rcpp::List& pars, const std::vector<arma::mat>& X,
+                             const arma::vec& y, const arma::uvec& dupid, int dcate,
+                             const Rcpp::List& offsets, int m, double xi_max,
+                             bool apply_bounded_chain, bool value_only = false);
+
 const double xieps = 0.0;
 
-// Bounded shape link for DEGPD model 1 (issue #2: stop tail blow-up).
-// The raw linear predictor eta maps to xi = xi_max*(1 - exp(-exp(eta)/xi_max)),
-// which -> exp(eta) (the usual log link) as xi_max -> Inf and saturates at xi_max.
-// We keep the density/derivative formulas unchanged by feeding them the
-// reparameterised lxi_eff = log(xi); the chain-rule factors below convert
-// derivatives w.r.t. lxi_eff into derivatives w.r.t. eta (cf. BUGS.md fix #6).
-//   returns lxi_eff = log(xi); *mp = d lxi_eff/d eta; *mpp = d2 lxi_eff/d eta2.
+// Bounded shape link helper (retained for degpd1d34).
 static inline double bounded_lxi(double eta, double xi_max, double* mp, double* mpp) {
   if (!R_finite(xi_max)) { if (mp) *mp = 1.0; if (mpp) *mpp = 0.0; return eta; }
-  double t = exp(eta - log(xi_max));           // exp(eta)/xi_max
-  if (t > 700.0) { if (mp) *mp = 0.0; if (mpp) *mpp = 0.0; return log(xi_max); } // saturated
-  double em = exp(-t);                          // exp(-u/xi_max)
-  double omem = -expm1(-t);                     // 1 - exp(-u/xi_max), accurate for small t
-  double B = xi_max * omem;                     // xi
-  double u = t * xi_max;                         // exp(eta)
-  double mpl = (u * em) / B;                     // d log(xi)/d eta
+  double log_xm = std::log(xi_max);
+  double t = std::exp(eta - log_xm);
+  if (t > 700.0) { if (mp) *mp = 0.0; if (mpp) *mpp = 0.0; return log_xm; }
+  if (t < 1e-4) {
+    double mpl = 1.0 - 0.5 * t + t * t / 12.0;
+    if (mp) *mp = mpl;
+    if (mpp) *mpp = mpl * (1.0 - t - mpl);
+    return eta + std::log1p(t * (-0.5 + t * (1.0 / 6.0 - t / 24.0)));
+  }
+  double em = std::exp(-t);
+  double omem = -std::expm1(-t);
+  double mpl = (t * em) / omem;
   if (mp) *mp = mpl;
   if (mpp) *mpp = mpl * (1.0 - t - mpl);
-  return log(B);
+  return log_xm + std::log(omem);
 }
 
-// ---------------------------------------------------------------------------
-// IDENTITY LINK ON xi FOR CARRIERS 2-6.
-//
-// The log link forces xi = exp(eta) > 0, so a bounded/short tail (xi < 0, finite
-// upper endpoint -sigma/xi) is unreachable. Model 1 solved this with a separate
-// symbolically-derived translation unit (src/degpd1_identity.cpp). Re-deriving
-// five more carriers that way is unnecessary, because of one structural fact:
-//
-//   in every carrier the scalar lxi appears ONLY inside exp(lxi).
-//
-// (Verified across degpd2..degpd6: every other occurrence of the bare token is a
-// variable declaration or a comment.) So exp(lxi) is used purely as the VALUE of
-// xi, and the generated expressions are rational/power functions of that value,
-// analytic for xi < 0 wherever the support holds. Feeding xi in directly is
-// therefore legitimate, and what the routine then returns is
-//
-//   g_lxi  = xi * dnll/dxi ,   h_lxi,lxi = xi * dnll/dxi + xi^2 * d2nll/dxi2
-//
-// evaluated at that xi. R converts those to derivatives w.r.t. xi itself in
-// .identity_xi_chain() -- the exact inverse of the existing .bounded_xi_chain().
-// This keeps one set of derivative formulas serving both links.
-//
-// xi_identity = false reproduces the previous behaviour bit for bit.
-static const double XI_EPS_ID = 1e-6;   // avoid the 1/xi singularity at xi = 0
-static const double OOS_PEN_ID = 1e20;  // out-of-support penalty (matches model 1)
-
-// Never return exactly 0: the identity-link chain rule divides by xi.
-static inline double guard_xi_id(double xi) {
-  if (std::fabs(xi) < XI_EPS_ID) return (xi < 0 ? -XI_EPS_ID : XI_EPS_ID);
-  return xi;
+// Used by the generated d34 below (see derive_degpd_d34.py): F_lo^kappa - F_hi^kappa,
+// minus the cell probability, with F = 1 - s, s = t^(-1/xi) and t_hi = t_lo + xi/sigma,
+// computed without differencing two numbers near 1 (relative error eps/P).
+static inline double degpd1_negpmf(double t_lo, double xi, double sigma, double kappa) {
+  double s_lo = std::exp(-std::log(t_lo) / xi);
+  double d = s_lo * std::expm1(-std::log1p(xi / (sigma * t_lo)) / xi);   // s_hi - s_lo
+  double s_hi = s_lo + d;
+  return std::exp(kappa * std::log1p(-s_hi)) * std::expm1(kappa * std::log1p(d / (1.0 - s_hi)));
 }
 
-// The value of xi for this observation under either link.
-static inline double degpd_xi_value(double eta, double xi_max, bool xi_identity) {
-  if (xi_identity) return guard_xi_id(eta);
-  return exp(bounded_lxi(eta, xi_max, nullptr, nullptr));
+// The same for the endpoint cell (F_hi = 1): F_lo^kappa - 1.
+static inline double degpd1_negpmf_endpoint(double t_lo, double xi, double kappa) {
+  return std::expm1(kappa * std::log1p(-std::exp(-std::log(t_lo) / xi)));
 }
 
-// (1 + z)^p, evaluated as exp(p * log1p(z)) so that a tiny z keeps full precision.
-//
-// The DEGPD densities are built from (1 + xi*y/sigma)^(1/xi). Forming the base as
-// `1 + z` first and then raising it discards z entirely once z < eps: at xi = 1e-15
-// the base rounds to exactly 1.0, pow(1.0, 1/xi) = 1.0, the two survival terms
-// collapse to the same value and -log(hi - lo) becomes +Inf. Errors are already
-// ~3e-2 by xi = 1e-13 and change sign by 1e-14.
-//
-// This matters because the *log* link forces xi = exp(eta) > 0, so on light- or
-// bounded-tailed data the optimiser drives eta -> -Inf and walks straight into that
-// region -- and it then optimises a corrupted objective. log1p(z) is accurate for
-// small z, so routing every such power through it removes the cancellation. The
-// substitution is exact in real arithmetic; only the floating-point path changes.
-static inline double degpd_pow1p(double z, double p) {
-  return exp(p * log1p(z));
+// Upper tail, F_lo^kappa = (1 - s_lo)^kappa > 1/2: only there do the generated d34
+// recompute tiny cells with the helpers above. Below it the plain forms are kept;
+// they derive every symbol from one rounding of s_lo, and mixing in recomputed
+// values broke the cancellation between their terms (fourth derivatives were
+// 255% off at H(y) = 1e-8).
+static inline bool degpd1_upper_tail(double t_lo, double xi, double kappa) {
+  return kappa * std::log1p(-std::exp(-std::log(t_lo) / xi)) > -0.6931471805599453;
 }
 
-// //' Discrete Extended generalized Pareto distribution of type 1 (deGPD1) negative log-likelihood
-// //'
-// //' @param pars a list of vectors of coefficients for each deGPD parameter
-// //' @param X1 a design matrix for the deGPD log scale parameter
-// //' @param X2 a design matrix for the deGPD log shape parameter
-// //' @param X3 a design matrix for the deGPD log kappa
-// //' @param yvec a vector
-// //' @param dupid a scalar or vector, identifying duplicates in Xs; -1 corresponds to no duplicates
-// //' @return degpd1d0 a scalar, the negative log-liklihood
-// //' @return degpd1d12 a matrix, first then second derivatives w.r.t. deGPD1 parameters
-// //' @return degpd1d34 a matrix, third then fourth derivatives w.r.t. deGPD1 parameters (Not given)
-// //' @examples
-// //' ## to follow
-// //' @export
 // [[Rcpp::export]]
 double degpd1d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max)
 {
-  
-  arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
-  arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
-  arma::vec lkappavec = X3 * Rcpp::as<arma::vec>(pars[2]);
-  int nobs = yvec.size();
-   
-   if (dcate == 1) {
-    lsigmavec = lsigmavec.elem(dupid);
-    lxivec = lxivec.elem(dupid);
-    lkappavec = lkappavec.elem(dupid);
-  }
-
-  {
-  arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
-  if (off0.n_elem > 0) lsigmavec += off0;
-  arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
-  if (off1.n_elem > 0) lxivec += off1;
-  arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
-  if (off2.n_elem > 0) lkappavec += off2;
-  }
-
-  double y, lsigma, lxi, lkappa;
-  double e1,e2,e3, e4, e5;
-  double hi; 
-  double lo;
-  double nllh=0.0;
-  
-  for (int j=0; j < nobs; j++) {
-    
-    y = yvec[j];
-    lsigma = lsigmavec[j];
-    lxi = bounded_lxi(lxivec[j], xi_max, nullptr, nullptr);  // issue #2: bounded shape link (xi_max=Inf -> log link)
-    lkappa = lkappavec[j];
-
-    e1=1/exp(lxi);
-    e2 =  exp(lxi) / exp(lsigma);
-    e3= 1+ (y+1)*e2;
-	e4 = 1+  y*e2;
-	e5= exp(lkappa);
-    // the support checks have to come first: log1p below is undefined at z <= -1
-    if (e3 <= 0) {
-      nllh = 1e20;
-      break;
-    }
-
-    if (e4 <= 0) {
-      nllh = 1e20;
-      break;
-    }
-
-    // H(y+1)^kappa and H(y)^kappa, with (1+z)^(-1/xi) routed through log1p
-    hi=  R_pow(1- degpd_pow1p((y+1)*e2, -e1) , e5);
-    lo= R_pow(1- degpd_pow1p(y*e2, -e1) , e5);
-
-    // hi and lo are both in [0,1] and can be very close, so difference them on the
-    // log scale: log(hi - lo) = log(hi) + log1p(-lo/hi), which keeps the leading
-    // digits that a plain subtraction would cancel away.
-    if (!(hi > lo)) {
-      nllh = 1e20;
-      break;
-    }
-    nllh += -(log(hi) + log1p(-lo / hi));
-    //if (!ISNA(nllh)){
-    //nllh = 1e20;
-    // break;
-//}
- //Rprintf("hi %f ",hi); 
-   // Rprintf("lo %f \n",lo);
-  }
-  return(nllh);
+  return arma::accu(degpd_loglink_eval(pars, {X1, X2, X3}, yvec, dupid, dcate, offsets, 1, xi_max, true, true).col(0));
 }
 
-
-// //' @rdname degpd1d0
 // [[Rcpp::export]]
-arma::mat degpd1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec , const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max)
+arma::mat degpd1d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max)
 {
-  
-  arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
-  arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
-  arma::vec lkappavec = X3 * Rcpp::as<arma::vec>(pars[2]);
-  int nobs = yvec.size();
-  arma::mat out = arma::mat(nobs, 9);
-  
-  if (dcate == 1) {
-    lsigmavec = lsigmavec.elem(dupid);
-    lxivec = lxivec.elem(dupid);
-    lkappavec = lkappavec.elem(dupid);
-  }
-
-  {
-  arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
-  if (off0.n_elem > 0) lsigmavec += off0;
-  arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
-  if (off1.n_elem > 0) lxivec += off1;
-  arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
-  if (off2.n_elem > 0) lkappavec += off2;
-  }
-
-  double y, lsigma, lxi, lkappa;
-  double ee1, ee2, ee3, ee4, ee6, ee8, ee9;
-  double ee10, ee11, ee12, ee13, ee14, ee15, ee16, ee17, ee18, ee19;
-  double ee20, ee21,ee22, ee23, ee24, ee25, ee26, ee27, ee28, ee29,ee30;
-  double ee31, ee32, ee33, ee34, ee35, ee36, ee37, ee38, ee39, ee40;
-  double ee42, ee44, ee46, ee47;
-  double ee49, ee51, ee52, ee53, ee55, ee56;
-  double ee58, ee59, ee60, ee61, ee62;
-  double ee63, ee64, ee65, ee66, ee67, ee68;
-  double ee69, ee70, ee73, ee74;
-  double ee77, ee78, ee81, ee82, ee83;
-  double ee84, ee85, ee86, ee87,ee91;
-  double ee92, ee94, ee95, ee97, ee100;
-  double ee102, ee103, ee105;
-  
-  double eee1, eee2, eee3, eee5, eee6, eee7, eee8;
-  double eee9, eee10;
-  double eee11, eee12, eee13, eee14, eee15, eee16;
-  double eee17, eee18, eee20, eee22;
-  double eee25, eee26, eee29, eee31;
-  double eee33, eee34,eee35, eee39, eee41;
-  
-  
-  double mp_xi, mpp_xi;
-  for (int j=0; j < nobs; j++) {
-
-    y  = yvec[j];
-      lsigma  = lsigmavec[j];
-      lxi  = bounded_lxi(lxivec[j], xi_max, &mp_xi, &mpp_xi);  // issue #2: bounded shape link + chain factors
-      lkappa  = lkappavec[j];
-
-    if(y>0){
-    ee1  = exp(lxi);
-    ee2  = exp(lsigma);
-    ee3  = 1/ee1;
-    ee4  = 1 + y;
-    ee6  = (ee4 * ee1)/ee2;
-    ee8  = (y * ee1)/ee2;
-    ee9  = exp(lkappa);
-    ee10  = ee6 + 1;
-    ee11  = 1 + ee8;
-    ee12  = degpd_pow1p(ee6, ee3);
-    ee13  = degpd_pow1p(ee8, ee3);
-    ee14  = 1 - 1/ee12;
-    ee15  = 1 - 1/ee13;
-    ee16  = 1 + ee3;
-    ee17 = ee9 - 1;
-    ee18 = R_pow(ee14,ee9);
-    ee19 = R_pow(ee15,ee9);
-    ee20 = degpd_pow1p(ee6, ee16);
-    ee21 = degpd_pow1p(ee8, ee16);
-    ee22 = R_pow(ee14,ee17);
-    ee23 = R_pow(ee15,ee17);
-    ee24 = ee18 - ee19;
-    ee25 = log1p(ee6);
-    ee26 = log1p(ee8);
-    ee27 = ee3 - 1;
-    ee28 = ee20 * ee2;
-    ee29 = ee21 * ee2;
-    ee30 = 2/ee1;
-    ee31 = log(ee14);
-    ee32 = log(ee15);
-    ee33 = ee12 * ee1;
-    ee34 = ee13 * ee1;
-    ee35 = ee24 * ee2;
-    ee36 = ee22 * ee4;
-    ee37 = y * ee23;
-    ee38 = degpd_pow1p(ee6, ee27);
-    ee39 = ee36/ee20;
-    ee40 = degpd_pow1p(ee8, ee27);
-    ee42 = ee9 - 2;
-    ee44 = ee25/ee33 - ee4/ee28;
-    ee46 = ee26/ee34 - y/ee29;
-    ee47 = ee37/ee21;
-    ee49 = (ee38 * ee4)/ee2;
-    ee51 = (ee12 * ee25)/ee1;
-    ee52 = ee18 * ee31;
-    ee53 = ee19 * ee32;
-    ee55 = (ee13 * ee26)/ee1;
-    ee56 = ee47 - ee39;
-    ee58 = (y * ee40)/ee2;
-    ee59 = ee49 - ee51;
-    ee60 = degpd_pow1p(ee6, ee30);
-    ee61 = ee52 - ee53;
-    ee62 = degpd_pow1p(ee8, ee30);
-    ee63 = 2 * ee16;
-    ee64 = ee58 - ee55;
-    ee65 = ee22 * ee44;
-    ee66 = ee23 * ee46;
-    ee67 = R_pow(ee14,ee42);
-    ee68 = ee66 - ee65;
-    ee69 = R_pow(ee15,ee42);
-    ee70 = R_pow(ee35,2);
-    ee73 = (ee59 * ee22)/ee60 - (ee23 * ee64)/ee62;
-    ee74 = ee61 * ee9;
-    ee77 = ee12 * ee16 * ee4 * ee1; 
-    ee78 = ee69 * ee17;
-    ee81 = y * ee16 * ee13 * ee1;
-    ee82 = R_pow(ee28,2);
-    ee83 = ee59 * ee67;
-    ee84 = R_pow(ee33,2);
-    ee85 = ee68 * ee9;
-    ee86 = R_pow(ee29,2);
-    ee87 = R_pow(ee34,2);
-    ee91 = ee77/ee2 - (ee20 * ee25)/ee1;
-    ee92 = degpd_pow1p(ee6, ee63);
-    ee94 = ee22 * ee9 * ee31;
-    ee95 = ee67 * ee17;
-    ee97 = ee23 * ee9 * ee32;
-    ee100 = degpd_pow1p(ee8, ee63);
-    //ee101 = 1 + 3/ee1;
-    ee102 = ee3 - ee63;
-    ee103 = ee9 * ee56;
-    ee105 = ee81/ee2 - ee21 * ee26/ee1; 
-
-out(j, 0) = -(ee103/ee35);
-    out(j, 1) = -(ee85/ee24); 
-    out(j, 2) = -(ee74/ee24);
-    out(j, 3) = -(((R_pow(y,2) * 
-                      (ee23 * ee16 * degpd_pow1p(ee8, ee102) * ee1 - ee78/ee100) - (degpd_pow1p(ee6, ee102) * 
-                                                                         ee22 * ee16 * ee1 - ee95/ee92) * R_pow(ee4,2))/(ee24 * R_pow(ee2,2)) - 
-                     (ee35 + ee103) * ee56/ee70) * ee9);
-    out(j, 4) = -(ee9 * (y * 
-                           (((ee29 - ee81)/ee86 + (ee40 * ee1 * ee26/ee87 - 1/ee21)/ee2) * 
-                              ee23 - ee78 * ee46/ee29) - ((((ee28 - ee77)/ee82 + 
-                                                              (ee38 * ee1 * ee25/ee84 - 1/ee20)/ee2) * ee22 - ee95 * 
-                                                             ee44/ee28) * ee4 + ee85 * ee56/ee35))/ee24);
-    out(j, 5) = -(ee9 * 
-                    (y * (ee97/ee21 + ee23/ee21) - ((ee94/ee20 + ee22/ee20) * 
-                                                      ee4 + ee74 * ee56/ee24))/ee35); 
-    out(j, 6) = -(((ee69 * ee46 * 
-                      ee64/ee62 - ee83 * ee44/ee60) * ee17 + ee23 * (y * (1/ee29 + 
-                                                                            ee2 * ee105/ee86) - (ee13 + ee58 - ee55) * ee1 * ee26/ee87) - 
-                     (((ee91 * ee2/ee82 + 1/ee28) * ee4 - (ee49 + ee12 - ee51) * 
-                         ee1 * ee25/ee84) * ee22 + ee73 * ee68 * ee9/ee24)) * ee9/ee24);
-    out(j, 7) =  -((ee59 * (ee94/ee60 + ee22/ee60) - 
-                      (ee73 * ee61 * ee9/ee24 + (ee97/ee62 + ee23/ee62) * ee64)) * ee9/ee24);
-    out(j, 8) = -(((ee18 * R_pow(ee31,2) - (R_pow(ee61,2)/ee24 + 
-                                       ee19 * R_pow(ee32,2)))*ee9 + ee52 - ee53) * ee9/ee24);
-  }
-
-else {
-     	   
-    eee1 = exp(lxi);
-    eee2 = exp(lsigma);
-    eee3 = 1 + y;
-    eee5 = eee3 * eee1/eee2;
-    eee6 = 1/eee1;
-    eee7 = eee5 + 1;
-    eee8 = degpd_pow1p(eee5, eee6);
-    eee9 = 1 + eee6;
-    eee10 = degpd_pow1p(eee5, eee9);
-    eee11 = 1 - 1/eee8;
-    eee12 = exp(lkappa);
-    eee13 = log1p(eee5);
-    eee14 = eee10 * eee2;
-    eee15 = eee10 * eee11;
-    eee16 = eee15 * eee2;
-    eee17 = eee8 * eee1;
-    eee18 = degpd_pow1p(eee5, eee6 - 1);
-    eee20 = eee18 * eee3/eee2;
-    eee22 = eee8 * eee13/eee1;
-    eee25 = eee13/eee17 - eee3/eee14;
-    eee26 = eee20 - eee22;
-    eee29 = eee8 * eee9 * eee3 * eee1;
-    eee31 = eee3 * eee12/eee16;
-    eee33 = R_pow(eee16,2);
-    eee34 = R_pow(eee14,2);
-    eee35 = R_pow(eee17,2);
-    eee39 = eee29/eee2 - eee10 * eee13/eee1;
-    eee41 = degpd_pow1p(eee5, 2/eee1) * eee11;
-    
-	
-	out(j, 0) = eee31; 
-    out(j, 1) = eee12 * eee25/eee11;
-    out(j, 2) = -(eee12 *log(eee11)); 
-    out(j, 3) = -((eee16 - (eee8*eee11 * eee9 * eee1 + 1) * eee3) * eee3 * eee12/eee33); 
-    out(j, 4) = ((eee14 - 
-                    eee29)/eee34 + (eee18 * eee1 * eee13/eee35 + eee25/eee15 - 1/eee10)/eee2) * eee3 * eee12/eee11; 
-    out(j, 5) = eee31;  
-    out(j, 6) = ((eee39 * eee2/eee34 + 1/eee14) * eee3 - (eee26 * eee25/eee41 + 
-                                                       (eee20 + eee8 - eee22) * eee1 * eee13/eee35)) * eee12/eee11;
-    out(j, 7) =  -(eee26 * eee12/eee41); 
-    out(j, 8) =  -(eee12 *log(eee11));
-  }
-    // issue #2: chain rule converting derivatives w.r.t. lxi_eff into derivatives
-    // w.r.t. the raw predictor eta. No-op when xi_max=Inf (mp_xi=1, mpp_xi=0).
-    // Columns touched: grad 1 = d/dxi; Hessian 4 = (sigma,xi), 6 = (xi,xi), 7 = (xi,kappa).
-    if (mp_xi != 1.0 || mpp_xi != 0.0) {
-      double g1 = out(j, 1), h_sx = out(j, 4), h_xx = out(j, 6), h_xk = out(j, 7);
-      out(j, 1) = g1 * mp_xi;
-      out(j, 4) = h_sx * mp_xi;
-      out(j, 7) = h_xk * mp_xi;
-      out(j, 6) = h_xx * mp_xi * mp_xi + g1 * mpp_xi;
-    }
+  return degpd_loglink_eval(pars, {X1, X2, X3}, yvec, dupid, dcate, offsets, 1, xi_max, true).cols(1, 9);
 }
 
-   return out;
-}
-  
-  
-
-// //' Discrete Extended generalized Pareto distribution of type 2 (DeGPD2) negative log-likelihood
-// //'
-// //' @param pars a list of vectors of coefficients for each DeGPD parameter
-// //' @param X1 a design matrix for the eGPD log scale parameter
-// //' @param X2 a design matrix for the eGPD log shape parameter
-// //' @param X3 a design matrix for the eGPD log kappa1 parameter
-// //' @param X4 a design matrix for the eGPD log kappa2 parameter
-// //' @param X5 a design matrix for the eGPD logit p parameter
-// //' @param yvec a vector
-// //' @param dupid a scalar or vector, identifying duplicates in Xs; -1 corresponds to no duplicates
-// //' @return degpd2d0 a scalar, the negative log-liklihood
-// //' @return degpd2d12 a matrix, first then second derivatives w.r.t. deGPD2 parameters
-// //' @return degpd2d34 a matrix, third then fourth derivatives w.r.t. deGPDD2 parameters (Not available)
-// //' @examples
-// //' ## to follow
-// //' @export
 // [[Rcpp::export]]
-
 double degpd2d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, const arma::mat& X4, const arma::mat& X5, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
-  arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
-  arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
-  arma::vec lkappa1vec = X3 * Rcpp::as<arma::vec>(pars[2]);
-  arma::vec ldkappavec = X4 * Rcpp::as<arma::vec>(pars[3]);
-  arma::vec logitpvec = X5 * Rcpp::as<arma::vec>(pars[4]);
-  int nobs = yvec.size();
-
-   if (dcate == 1) {
-  lsigmavec = lsigmavec.elem(dupid);
-  lxivec = lxivec.elem(dupid);
-  lkappa1vec = lkappa1vec.elem(dupid);
-  ldkappavec = ldkappavec.elem(dupid);
-  logitpvec = logitpvec.elem(dupid);
+  if (xi_identity)
+    return arma::accu(degpd_identity_eval(pars, {X1, X2, X3, X4, X5}, yvec, dupid, dcate, offsets, 2, true).col(0));
+  return arma::accu(degpd_loglink_eval(pars, {X1, X2, X3, X4, X5}, yvec, dupid, dcate, offsets, 2, xi_max, false, true).col(0));
 }
 
-  {
-  arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
-  if (off0.n_elem > 0) lsigmavec += off0;
-  arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
-  if (off1.n_elem > 0) lxivec += off1;
-  arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
-  if (off2.n_elem > 0) lkappa1vec += off2;
-  arma::vec off3 = Rcpp::as<arma::vec>(offsets[3]);
-  if (off3.n_elem > 0) ldkappavec += off3;
-  arma::vec off4 = Rcpp::as<arma::vec>(offsets[4]);
-  if (off4.n_elem > 0) logitpvec += off4;
-  }
-
-  double y, lsigma, xiv, lkappa1, lkappa2, logitp;
-  double e1,e2,e3, e4,e5,e6,e7, e8, e9,e10,e11, e12;
-  double lo, hi;
-  double nllh=0.0;
-
-  for (int j=0; j < nobs; j++) {
-
-    y = yvec[j];
-    lsigma = lsigmavec[j];
-    xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);
-    lkappa1 = lkappa1vec[j];
-    // Reparameterization: ldkappa = log(kappa2 - kappa1), compute lkappa2 via log-sum-exp
-    {
-      double ldk = ldkappavec[j];
-      double mx = std::max(lkappa1, ldk);
-      lkappa2 = mx + log1p(exp(-std::abs(lkappa1 - ldk)));
-    }
-    logitp = logitpvec[j];
-    
-    e1=1.0/xiv;
-    e2 =  xiv / exp(lsigma);
-    e3= 1+ (y+1)*e2;
-    e6= 1+ y*e2;
-    // xi < 0 gives a finite upper endpoint -sigma/xi (see degpd_xi_value).
-    if (e6 <= 0.0) { nllh += OOS_PEN_ID; continue; }
-    // endpoint cell: y+1 past the endpoint means H(y+1) = 1, i.e. e4 = 0
-    e4= (e3 <= 0.0) ? 0.0 : R_pow(1/e3, e1);
-    e5= R_pow(1-e4, exp(lkappa1)); //(H(y+1))^lkappa1
-    e7= R_pow(1/e6, e1);
-    e8= R_pow(1-e7, exp(lkappa1)); //(H(y))^lkappa1
-    e9= exp(logitp)/ (1+exp(logitp));
-	hi= e9*(e5-e8);
-	e10= R_pow(1-e4, exp(lkappa2)); //(H(y+1))^lkappa2
-	e11= R_pow(1-e7, exp(lkappa2)); //(H(y))^lkappa2
-	e12= 1/(1+exp(logitp));
-	lo= e12*(e10-e11);
-
-    if (!(hi + lo > 0.0) || !R_finite(hi + lo)) { nllh += OOS_PEN_ID; continue; }
-    nllh += -log(hi+lo);
-    //if (!ISNA(nllh)){
-    //nllh = 1e20;
-    // break;
-//}
-// Rprintf("hi %f ",hi); 
-  //  Rprintf("lo %f \n",lo);
- }
-  return(nllh);
-}
-
-
-// //' @rdname degpd2d0
 // [[Rcpp::export]]
-arma::mat degpd2d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3,  arma::mat X4, arma::mat X5, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
+arma::mat degpd2d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::mat X4, arma::mat X5, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
-  
-  arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
-  arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
-  arma::vec lkappa1vec = X3 * Rcpp::as<arma::vec>(pars[2]);
-  arma::vec ldkappavec = X4 * Rcpp::as<arma::vec>(pars[3]);
-  arma::vec logitpvec = X5 * Rcpp::as<arma::vec>(pars[4]);
-  int nobs = yvec.size();
-  arma::mat out = arma::mat(nobs, 20);
-
- if (dcate == 1) {
-  lsigmavec = lsigmavec.elem(dupid);
-  lxivec = lxivec.elem(dupid);
-  lkappa1vec = lkappa1vec.elem(dupid);
-  ldkappavec = ldkappavec.elem(dupid);
-  logitpvec = logitpvec.elem(dupid);
+  if (xi_identity)
+    return degpd_identity_eval(pars, {X1, X2, X3, X4, X5}, yvec, dupid, dcate, offsets, 2).cols(1, 20);
+  return degpd_loglink_eval(pars, {X1, X2, X3, X4, X5}, yvec, dupid, dcate, offsets, 2, xi_max, false).cols(1, 20);
 }
 
-  {
-  arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
-  if (off0.n_elem > 0) lsigmavec += off0;
-  arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
-  if (off1.n_elem > 0) lxivec += off1;
-  arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
-  if (off2.n_elem > 0) lkappa1vec += off2;
-  arma::vec off3 = Rcpp::as<arma::vec>(offsets[3]);
-  if (off3.n_elem > 0) ldkappavec += off3;
-  arma::vec off4 = Rcpp::as<arma::vec>(offsets[4]);
-  if (off4.n_elem > 0) logitpvec += off4;
-  }
-
-  double y, lsigma, xiv, lkappa1, lkappa2, logitp;
-  double ee1, ee2, ee3, ee4,  ee6, ee8,ee9, ee10, ee11, ee12, ee13, ee14, ee15, ee16, ee17, ee18, ee19;
-  double ee20, ee21,ee22, ee23, ee24, ee25, ee26,ee27, ee28, ee30, ee31,  ee32, ee33, ee34, ee35, ee36, ee37, ee38, ee39, ee40, ee41, ee42,ee43, ee44, ee45, ee46, ee47;
-  double ee50,ee52, ee54, ee56,ee58, ee60, ee61, ee62, ee63;
-  double ee64,ee65, ee66, ee67,ee68,ee69,ee70,ee71, ee72,ee73, ee74,ee75, ee76, ee77, ee78,ee79,ee80,ee81, ee82,ee83,ee84,ee85,ee86;
-  double ee87,ee88,ee89,ee90,ee91, ee92,ee93,ee94,ee95, ee96,ee99, ee100;
-  double ee102, ee105,ee108, ee109, ee112, ee113,ee114,ee115,ee116, ee120,ee121,ee122,ee123, ee124;
-  double ee125,ee128,ee130,ee132, ee134;
-  double ee135,ee136, ee137,ee140,ee142,ee143,ee144 ,ee149,ee150,ee151,ee153,ee158,ee160,ee161,ee163,ee164,ee166;
-  double ee168,ee170,ee171,ee172,ee175,ee176,ee178,ee179;
-  
-  double eee1, eee2, eee3, eee5, eee6, eee7, eee8, eee9, eee10, eee11, eee12, eee13, eee14,eee15;
-  double eee17, eee18,eee19, eee20,eee21,  eee22, eee23, eee24, eee25, eee26,eee27, eee28, eee29, eee30, eee31;
-  double eee32,eee34,eee35, eee36, eee37,eee38,eee40, eee42,eee43, eee44,eee45, eee48, eee49,eee50,eee51,eee52,  eee54;
-  double  eee57,eee58, eee59, eee60,eee61, eee64,eee68, eee69,eee70,eee71,eee75,  eee76;
-  double eee77,eee80, eee82, eee84,eee88,eee93, eee95;
-  
-  
-  
-  for (int j=0; j < nobs; j++) {
-    
-    y  = yvec[j];
-      lsigma  = lsigmavec[j];
-      xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);
-      lkappa1  = lkappa1vec[j];
-
-    // IDENTITY LINK SUPPORT GUARD. With xi < 0 the distribution has a finite upper
-    // endpoint -sigma/xi, and the generated derivative expressions below evaluate
-    // R_pow(1/e3, 1/xi) on a NEGATIVE base past it -- NaN, which would propagate
-    // through the whole gradient and Hessian. Zero the row instead, matching what
-    // degpd5d12/degpd6d12 already do when gpd_Fderiv reports out of support. This
-    // also covers the endpoint cell (y+1 past the endpoint): d0 scores it exactly,
-    // but the fused hi-lo derivative formulas here cannot represent it, so its
-    // gradient contribution is dropped rather than computed wrongly.
-    {
-      double sg_ = exp(lsigmavec[j]);
-      if (1.0 + xiv * y / sg_ <= 0.0 || 1.0 + xiv * (y + 1.0) / sg_ <= 0.0) {
-        for (arma::uword c_ = 0; c_ < out.n_cols; c_++) out(j, c_) = 0.0;
-        continue;
-      }
-    }
-
-      // Reparameterization: ldkappa = log(kappa2 - kappa1), compute lkappa2 via log-sum-exp
-      {
-        double ldk = ldkappavec[j];
-        double mx = std::max(lkappa1, ldk);
-        lkappa2 = mx + log1p(exp(-std::abs(lkappa1 - ldk)));
-      }
-      logitp  = logitpvec[j];
-
-    if(y>0){
-      ee1 = xiv;
-    ee2 = exp(lsigma);
-    ee3 = 1/ee1;
-    ee4 = 1 + y;
-    ee6 = ee4 * ee1/ee2;
-    ee8 = y * ee1/ee2;
-    ee9 = ee6 + 1;
-    ee10 = 1 + ee8;
-    ee11 = R_pow(ee9,ee3);
-    ee12 = R_pow(ee10,ee3);
-    ee13 = exp(lkappa1);
-    ee14 = exp(lkappa2);
-    ee15 = 1 - 1/ee11;
-    ee16 = 1 - 1/ee12;
-    ee17 = 1 + ee3;
-    ee18 = exp(logitp);
-    ee19 = ee13 - 1;
-    ee20 = ee14 - 1;
-    ee21 = R_pow(ee15,ee13);
-    ee22 = R_pow(ee16,ee13);
-    ee23 = R_pow(ee15,ee14);
-    ee24 = R_pow(ee16,ee14);
-    ee25 = R_pow(ee9,ee17);
-    ee26 = R_pow(ee10,ee17);
-    ee27 = ee21 - ee22;
-    ee28 = ee27 * ee18;
-    ee30 = ee28 + ee23 - ee24;
-    ee31 = log1p(ee6);
-    ee32 = log1p(ee8);
-    ee33 = ee3 - 1;
-    ee34 = R_pow(ee15,ee19);
-    ee35 = R_pow(ee16,ee19);
-    ee36 = R_pow(ee15,ee20);
-    ee37 = R_pow(ee16,ee20);
-    ee38 = 2/ee1;
-    ee39 = log(ee15);
-    ee40 = log(ee16);
-    ee41 = ee25 * ee2;
-    ee42 = ee26 * ee2;
-    ee43 = ee11 * ee1;
-    ee44 = ee12 * ee1;
-    ee45 = R_pow(ee9,ee33);
-    ee46 = R_pow(ee10,ee33);
-    ee47 = 1 + ee18;
-    ee50 = ee31/ee43 - ee4/ee41;
-    ee52 = ee32/ee44 - y/ee42;
-    ee54 = ee45 * ee4/ee2;
-    ee56 = ee11 * ee31/ee1;
-    ee58 = ee12 * ee32/ee1;
-    ee60 = y * ee46/ee2;
-    ee61 = ee54 - ee56;
-    ee62 = R_pow(ee9,ee38);
-    ee63 = R_pow(ee10,ee38);
-    ee64 = ee60 - ee58;
-    ee65 = ee30 * ee2;
-    ee66 = ee34 * ee4;
-    ee67 = ee13 * ee18;
-    ee68 = y * ee35;
-    ee69 = ee66/ee25;
-    ee70 = ee36 * ee4;
-    ee71 = ee68/ee26;
-    ee72 = y * ee37;
-    ee73 = ee70/ee25;
-    ee74 = ee71 - ee69;
-    ee75 = ee72/ee26;
-    ee76 = 2 * ee17;
-    ee77 = ee14 * (ee75 - ee73);
-    ee78 = ee21 * ee39;
-    ee79 = ee23 * ee39;
-    ee80 = ee22 * ee40;
-    ee81 = ee24 * ee40;
-    ee82 = ee67 * ee74;
-    ee83 = ee78 - ee80;
-    ee84 = ee79 - ee81;
-    ee85 = ee82 + ee77;
-    ee86 = 1 - ee18/ee47;
-    ee87 = ee34 * ee50;
-    ee88 = ee35 * ee52;
-    ee89 = ee13 - 2;
-    ee90 = ee14 - 2;
-    ee91 = ee27 * ee86;
-    ee92 = (ee23 - ee24)/ee47;
-    ee93 = (ee88 - ee87) * ee13;
-    ee94 = ee36 * ee50;
-    ee95 = ee37 * ee52;
-    ee96 = (ee61 * ee36/ee62 - ee37 * ee64/ee63) * ee14;
-    ee99 = ee61 * ee34/ee62 - ee35 * ee64/ee63;
-    ee100 = ee91 - ee92;
-    ee102 = ee93 * ee18 + (ee95 - ee94) * ee14;
-    ee105 = ee11 * ee17 * ee4 * ee1;
-    ee108 = y * ee17 * ee12 * ee1;
-    ee109 = R_pow(ee65,2);
-    ee112 = ee99 * ee13 * ee18 + ee96;
-    ee113 = R_pow(ee41,2);
-    ee114 = R_pow(ee43,2);
-    ee115 = R_pow(ee42,2);
-    ee116 = R_pow(ee44,2);
-    ee120 = ee105/ee2 - ee25 * ee31/ee1;
-    ee121 = R_pow(ee9,ee76);
-    ee122 = R_pow(ee15,ee89);
-    ee123 = R_pow(ee15,ee90);
-    ee124 = R_pow(ee16,ee89);
-    ee125 = R_pow(ee16,ee90);
-    ee128 = R_pow(ee10,ee76);
-    //ee129 = 1 + 3/ee1;
-    ee130 = ee3 - ee76;
-    ee132 = ee108/ee2 - ee26 * ee32/ee1;
-    ee134 = ee100/ee30 + 1/ee47;
-    ee135 = R_pow(ee30,2);
-    ee136 = ee124 * ee19;
-    ee137 = ee125 * ee20;
-    ee140 = (ee120 * ee2/ee113 + 1/ee41) * ee4 - (ee54 + ee11 - 
-                                                     ee56) * ee1 * ee31/ee114;
-    ee142 = (ee41 - ee105)/ee113 + (ee45 * ee1 * ee31/ee114 - 
-                                       1/ee25)/ee2;
-    ee143 = ee61 * ee122;
-    ee144 = ee61 * ee123;
-    ee149 = ee83 * ee84 * ee13 * ee14 * ee18/ee135;
-    ee150 = ee83 * ee85;
-    ee151 = ee84 * ee85;
-    ee153 = (ee42 - ee108)/ee115 + (ee46 * ee1 * ee32/ee116 - 
-                                       1/ee26)/ee2;
-    //ee157 = R_pow(ee9,ee129);
-    ee158 = R_pow(ee9,ee130);
-    ee160 = ee34 * ee13 * ee39;
-    ee161 = ee122 * ee19;
-    ee163 = ee36 * ee14 * ee39;
-    ee164 = ee123 * ee20;
-    ee166 = ee35 * ee13 * ee40;
-    ee168 = ee37 * ee14 * ee40;
-    //ee169 = R_pow(ee10,ee129);
-    ee170 = R_pow(ee10,ee130);
-    ee171 = R_pow(ee4,2);
-    ee172 = 1 - ee134 * ee18;
-    ee175 = R_pow(ee39,2);
-    ee176 = R_pow(ee40,2);
-    ee178 = y * (1/ee42 + ee2 * ee132/ee115) - (ee12 + ee60 - 
-                                                   ee58) * ee1 * ee32/ee116;
-    ee179 = R_pow(y,2);
-
-    out(j, 0) = -(ee85/ee65); //  #w.r.t to lsigma
-    out(j, 1) = -(ee102/ee30); // #w.r.t to lxi
-    out(j, 2) = -(ee83 * ee13 * ee18/ee30); // #w.r.t to lkappa1
-    out(j, 3) = -(ee84 * 
-                  ee14/ee30); // #w.r.t to lkappa2
-	out(j, 4) = -(ee100 * ee18/ee30); // #w.r.t to logitp
-	
-    out(j, 5) = -((ee67 * 
-                    (ee179 * (ee35 * ee17 * ee170 * ee1 - ee136/ee128) - 
-                       (ee158 * ee34 * ee17 * ee1 - ee161/ee121) * ee171) + 
-                    ee14 * (ee179 * (ee37 * ee17 * ee170 * ee1 - ee137/ee128) - 
-                              (ee158 * ee36 * ee17 * ee1 - ee164/ee121) * ee171))/(ee30 * 
-                                                                                     R_pow(ee2,2)) - (ee65 + ee82 + ee77) * ee85/ee109); // #w.r.t to lsigma,lsigma
-    out(j, 6) = -((ee67 * 
-                   (y * (ee153 * ee35 - ee136 * ee52/ee42) - (ee142 * ee34 - 
-                                                                ee161 * ee50/ee41) * ee4) + ee14 * (y * (ee153 * 
-                                                                                                           ee37 - ee137 * ee52/ee42) - (ee142 * ee36 - ee164 * ee50/ee41) * 
-                                                                                                      ee4) - ee102 * ee85/ee65)/ee30);// #w.r.t to lsigma,lxi
-    out(j, 7) = -(ee67 * (y * 
-                          (ee166/ee26 + ee35/ee26) - ((ee160/ee25 + ee34/ee25) * 
-                                                        ee4 + ee150/ee30))/ee65);  //#w.r.t to lsigma, lkappa1
-    out(j, 8) = -(ee14 * (y * (ee168/ee26 + 
-                               ee37/ee26) - ((ee163/ee25 + ee36/ee25) * ee4 + ee151/ee30))/ee65); // #w.r.t to lsigma,lkappa2
-                               
-                               
-out(j, 9) =  -((ee86 * ee13 * ee74 - (ee100 * ee85/ee30 + 
-                                          ee77/ee47)) * ee18/ee65); // #w.r.t to lsigma,logitp
-out(j, 10) = -((((ee124 * ee52 * ee64/ee63 - 
-                     ee143 * ee50/ee62) * ee19 + ee35 * ee178 - ee140 * ee34) * 
-                   ee13 * ee18 + ((ee125 * ee52 * ee64/ee63 - ee144 * ee50/ee62) * 
-                                    ee20 + ee37 * ee178 - ee140 * ee36) * ee14 - ee112 * 
-                   ee102/ee30)/ee30); //  #w.r.t to lxi,lxi
-out(j, 11) = -((ee61 * (ee160/ee62 + 
-                            ee34/ee62) - (ee112 * ee83/ee30 + (ee166/ee63 + ee35/ee63) * 
-                                            ee64)) * ee13 * ee18/ee30); //  #w.r.t to lxi,lkappa1
-out(j, 12) = -((ee61 * (ee163/ee62 + 
-                            ee36/ee62) - (ee112 * ee84/ee30 + (ee168/ee63 + ee37/ee63) * 
-                                            ee64)) * ee14/ee30); //  #w.r.t to lxi,lkappa2
-out(j, 13) = -((ee99 * ee86 * ee13 - 
-                    (ee112 * ee100/ee30 + ee96/ee47)) * ee18/ee30); // #w.r.t to lxi,logitp
-
-out(j, 14) = -(((ee21 * ee175 - 
-                     (R_pow(ee83,2)* ee18/ee30 + ee22 * ee176)) * ee13 + ee78 - 
-                    ee80) * ee13 * ee18/ee30); //  #w.r.t to lkappa1,lkappa1
-
-
-
-
-out(j, 15) = ee149; //  #w.r.t to lkappa1,lkappa2
-out(j, 16) = -(ee83 * 
-                   ee172 * ee13 * ee18/ee30); // #w.r.t to lkappa1,logitp
-    
-out(j, 17) = -(((ee23 * 
-                     ee175 - (R_pow(ee84,2)/ee30 + ee24 * ee176)) * ee14 + ee79 - 
-                    ee81) * ee14/ee30); //  #w.r.t to lkappa2,lkappa2
-out(j, 18) =  ee134 * ee84 * ee14 * ee18/ee30; // #lkappa2,logitp
-out(j, 19) = -((((ee92 - ee91) * ee18 + ee24 -
-                      ee23)/ee47 + ee27 * ee172) * ee18/ee30); //#w.r.t to logitp,logitp
-
-// Chain rule: transform derivatives from (lkappa1, lkappa2) to (lkappa1, ldkappa)
-{
-  double r1 = exp(lkappa1 - lkappa2);
-  double r2 = 1.0 - r1;
-  double g3 = out(j, 2);  // grad lkappa1
-  double g4 = out(j, 3);  // grad lkappa2
-
-  // Gradient transformation
-  out(j, 2) = g3 + g4 * r1;
-  out(j, 3) = g4 * r2;
-
-  // Hessian cross terms with param 0 (lsigma): H(0,3)=col7, H(0,4)=col8
-  double H03 = out(j, 7), H04 = out(j, 8);
-  out(j, 7) = H03 + H04 * r1;
-  out(j, 8) = H04 * r2;
-
-  // Cross terms with param 1 (lxi): H(1,3)=col11, H(1,4)=col12
-  double H13 = out(j, 11), H14 = out(j, 12);
-  out(j, 11) = H13 + H14 * r1;
-  out(j, 12) = H14 * r2;
-
-  // Diagonal block: H(3,3)=col14, H(3,4)=col15, H(4,4)=col17
-  double H33 = out(j, 14), H34 = out(j, 15), H44 = out(j, 17);
-  out(j, 14) = H33 + 2.0 * r1 * H34 + r1 * r1 * H44 + g4 * r1 * r2;
-  out(j, 15) = r2 * H34 + r1 * r2 * H44 - g4 * r1 * r2;
-  out(j, 17) = r2 * r2 * H44 + g4 * r1 * r2;
-
-  // Cross terms with param 4 (logitp): H(4,3)=col16, H(4,4)=col18
-  double H43 = out(j, 16), H44p = out(j, 18);
-  out(j, 16) = H43 + H44p * r1;
-  out(j, 18) = H44p * r2;
-}
-
-  }
-
-else {
-     	   
-    eee1 = xiv;
-    eee2 = exp(lsigma);
-    eee3 = 1 + y;
-    eee5 = eee3 * eee1/eee2;
-    eee6 = eee5 + 1;
-    eee7 = 1/eee1;
-    eee8 = R_pow(eee6,eee7);
-    eee9 = 1 - 1/eee8;
-    eee10 = exp(lkappa1);
-    eee11 = exp(lkappa2);
-    eee12 = exp(logitp);
-    eee13 = R_pow(eee9,eee10);
-    eee14 = R_pow(eee9,eee11);
-    eee15 = 1 + eee7;
-    eee17 = eee13 * eee12 + eee14;
-    eee18 = R_pow(eee6,eee15);
-    eee19 = eee10 - 1;
-    eee20 = eee11 - 1;
-    eee21 = R_pow(eee9,eee19);
-    eee22 = R_pow(eee9,eee20);
-    eee23 = eee21 * eee10;
-    eee24 = eee22 * eee11;
-    eee25 = eee23 * eee12;
-    eee26 = 1 + eee12;
-    eee27 = log(eee9);
-    eee28 = log1p(eee5);
-    eee29 = R_pow(eee6,(2/eee1));
-    eee30 = eee24/eee18;
-    eee31 = eee17 * eee2;
-    eee32 = eee18 * eee2;
-    eee34 = eee25/eee18 + eee30;
-    eee35 = 1 - eee12/eee26;
-    eee36 = R_pow(eee6,(eee7 - 1));
-    eee37 = eee8 * eee1;
-    eee38 = eee13 * eee35;
-    eee40 = eee36 * eee3/eee2;
-    eee42 = eee8 * eee28/eee1;
-    eee43 = eee14/eee26;
-    eee44 = eee40 - eee42;
-    eee45 = eee25 + eee24;
-    eee48 = eee28/eee37 - eee3/eee32;
-    eee49 = eee24/eee29;
-    eee50 = eee38 - eee43;
-    eee51 = 2 * eee15;
-    eee52 = R_pow(eee31,2);
-    eee54 = eee25/eee29 + eee49;
-    eee57 = eee8 * eee15 * eee3 * eee1;
-    eee58 = R_pow(eee6,eee51);
-    eee59 = R_pow(eee9,(eee10 - 2));
-    eee60 = R_pow(eee9,(eee11 - 2));
-    eee61 = eee34 * eee13;
-    //eee63 = eee17 * eee18 * eee2;
-    eee64 = R_pow(eee17,2);
-    eee68 = eee57/eee2 - eee18 * eee28/eee1;
-    eee69 = R_pow(eee9,(eee10 + eee11));
-    eee70 = R_pow(eee32, 2);
-    eee71 = R_pow(eee37, 2);
-    //eee74 = eee61 * eee2;
-    eee75 = eee34 * eee14;
-    eee76 = eee34 * eee3;
-    eee77 = (eee13 - R_pow(eee9, (2 * eee10)) * eee12/eee17) * eee10;
-    eee80 = eee50 * eee13 * eee12/eee17;
-   // eee81 = R_pow(eee6, (1 + 3/eee1));
-    eee82 = R_pow(eee6, (eee7 - eee51));
-    eee84 = eee21 * eee35 * eee10;
-    //eee85 = eee23 - eee45 * eee13/eee17;
-    eee88 = eee59 * eee10 * eee19 * eee12;
-    eee93 = eee69 * eee10 * eee11 * eee12 * R_pow(eee27,2)/eee64;
-    eee95 = eee60 * eee11 * eee20;
-
-
-    
-	
-	out(j, 0) = eee76/eee31; // # w.r.t. lsigma
-    out(j, 1) = eee45 * eee48/eee17; // # w.r.t. lxi
-    out(j, 2) = -(eee13 * eee10 * eee12 * eee27/eee17); // # w.r.t. lkappa1
-    out(j, 3) = -(eee14 * 
-                    eee11 * eee27/eee17); // # w.r.t. lkappa2
-    out(j, 4) =  -(eee50 * eee12/eee17); //  # w.r.t. logitp
-    
-    out(j, 5) = (((eee82 * eee21 * eee15 * eee1 - 
-                      eee59 * eee19/eee58) * eee10 * eee12 + (eee82 * eee22 * 
-                                                           eee15 * eee1 - eee60 * eee20/eee58) * eee11) * eee3/(eee17 * 
-                                                                                                           R_pow(eee2,2)) - (eee31 - eee76) * eee34/eee52) * eee3;  // # w.r.t (lsigma, lsigma)
-    out(j, 6) = (((eee34 * 
-                     eee48/eee17 + eee36 * eee1 * eee28/eee71 - 1/eee18)/eee2 + 
-                    (eee32 - eee57)/eee70) * eee45 - (eee88/eee18 + eee95/eee18) * 
-                   eee48/eee2) * eee3/eee17 ; // # weereet (lsigma, lxi)
-    out(j, 7) =    -(((eee61/eee17 - eee23/eee18) * 
-         eee27 - eee21/eee18) * eee3 * eee10 * eee12/eee31); //# w.r.t (lsigma, lkappa1)
-    out(j, 8) = -(((eee75/eee17 - 
-                      eee30) * eee27 - eee22/eee18) * eee3 * eee11/eee31); // # w.r.t (lsigma, lkappa2)  
-	out(j, 9) = -((eee34 * 
-                       eee50/eee17 + eee24/(eee18 * eee26) - eee84/eee18) * eee3 * 
-                      eee12/eee31); //# w.r.t (lsigma, logitp)
-	out(j, 10) = (((eee68 * eee2/eee70 + 
-                      1/eee32) * eee3 - (eee40 + eee8 - eee42) * eee1 * eee28/eee71) * 
-                    eee45 + eee44 * (eee88/eee29 + eee95/eee29 - eee45 * eee54/eee17) * 
-                    eee48)/eee17; // # w.r.t (lxi, lxi)
-	out(j, 11) =  -(((eee23/eee29 - eee54 * eee13/eee17) * 
-                      eee27 + eee21/eee29) * eee44 * eee10 * eee12/eee17); // # w.r.t (lxi, lkappa1)
-	out(j, 12) = -(((eee49 - 
-                        eee54 * eee14/eee17) * eee27 + eee22/eee29) * eee44 * eee11/eee17); //# w.r.t (lxi, lkappa2)
-	out(j, 13) = -(eee44 * (eee84/eee29 - (eee54 * eee50/eee17 + 
-                                          eee24/(eee29 * eee26))) * eee12/eee17); // # w.r.t (lxi, logitp)
-    
-    out(j, 14) = -((eee77 * eee27 + eee13) * eee10 * 
-                     eee12 * eee27/eee17); // # w.r.t (lkappa1, lkappa1)
-    
-    out(j, 15) = eee93; //  # w.r.t (lkappa1, lkappa2)
-    
-    out(j, 16) = -((eee38 - 
-                       eee80) * eee10 * eee12 * eee27/eee17); //# w.r.t (lkappa2, logitp)
-    
-    out(j, 17) = -(((eee14 - 
-                       R_pow(eee9,(2 * eee11))/eee17) * eee11 * eee27 + eee14) * eee11 * 
-                     eee27/eee17); //  # w.r.t (lkappa2, lkappa2)
-    
-    out(j, 18) = (eee50 * eee14/eee17 + eee43) * eee11 * eee12 * eee27/eee17; //# w.r.t (lkappa2, logitp)
-    
-    out(j, 19) = -((((eee43 -
-                         eee38) * eee12 - eee14)/eee26 + eee38 - eee80) * eee12/eee17); //# w.r.t (logitp, logitp)
-
-// Chain rule: transform derivatives from (lkappa1, lkappa2) to (lkappa1, ldkappa)
-{
-  double r1 = exp(lkappa1 - lkappa2);
-  double r2 = 1.0 - r1;
-  double g3 = out(j, 2);  // grad lkappa1
-  double g4 = out(j, 3);  // grad lkappa2
-
-  // Gradient transformation
-  out(j, 2) = g3 + g4 * r1;
-  out(j, 3) = g4 * r2;
-
-  // Hessian cross terms with param 0 (lsigma): H(0,3)=col7, H(0,4)=col8
-  double H03 = out(j, 7), H04 = out(j, 8);
-  out(j, 7) = H03 + H04 * r1;
-  out(j, 8) = H04 * r2;
-
-  // Cross terms with param 1 (lxi): H(1,3)=col11, H(1,4)=col12
-  double H13 = out(j, 11), H14 = out(j, 12);
-  out(j, 11) = H13 + H14 * r1;
-  out(j, 12) = H14 * r2;
-
-  // Diagonal block: H(3,3)=col14, H(3,4)=col15, H(4,4)=col17
-  double H33 = out(j, 14), H34 = out(j, 15), H44 = out(j, 17);
-  out(j, 14) = H33 + 2.0 * r1 * H34 + r1 * r1 * H44 + g4 * r1 * r2;
-  out(j, 15) = r2 * H34 + r1 * r2 * H44 - g4 * r1 * r2;
-  out(j, 17) = r2 * r2 * H44 + g4 * r1 * r2;
-
-  // Cross terms with param 4 (logitp): H(4,3)=col16, H(4,4)=col18
-  double H43 = out(j, 16), H44p = out(j, 18);
-  out(j, 16) = H43 + H44p * r1;
-  out(j, 18) = H44p * r2;
-}
-  }
-}
-
-   return out;
-}
-
-
-
-// //' Discrete Extended generalized Pareto distribution of type 3 (deGPD3) negative log-likelihood
-// //'
-// //' @param pars a list of vectors of coefficients for each deGPD parameter
-// //' @param X1 a design matrix for the deGPD log scale parameter
-// //' @param X2 a design matrix for the deGPD log shape parameter
-// //' @param X3 a design matrix for the deGPD log delta
-// //' @param yvec a vector
-// //' @param dupid a scalar or vector, identifying duplicates in Xs; -1 corresponds to no duplicates
-// //' @return degpd3d0 a scalar, the negative log-liklihood
-// //' @return degpd3d12 a matrix, first then second derivatives w.r.t. deGPD3 parameters
-// //' @return degpd3d34 a matrix, third then fourth derivatives w.r.t. deGPD3 parameters (Not given)
-// //' @examples
-// //' ## to follow
-// //' @export
 // [[Rcpp::export]]
 double degpd3d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
-  
-  arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
-  arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
-  arma::vec ldeltavec = X3 * Rcpp::as<arma::vec>(pars[2]);
-  int nobs = yvec.size();
-  
-  if (dcate == 1) {
-    lsigmavec = lsigmavec.elem(dupid);
-    lxivec = lxivec.elem(dupid);
-    ldeltavec = ldeltavec.elem(dupid);
-  }
-
-  {
-  arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
-  if (off0.n_elem > 0) lsigmavec += off0;
-  arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
-  if (off1.n_elem > 0) lxivec += off1;
-  arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
-  if (off2.n_elem > 0) ldeltavec += off2;
-  }
-
-  double y, lsigma, xiv, ldelta;
-  double e1,e2,e3, e4,e5,e6,e7, e8, e9,e10,e11, e12, e13;
-  double lo, hi;
-  double nllh=0.0;
-
-  for (int j=0; j < nobs; j++) {
-
-    y = yvec[j];
-    lsigma = lsigmavec[j];
-    xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);
-    ldelta = ldeltavec[j];
-
-    e1=1.0/xiv;
-    e2 =  xiv / exp(lsigma);
-    e3= 1+ (y+1)*e2;
-	e9= 1+ y*e2;
-    // xi < 0 gives a finite upper endpoint -sigma/xi. y past it has zero
-    // probability; y+1 past it is the endpoint cell, where H(y+1) = 1 so
-    // F(y+1) = G(1) = 1 for every carrier.
-    if (e9 <= 0.0) { nllh += OOS_PEN_ID; continue; }
-    e6= exp(ldelta)+1;
-    if (e3 <= 0.0) {
-      hi = 1.0;
-    } else {
-      e4= R_pow(1/e3, e1);
-      e5= 1-e4; //H(y+1)
-      e7= R_pow(e4, e6)/ exp(ldelta); //[bar H(y+1)]^(ldelta+1)//ldelta
-      e8=e4/ exp(ldelta);  //[bar H(y+1)]//ldelta
-	  hi= e5+e7-e8;
-    }
-	e10= R_pow(1/e9, e1);
-    e11= 1-e10; //H(y)
-    e12= R_pow(e10, e6)/ exp(ldelta); //[bar H(y)]^(ldelta+1)//ldelta
-	e13=e10/ exp(ldelta);  //[bar H(y+1)]//ldelta
-	lo= e11+e12-e13;
-
-    if (!(hi - lo > 0.0) || !R_finite(hi - lo)) { nllh += OOS_PEN_ID; continue; }
-    nllh += -log(hi-lo);
-    //if (!ISNA(nllh)){
-    //nllh = 1e20;
-    //break;
-//}
-// Rprintf("hi %f ",hi); 
-  //  Rprintf("lo %f \n",lo);
- }
-  return(nllh);
+  if (xi_identity)
+    return arma::accu(degpd_identity_eval(pars, {X1, X2, X3}, yvec, dupid, dcate, offsets, 3, true).col(0));
+  return arma::accu(degpd_loglink_eval(pars, {X1, X2, X3}, yvec, dupid, dcate, offsets, 3, xi_max, false, true).col(0));
 }
 
-
-// //' @rdname degpd3d0
 // [[Rcpp::export]]
 arma::mat degpd3d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
-  
-  arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
-  arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
-  arma::vec ldeltavec = X3 * Rcpp::as<arma::vec>(pars[2]);
-  int nobs = yvec.size();
-  arma::mat out = arma::mat(nobs, 9);
-  
-  if (dcate == 1) {
-    lsigmavec = lsigmavec.elem(dupid);
-    lxivec = lxivec.elem(dupid);
-    ldeltavec = ldeltavec.elem(dupid);
-  }
-
-  {
-  arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
-  if (off0.n_elem > 0) lsigmavec += off0;
-  arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
-  if (off1.n_elem > 0) lxivec += off1;
-  arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
-  if (off2.n_elem > 0) ldeltavec += off2;
-  }
-
-  double y, lsigma, xiv, ldelta;
-  double ee1, ee2, ee3, ee4, ee6, ee8, ee9;
-  double ee10, ee11, ee12, ee13, ee14, ee15, ee16, ee17, ee18, ee19;
-  double ee20, ee21,ee22, ee23, ee24, ee25, ee26, ee27, ee28, ee29;
-  double ee32, ee33, ee34, ee35, ee36, ee37, ee38, ee39, ee40, ee41, ee42,ee43, ee44, ee45, ee46, ee47, ee48;
-  double  ee50, ee53, ee55, ee56, ee58, ee59, ee60, ee61, ee62;
-  double ee63, ee64, ee65, ee67,ee69, ee72,ee73, ee74, ee76, ee77, ee81, ee82, ee83;
-  double ee87,ee89,ee90,ee91, ee92,ee93, ee96, ee97, ee100;
-  double ee103,ee106,ee107,ee108,ee111,ee112,ee115, ee119,ee123;
-  double ee125,ee126,ee127,ee128,ee129,ee130,ee131,ee132, ee133;
-  double ee135,ee136,ee138,ee139,ee140,ee141, ee143,ee144,ee145;
-  
-  double eee1, eee2, eee3, eee5, eee6, eee7, eee8, eee9, eee10, eee11, eee12, eee13, eee14, eee16;
-  double eee17, eee19, eee20, eee21, eee22, eee23, eee24, eee25, eee26,eee27, eee28, eee29, eee30, eee31;
-  double eee32, eee33, eee36, eee38, eee41, eee43, eee45, eee46,eee47, eee48, eee49, eee53, eee54;
-  double eee56, eee58, eee61, eee62, eee63, eee64, eee65, eee66,eee67, eee71, eee73, eee74;
-  
-  
-  
-  
-  for (int j=0; j < nobs; j++) {
-    
-    y  = yvec[j];
-      lsigma  = lsigmavec[j];
-      xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);
-      ldelta  = ldeltavec[j];
-
-    // IDENTITY LINK SUPPORT GUARD. With xi < 0 the distribution has a finite upper
-    // endpoint -sigma/xi, and the generated derivative expressions below evaluate
-    // R_pow(1/e3, 1/xi) on a NEGATIVE base past it -- NaN, which would propagate
-    // through the whole gradient and Hessian. Zero the row instead, matching what
-    // degpd5d12/degpd6d12 already do when gpd_Fderiv reports out of support. This
-    // also covers the endpoint cell (y+1 past the endpoint): d0 scores it exactly,
-    // but the fused hi-lo derivative formulas here cannot represent it, so its
-    // gradient contribution is dropped rather than computed wrongly.
-    {
-      double sg_ = exp(lsigmavec[j]);
-      if (1.0 + xiv * y / sg_ <= 0.0 || 1.0 + xiv * (y + 1.0) / sg_ <= 0.0) {
-        for (arma::uword c_ = 0; c_ < out.n_cols; c_++) out(j, c_) = 0.0;
-        continue;
-      }
-    }
-
-   
-    if(y>0){   
-    ee1 = xiv;
-    ee2 = exp(lsigma);
-    ee3 = 1 + y;
-    ee4 = exp(ldelta);
-    ee6 = ee3 * ee1/ee2;
-    ee8 = y * ee1/ee2;
-    ee9 = 1/ee1;
-    ee10 = 1 + ee4;
-    ee11 = ee6 + 1;
-    ee12 = 1 + ee8;
-    ee13 = ee10/ee1;
-    ee14 = 1 + ee9;
-    ee15 = R_pow(ee11,ee9);
-    ee16 = R_pow(ee12,ee9);
-    ee17 = log1p(ee6);
-    ee18 = log1p(ee8);
-    ee19 = R_pow(ee11,ee13);
-    ee20 = R_pow(ee12,ee13);
-    ee21 = ee13 + 1;
-    ee22 = R_pow(ee11,ee14);
-    ee23 = R_pow(ee12,ee14);
-    ee24 = 1/ee15;
-    ee25 = 1/ee16;
-    ee26 = 1/ee19;
-    ee27 = 1/ee20;
-    ee28 = ee25 - ee24;
-    ee29 = ee4/ee1;
-    ee32 = ee10 * ee28 + ee26 - ee27;
-    ee33 = ee9 - 1;
-    ee34 = R_pow(ee11,ee21);
-    ee35 = R_pow(ee12,ee21);
-    ee36 = ee22 * ee2;
-    ee37 = ee23 * ee2;
-    ee38 = ee15 * ee1;
-    ee39 = ee13 - 1;
-    ee40 = ee16 * ee1;
-    ee41 = 2 * ee13;
-    ee42 = 2/ee1;
-    ee43 = R_pow(ee11,ee29);
-    ee44 = R_pow(ee12,ee29);
-    ee45 = 1/ee22;
-    ee46 = 1/ee23;
-    ee47 = ee32 * ee2;
-    ee48 = ee3 * (1/ee34 - ee45);
-    ee50 = ee3/ee22;
-    ee53 = 2 * ee14;
-    ee55 = ee17/ee38 - ee3/ee36;
-    ee56 = ee17/ee19;
-    ee58 = ee18/ee40 - y/ee37;
-    ee59 = ee18/ee20;
-    ee60 = y * (ee46 - 1/ee35);
-    ee61 = y/ee23;
-    ee62 = R_pow(ee11,ee33);
-    ee63 = R_pow(ee12,ee33);
-    ee64 = ee48 + ee60;
-    ee65 = (ee59 - ee56)/ee1;
-    ee67 = ee62 * ee3/ee2;
-    ee69 = ee15 * ee17/ee1;
-    ee72 = ee16 * ee18/ee1;
-    ee73 = 1 - ee10/ee4;
-    ee74 = 2 * ee21;
-    ee76 = y * ee63/ee2;
-    ee77 = (ee67 - ee69)/R_pow(ee11,ee42);
-    ee81 = R_pow(ee11,ee39) * ee3/ee2 - ee19 * ee17/ee1;
-    ee82 = R_pow(ee11,ee41);
-    ee83 = (ee50 - ee61)/ee2;
-    ee87 = R_pow(ee12,ee41);
-    ee89 = ee55/ee43;
-    ee90 = ee58/ee44;
-    ee91 = (ee76 - ee72)/R_pow(ee12,ee42);
-    ee92 = ee17/ee15;
-    ee93 = ee18/ee16;
-    ee96 = y * R_pow(ee12,ee39)/ee2 - ee20 * ee18/ee1;
-    ee97 = ee81/ee82;
-    ee100 = ee15 * ee14 * ee3 * ee1;
-    ee103 = ee83 + ee89 + (ee93 - ee92)/ee1 - ee90;
-    ee106 = ee73 * ee28 + (ee27 - ee26)/ee4 + ee65;
-    ee107 = ee96/ee87;
-    ee108 = ee9 - ee53;
-    ee111 = y * ee14 * ee16 * ee1;
-    ee112 = R_pow(ee47,2);
-    ee115 = ee77 + ee107 - (ee97 + ee91);
-    ee119 = ee100/ee2 - ee22 * ee17/ee1;
-    ee123 = ee65 + ee25 - ee24;
-    ee125 = ee111/ee2 - ee23 * ee18/ee1;
-    ee126 = R_pow(ee36,2);
-    ee127 = R_pow(ee38,2);
-    ee128 = R_pow(ee37,2);
-    ee129 = R_pow(ee40,2);
-    ee130 = ee64 * ee10;
-    ee131 = R_pow(ee11, ee108);
-    ee132 = R_pow(ee11,ee53);
-    ee133 = ee13 - ee74;
-    //ee134 = ee21 - ee74;
-    ee135 = R_pow(ee12,ee108);
-    ee136 = R_pow(ee12,ee53);
-    ee138 = R_pow(ee3,2);
-    ee139 = 1 + ee29;
-    ee140 = 2 * ee29;
-    ee141 = ee29 - 1;
-    ee143 = y/ee35 - ee3/ee34;
-    ee144 = ee61 - ee50;
-    ee145 = R_pow(y,2);
-
-    out(j, 0) = -(ee130/ee47);
-    out(j, 1) = -(ee103 * ee10/ee32); 
-    out(j, 2) = -(ee106 * ee4/ee32);
-    out(j, 3) = -((((ee21 * 
-                       R_pow(ee11,ee133) - ee131 * ee14) * ee138 + ee145 * (ee14 * 
-                                                                       ee135 - ee21 * R_pow(ee12,ee133))) * ee1/(ee32 * R_pow(ee2,2)) - (ee47 + 
-                                                                                                                             ee130) * ee64/ee112) * ee10);   // weret (lsigma, lsigma);
-    out(j, 4) = -(((((ee36 - ee100)/ee126 + 
-                       (ee62 * ee1 * ee17/ee127 - ee45)/ee2)/ee43 + ee4 * ee55/(R_pow(ee11,ee139) * 
-                                                                                  ee2)) * ee3 + ((ee131 * ee138 - ee145 * ee135) * ee14 * 
-                                                                                                   ee1/ee2 + (y * (ee18/ee23 - ee1/ee23) - ee3 * (ee17/ee22 - 
-                                                                                                                                                    ee1/ee22))/ee1 + ee61 - (ee103 * ee64 * ee10/ee32 + ee50))/ee2 - 
-                     y * (((ee37 - ee111)/ee128 + (ee63 * ee1 * ee18/ee129 - 
-                                                     ee46)/ee2)/ee44 + ee4 * ee58/(R_pow(ee12, ee139) * ee2))) * 
-                    ee10/ee32); // weret (lsigma, xi)
-    out(j, 5) = -(((ee143/ee4 - ee106 * ee64/ee32) * 
-                     ee10 + ee73 * ee144 + (y * (ee10 * ee18/ee35 - ee1/ee35) - 
-                                              (ee10 * ee17/ee34 - ee1/ee34) * ee3)/ee1) * ee4/ee47); // weret (lsigma, ldelta) 
-    out(j, 6) = -((((ee77 + ee24) * ee17 + ee1 * ee144/ee2 - 
-                      (ee91 + ee25) * ee18)/ee1 + ((ee119 * ee2/ee126 + 
-                                                      1/ee36) * ee3 - (ee67 + ee15 - ee69) * ee1 * ee17/ee127)/ee43 + 
-                     (ee58 * (y * R_pow(ee12, ee141)/ee2 - ee44 * ee18/ee1)/R_pow(ee12, ee140) - 
-                        (R_pow(ee11,ee141) * ee3/ee2 - ee43 * ee17/ee1) * ee55/R_pow(ee11,ee140)) * 
-                     ee4 + (y * ee125/ee136 - ee119 * ee3/ee132)/ee2 - 
-                     (ee115 * ee103 * ee10/ee32 + (y * (1/ee37 + ee2 * 
-                                                          ee125/ee128) - (ee16 + ee76 - ee72) * ee1 * ee18/ee129)/ee44)) * ee10/ee32); // weret (lxi, lxi)
-    out(j, 7) =  -((((ee81 * ee17/ee82 - ee18 * 
-                        ee96/ee87) * ee10 + ee1 * ee143/ee2 + ee56 - ee59)/ee1 + 
-                      ((ee97 - ee107)/ee4 - ee115 * ee106/ee32) * ee10 + 
-                      (ee77 - ee91) * ee73) * ee4/ee32); // weret (lxi, ldelta)
-    out(j, 8) = -(((R_pow(ee17,2)/ee19 - 
-                      R_pow(ee18,2)/ee20)/R_pow(ee1,2) - ee106 * ee123/ee32) * R_pow(ee4, 2)/ee32); // w.r.t (ldelta, ldelta)
-  }
-
-else {
-     	   
-    eee1 = xiv;
-    eee2 = exp(lsigma);
-    eee3 = 1 + y;
-    eee5 = eee3 * eee1/eee2;
-    eee6 = exp(ldelta);
-    eee7 = eee5 + 1;
-    eee8 = 1 + eee6;
-    eee9 = 1/eee1;
-    eee10 = eee8/eee1;
-    eee11 = R_pow(eee7,eee9);
-    eee12 = R_pow(eee7,eee10);
-    eee13 = log1p(eee5);
-    eee14 = 1 + eee9;
-    eee16 = 1/eee12 + eee6;
-    eee17 = R_pow(eee7,eee14);
-    eee19 = eee16 - eee8/eee11;
-    eee20 = eee10 + 1;
-    eee21 = R_pow(eee7,eee20);
-    eee22 = eee12 * eee1;
-    eee23 = eee17 * eee2;
-    eee24 = eee6/eee1;
-    eee25 = 1/eee21;
-    eee26 = 1/eee17;
-    eee27 = eee11 * eee1;
-    eee28 = eee19 * eee2;
-    eee29 = R_pow(eee7,eee24);
-    eee30 = eee25 - eee26;
-    eee31 = eee13/eee22;
-    eee32 = R_pow(eee7,(eee10 - 1));
-    eee33 = R_pow(eee7,(eee9 - 1));
-    eee36 = 1 - eee8/eee6;
-    eee38 = eee13/eee27 - eee3/eee23;
-    eee41 = eee32 * eee3/eee2 - eee12 * eee13/eee1;
-    eee43 = eee33 * eee3/eee2;
-    eee45 = eee11 * eee13/eee1;
-    eee46 = 1/eee29;
-    eee47 = eee43 - eee45;
-    eee48 = R_pow(eee7,(2 * eee10));
-    eee49 = R_pow(eee7,(2/eee1));
-    eee53 = 1 - (eee36/eee11 + eee16/eee6 + eee31);
-    eee54 = eee46 - 1;
-    eee56 = R_pow(eee22,2);
-    eee58 = eee47/eee49 - eee41/eee48;
-    eee61 = eee11 * eee14 * eee3 * eee1;
-    eee62 = R_pow(eee28,2);
-    eee63 = 1 - (1/eee11 + eee31);
-    eee64 = 2 * eee20;
-    eee65 = eee58 * eee8;
-    eee66 = R_pow(eee23,2);
-    eee67 = R_pow(eee27,2);
-    eee71 = eee61/eee2 - eee17 * eee13/eee1;
-    eee73 = eee8 * eee3 * eee30;
-    eee74 = 2 * eee14;
-    
-	
-	out(j, 0) = -(eee73/eee28);  // weereetee lsigma
-    out(j, 1) = -(eee8 * eee54 * 
-                    eee38/eee19); //# weereetee lxi
-    out(j, 2) = -(eee53 * eee6/eee19); //# weereetee ldelta 
-    out(j, 3) = -(((eee20 * 
-                      R_pow(eee7,(eee10 - eee64)) - R_pow(eee7,(eee9 - eee74)) * eee14) * eee3 * 
-                     eee1/(eee19 * R_pow(eee2,2)) - (eee73 + eee28) * eee30/eee62) * eee8 * 
-                    eee3);  //# weereet (lsigma, lsigma)
-    out(j, 4) = -((((eee23 - eee61)/eee66 + (eee33 * eee1 * eee13/eee67 - 
-                                            (eee8 * eee30 * eee38/eee19 + eee26))/eee2) * eee54 + eee6 * 
-                     eee38/(R_pow(eee7,(1 + eee24)) * eee2)) * eee8 * eee3/eee19); //# weereet (lsigma, xi)
-    out(j, 5) = ((eee32 * 
-                    eee1 * eee13/eee56 + eee53 * eee30/eee19 + 1/(eee21 * eee6)) * 
-                   eee8 + eee36/eee17 - eee25) * eee3 * eee6/eee28;   // # weereet (lsigma, ldelta) 
-    out(j, 6) = -((((eee71 * 
-                       eee2/eee66 + 1/eee23) * eee3 - (eee65 * eee38/eee19 + (eee43 + 
-                                                                         eee11 - eee45) * eee1 * eee13/eee67)) * eee54 - (R_pow(eee7,(eee24 - 
-                                                                                                                           1)) * eee3/eee2 - eee29 * eee13/eee1) * eee6 * eee38/R_pow(eee7,(2 *eee24))) * eee8/eee19); //# weereet (lxi, lxi)
-    out(j, 7) =  ((eee58 * eee53/eee19 - eee41/(eee48 * 
-                                             eee6)) * eee8 + eee3/(eee21 * eee2) - ((eee41 * eee8 + eee12) * 
-                                                                                 eee1 * eee13/eee56 + eee47 * eee36/eee49)) * eee6/eee19; //# weereet (lxi, ldelta) 
-    out(j, 8) =  -((eee12 * R_pow(eee13,2)/eee56 - eee53 * 
-                     eee63/eee19) * R_pow(eee6,2)/eee19);   //# weereet (ldelta, ldelta)                                                                           
-  }
+  if (xi_identity)
+    return degpd_identity_eval(pars, {X1, X2, X3}, yvec, dupid, dcate, offsets, 3).cols(1, 9);
+  return degpd_loglink_eval(pars, {X1, X2, X3}, yvec, dupid, dcate, offsets, 3, xi_max, false).cols(1, 9);
 }
-     
-   return out;
-}
-    
 
-// //' Discrete Extended generalized Pareto distribution of type 4 (deGPD4) negative log-likelihood
-// //'
-// //' @param pars a list of vectors of coefficients for each deGPD parameter
-// //' @param X1 a design matrix for the deGPD log scale parameter
-// //' @param X2 a design matrix for the deGPD log shape parameter
-// //' @param X3 a design matrix for the deGPD log delta
-// //' @param X3 a design matrix for the deGPD log kappa
-// //' @param yvec a vector
-// //' @param dupid a scalar or vector, identifying duplicates in Xs; -1 corresponds to no duplicates
-// //' @return degpd4d0 a scalar, the negative log-liklihood
-// //' @return degpd4d12 a matrix, first then second derivatives w.r.t. deGPD4 parameters
-// //' @return degpd4d34 a matrix, third then fourth derivatives w.r.t. deGPD4 parameters
-// //' @examples
-// //' ## to follow
-// //' @export
 // [[Rcpp::export]]
-
 double degpd4d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, const arma::mat& X4, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
-  arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
-  arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
-  arma::vec ldeltavec = X3 * Rcpp::as<arma::vec>(pars[2]);
-  arma::vec lkappavec = X4 * Rcpp::as<arma::vec>(pars[3]);
-  int nobs = yvec.size();
-  
- if (dcate == 1) {
-  lsigmavec = lsigmavec.elem(dupid);
-  lxivec = lxivec.elem(dupid);
-  ldeltavec = ldeltavec.elem(dupid);
-  lkappavec = lkappavec.elem(dupid);
+  if (xi_identity)
+    return arma::accu(degpd_identity_eval(pars, {X1, X2, X3, X4}, yvec, dupid, dcate, offsets, 4, true).col(0));
+  return arma::accu(degpd_loglink_eval(pars, {X1, X2, X3, X4}, yvec, dupid, dcate, offsets, 4, xi_max, false, true).col(0));
 }
 
-  {
-  arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
-  if (off0.n_elem > 0) lsigmavec += off0;
-  arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
-  if (off1.n_elem > 0) lxivec += off1;
-  arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
-  if (off2.n_elem > 0) ldeltavec += off2;
-  arma::vec off3 = Rcpp::as<arma::vec>(offsets[3]);
-  if (off3.n_elem > 0) lkappavec += off3;
-  }
-
-  double y, lsigma, xiv, ldelta, lkappa;
-  double e1,e2,e3, e4,e5,e6,e7, e8, e9,e10,e11, e12, e13;
-  double lo, hi;
-  double nllh=0.0;
-
-  for (int j=0; j < nobs; j++) {
-
-    y = yvec[j];
-    lsigma = lsigmavec[j];
-    xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);
-    ldelta = ldeltavec[j];
-    lkappa = lkappavec[j];
-    
-    e1=1.0/xiv;
-    e2 =  xiv / exp(lsigma);
-    e3= 1+ (y+1)*e2;
-	e9= 1+ y*e2;
-    // xi < 0 gives a finite upper endpoint -sigma/xi (see degpd_xi_value).
-    if (e9 <= 0.0) { nllh += OOS_PEN_ID; continue; }
-    e6= exp(ldelta)+1;
-    if (e3 <= 0.0) {
-      hi = 1.0;                       // endpoint cell: H(y+1)=1 so F(y+1)=G(1)=1
-    } else {
-      e4= R_pow(1/e3, e1);
-      e5= 1-e4; //H(y+1)
-      e7= R_pow(e4, e6)/ exp(ldelta); //[bar H(y+1)]^(ldelta+1)//ldelta
-      e8=e4/ exp(ldelta);  //[bar H(y+1)]//ldelta
-	  hi= R_pow((e5+e7-e8),exp(lkappa)/2);
-    }
-	e10= R_pow(1/e9, e1);
-    e11= 1-e10; //H(y)
-    e12= R_pow(e10, e6)/ exp(ldelta); //[bar H(y)]^(ldelta+1)//ldelta
-	e13=e10/ exp(ldelta);  //[bar H(y+1)]//ldelta
-	lo= R_pow((e11+e12-e13),exp(lkappa)/2);
-
-    if (!(hi - lo > 0.0) || !R_finite(hi - lo)) { nllh += OOS_PEN_ID; continue; }
-    nllh += -log(hi-lo);
-    //if (!ISNA(nllh)){
-    //nllh = 1e20;
-    // break;
-//}
-// Rprintf("hi %f ",hi); 
-  //  Rprintf("lo %f \n",lo);
- }
-  return(nllh);
-}
-
-
-// //' @rdname degpd4d0
 // [[Rcpp::export]]
-arma::mat degpd4d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3,  arma::mat X4, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
+arma::mat degpd4d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::mat X4, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
-  
-  arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
-  arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
-  arma::vec ldeltavec = X3 * Rcpp::as<arma::vec>(pars[2]);
-  arma::vec lkappavec = X4 * Rcpp::as<arma::vec>(pars[3]);
-  int nobs = yvec.size();
-  arma::mat out = arma::mat(nobs, 14);
-  
- if (dcate == 1) {
-  lsigmavec = lsigmavec.elem(dupid);
-  lxivec = lxivec.elem(dupid);
-  ldeltavec = ldeltavec.elem(dupid);
-  lkappavec = lkappavec.elem(dupid);
+  if (xi_identity)
+    return degpd_identity_eval(pars, {X1, X2, X3, X4}, yvec, dupid, dcate, offsets, 4).cols(1, 14);
+  return degpd_loglink_eval(pars, {X1, X2, X3, X4}, yvec, dupid, dcate, offsets, 4, xi_max, false).cols(1, 14);
 }
 
-  {
-  arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
-  if (off0.n_elem > 0) lsigmavec += off0;
-  arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
-  if (off1.n_elem > 0) lxivec += off1;
-  arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
-  if (off2.n_elem > 0) ldeltavec += off2;
-  arma::vec off3 = Rcpp::as<arma::vec>(offsets[3]);
-  if (off3.n_elem > 0) lkappavec += off3;
-  }
-
-  double y, lsigma, xiv, ldelta, lkappa;
-  double ee1, ee2, ee3, ee4, ee5, ee7, ee9, ee10, ee11, ee12, ee13, ee14, ee15, ee16, ee17, ee18, ee19;
-  double ee20, ee21,ee22, ee23, ee24, ee25, ee26, ee28, ee30, ee31,  ee32, ee33, ee34, ee35, ee36, ee37, ee38, ee39, ee40, ee41, ee42,ee43, ee44, ee45, ee46, ee47, ee48;
-  double ee49, ee50, ee51,ee52,ee53,ee54, ee55, ee56, ee57,ee58, ee59, ee60, ee61, ee62;
-  double ee64, ee66, ee67,ee68,ee70, ee72,ee73, ee74,ee75, ee76, ee77, ee78,ee79,ee80,ee81, ee83,ee84,ee85,ee86;
-  double ee87,ee88,ee89,ee90,ee91, ee92,ee93,ee95, ee96, ee97,ee98,ee99, ee100;
-  double ee101,ee102, ee103, ee105,ee107,ee108, ee109, ee110,ee111,ee112, ee113,ee115, ee117, ee118,ee119,ee121,ee123, ee124;
-  double ee125,ee126,ee127,ee128,ee129,ee130,ee131,ee132, ee133, ee134;
-  double ee135,ee138,ee139,ee140,ee141,ee144,ee145,ee146 ,ee149,ee150,ee151,ee152,ee153,ee154,ee158,ee163,ee166;
-  double ee168,ee169,ee172,ee173,ee177,ee181,ee182,ee183,ee186,ee188,ee189,ee192,ee193,ee194,ee195,ee197,ee200;
-  double ee204,ee206,ee208,ee211,ee215,ee217,ee218,ee222,ee226,ee230,ee231,ee235,ee236;
-  
-  double eee1, eee2, eee3, eee5, eee6, eee7, eee8, eee9, eee10, eee11, eee12, eee13, eee14,eee15, eee16;
-  double eee17, eee18,eee19, eee20,  eee22, eee23, eee24, eee25, eee26,eee27, eee28, eee29, eee30, eee31;
-  double eee33, eee35, eee36, eee37,eee38,eee39,eee40, eee41, eee42,eee43, eee44,eee45, eee46,eee47, eee48, eee49,eee52, eee53, eee54;
-  double eee55, eee57,eee58, eee60,eee61, eee62, eee63,eee67,eee68, eee69,eee70,eee71,eee74,eee75,  eee76;
-  double eee77,eee84,eee85,eee87,eee90,eee93, eee97,eee99, eee100;
-  
-  
-  
-  for (int j=0; j < nobs; j++) {
-    
-    y  = yvec[j];
-      lsigma  = lsigmavec[j];
-      xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);
-      ldelta  = ldeltavec[j];
-      lkappa  = lkappavec[j];
-
-    // IDENTITY LINK SUPPORT GUARD. With xi < 0 the distribution has a finite upper
-    // endpoint -sigma/xi, and the generated derivative expressions below evaluate
-    // R_pow(1/e3, 1/xi) on a NEGATIVE base past it -- NaN, which would propagate
-    // through the whole gradient and Hessian. Zero the row instead, matching what
-    // degpd5d12/degpd6d12 already do when gpd_Fderiv reports out of support. This
-    // also covers the endpoint cell (y+1 past the endpoint): d0 scores it exactly,
-    // but the fused hi-lo derivative formulas here cannot represent it, so its
-    // gradient contribution is dropped rather than computed wrongly.
-    {
-      double sg_ = exp(lsigmavec[j]);
-      if (1.0 + xiv * y / sg_ <= 0.0 || 1.0 + xiv * (y + 1.0) / sg_ <= 0.0) {
-        for (arma::uword c_ = 0; c_ < out.n_cols; c_++) out(j, c_) = 0.0;
-        continue;
-      }
-    }
-
-   
-    if(y>0){   
-      ee1 = xiv;
-      ee2 = exp(lsigma);
-      ee3 = exp(ldelta);
-      ee4 = 1 + y;
-      ee5 = 1/ee1;
-      ee7 = ee4 * ee1/ee2;
-      ee9 = y * ee1/ee2;
-      ee10 = ee7 + 1;
-      ee11 = 1 + ee9;
-      ee12 = 1 + ee3;
-      ee13 = ee12/ee1;
-      ee14 = R_pow(ee10,ee5);
-      ee15 = R_pow(ee11,ee5);
-      ee16 = exp(lkappa);
-      ee17 = 1/ee14;
-      ee18 = 1/ee15;
-      ee19 = ee16/2;
-      ee20 = R_pow(ee10,ee13);
-      ee21 = R_pow(ee11,ee13);
-      ee22 = 1 + ee5;
-      ee23 = 1/ee20;
-      ee24 = 1/ee21;
-      ee25 = (ee23 -ee17)/ee3;
-      ee26 = (ee24 - ee18)/ee3;
-      ee28 = ee25 + 1 - ee17;
-      ee30 = ee26 + 1 - ee18;
-      ee31 = ee19 - 1;
-      ee32 = ee13 + 1;
-      ee33 = log1p(ee7);
-      ee34 = log1p(ee9);
-      ee35 = R_pow(ee10,ee22);
-      ee36 = R_pow(ee11,ee22);
-      ee37 = R_pow(ee28,ee31);
-      ee38 = R_pow(ee30,ee31);
-      ee39 = R_pow(ee28,ee19);
-      ee40 = R_pow(ee30,ee19);
-      ee41 = R_pow(ee10,ee32);
-      ee42 = R_pow(ee11,ee32);
-      ee43 = ee5 - 1;
-      ee44 = 1/ee35;
-      ee45 = 1/ee36;
-      ee46 = ee20 * ee1;
-      ee47 = ee39 - ee40;
-      ee48 = ee21 * ee1;
-      ee49 = 2/ee1;
-      ee50 = ee35 * ee2;
-      ee51 = ee36 * ee2;
-      ee52 = ee33/ee46;
-      ee53 = ee34/ee48;
-      ee54 = ee13 - 1;
-      ee55 = ee14 * ee1;
-      ee56 = ee15 * ee1;
-      ee57 = R_pow(ee10,ee43);
-      ee58 = R_pow(ee11,ee43);
-      ee59 = ee4/ee50;
-      ee60 = ee33/ee55;
-      ee61 = ee34/ee56;
-      ee62 = y/ee51;
-      ee64 = ee57 * ee4/ee2;
-      ee66 = ee14 * ee33/ee1;
-      ee67 = ee12/ee41;
-      ee68 = ee12/ee42;
-      ee70 = ee15 * ee34/ee1;
-      ee72 = y * ee58/ee2;
-      ee73 = (ee67 - ee44)/ee3;
-      ee74 = (ee68 - ee45)/ee3;
-      ee75 = ee41 * ee2;
-      ee76 = ee42 * ee2;
-      ee77 = 2 * ee13;
-      ee78 = ee19 - 2;
-      ee79 = (ee64 - ee66)/R_pow(ee10,ee49);
-      ee80 = ee73 - ee44;
-      ee81 = ee74 - ee45;
-      ee83 = (ee72 - ee70)/R_pow(ee11,ee49);
-      ee84 = log(ee28);
-      ee85 = log(ee30);
-      ee86 = R_pow(ee10,ee54);
-      ee87 = R_pow(ee11,ee54);
-      ee88 = ee4/ee75;
-      ee89 = y/ee76;
-      ee90 = ee47 * ee2;
-      ee91 = ee20 * ee33;
-      ee92 = ee21 * ee34;
-      ee93 = y * ee81;
-      ee95 = ee80 * ee37 * ee4;
-      ee96 = (ee86 * ee4/ee2 - ee91/ee1) * ee12;
-      ee97 = (ee12 * (ee52 - ee88) + ee59 - ee60)/ee3;
-      ee98 = (ee12 * (ee53 - ee89) + ee62 - ee61)/ee3;
-      ee99 = ee12 * (y * ee87/ee2 - ee92/ee1);
-      ee100 = (ee17 - ee23)/ee3;
-      ee101 = (ee18 - ee24)/ee3;
-      ee102 = ee93 * ee38;
-      ee103 = ee95/2;
-      ee105 = ee97 + ee59 - ee60;
-      ee107 = ee98 + ee62 - ee61;
-      ee108 = ee100 - ee52;
-      ee109 = ee101 - ee53;
-      ee110 = ee102/2;
-      ee111 = ee103 - ee110;
-      ee112 = ee96/R_pow(ee10,ee77);
-      ee113 = R_pow(ee28,ee78);
-      ee115 = R_pow(ee30,ee78);
-      ee117 = ee99/R_pow(ee11,ee77);
-      ee118 = 0.5 * (ee39 * ee84);
-      ee119 = 0.5 * (ee40 * ee85);
-      ee121 = (ee79 - ee112)/ee3 + ee79;
-      ee123 = (ee83 - ee117)/ee3 + ee83;
-      ee124 = ee25 + ee52;
-      ee125 = ee26 + ee53;
-      ee126 = ee118 - ee119;
-      ee127 = 2 * ee22;
-      ee128 = ee105 * ee37;
-      ee129 = ee107 * ee38;
-      ee130 = ee37 * ee108;
-      ee131 = ee38 * ee109;
-      ee132 = ee128/2;
-      ee133 = ee129/2;
-      ee134 = R_pow(ee46,2);
-      ee135 = R_pow(ee48,2);
-      ee138 = ee14 * ee22 * ee4 * ee1;
-      ee139 = ee130/2;
-      ee140 = ee131/2;
-      ee141 = 2 * ee32;
-      ee144 = y * ee22 * ee15 * ee1;
-      ee145 = ee132 - ee133;
-      ee146 = ee139 - ee140;
-      ee149 = ee121 * ee37/2 - ee123 * ee38/2;
-      ee150 = R_pow(ee90,2);
-      ee151 = R_pow(ee50,2);
-      ee152 = R_pow(ee55,2);
-      ee153 = R_pow(ee51,2);
-      ee154 = R_pow(ee56,2);
-      ee158 = ee138/ee2 - ee35 * ee33/ee1;
-      ee163 = ee38 * ee125/2 - ee37 * ee124/2;
-      ee166 = ee5 - ee127;
-      ee168 = ee144/ee2 - ee36 * ee34/ee1;
-      ee169 = R_pow(ee75,2);
-      ee172 = ee32 * ee20 * ee4 * ee1;
-      ee173 = R_pow(ee76,2);
-      ee177 = ee37 + ee37 * ee16 * ee84/2;
-      ee181 = ee38 + ee38 * ee16 * ee85/2;
-      ee182 = 1/ee41;
-      ee183 = 1/ee42;
-      ee186 = y * ee32 * ee21 * ee1;
-      ee188 = ee111 * ee126 * ee16;
-      ee189 = ee111 * ee16;
-      ee192 = (ee96 + ee20) * ee1 * ee33/ee134;
-      ee193 = (ee158 * ee2/ee151 + 1/ee50) * ee4;
-      ee194 = ee80 * ee113;
-      ee195 = ee81 * ee115;
-      ee197 = (ee50 - ee138)/ee151 + (ee57 * ee1 * ee33/ee152 -ee44)/ee2;
-      ee200 = (ee64 + ee14 - ee66) * ee1 * ee33/ee152;
-      //ee201 = ee158/R_pow(ee10,ee127);
-      ee204 = (ee99 + ee21) * ee1 * ee34/ee135;
-      ee206 = ee172/ee2 - ee41 * ee12 * ee33/ee1;
-      ee208 = (ee51 - ee144)/ee153 + (ee58 * ee1 * ee34/ee154 - ee45)/ee2;
-      ee211 = (ee15 + ee72 - ee70) * ee1 * ee34/ee154;
-      ee215 = ee86 * ee12 * ee1 * ee33/ee134;
-      ee217 = R_pow(ee10,ee166) * ee22;
-      ee218 = ee22 * R_pow(ee11,ee166);
-      ee222 = ee12 * ee87 * ee1 * ee34/ee135;
-      ee226 = ee13 - ee141;
-      //ee227 = ee32 - ee141;
-     // ee229 = ee168/R_pow(ee11,ee127);
-      ee230 = 1/ee46;
-      ee231 = 1/ee48;
-      ee235 = ee186/ee2 - ee12 * ee42 * ee34/ee1;
-      ee236 = y * (1/ee51 + ee2 * ee168/ee153);
-
-    out(j, 0) = -(ee189/ee90); // # werete lsigma
-    out(j, 1) = -(ee145 * ee16/ee47); // # werete lxi 
-    out(j, 2) = -(ee146 * ee16/ee47); //# werete ldelta
-    out(j, 3) = -(ee126 * ee16/ee47); //# werete lkappa
-    
-	
-	out(j, 4) = -(((0.5 * ((((ee32 * R_pow(ee10,ee226) * 
-                                ee12 - ee217)/ee3 - ee217) * ee37 * ee1 + R_pow(ee80,2) * 
-                              ee113 * ee31) * R_pow(ee4,2)) - 0.5 * (R_pow(y,2) * (((ee32 * ee12 * 
-                                                                         R_pow(ee11,ee226) - ee218)/ee3 - ee218) * ee38 * ee1 + R_pow(ee81,2) * 
-                                                                       ee115 * ee31)))/(ee47 * R_pow(ee2,2)) - (ee189 + ee90) * 
-                     ee111/ee150) * ee16);   //# weret (lsigma, lsigma)
-    out(j, 5) = -((0.5 * ((((((ee215 - 
-                                 ee182)/ee2 + (ee75 - ee172)/ee169) * ee12 - ee197)/ee3 - 
-                              ee197) * ee37 + ee105 * ee80 * ee113 * ee31/ee2) * 
-                            ee4) - (ee145 * ee111 * ee16/ee90 + 0.5 * (y * (((((ee222 - 
-                                                                                  ee183)/ee2 + (ee76 - ee186)/ee173) * ee12 - ee208)/ee3 - 
-                                                                               ee208) * ee38 + ee107 * ee81 * ee115 * ee31/ee2)))) * 
-                    ee16/ee47); //# weret (lsigma, xi)
-    out(j, 6) = -((0.5 * ((ee194 * ee108 * ee31 + 
-                             ee37 * ((ee44 - ee67)/ee3 + ee182 - ee215)) * ee4) - 
-                     (ee111 * ee146 * ee16/ee47 + 0.5 * (y * (ee195 * 
-                                                                ee109 * ee31 + ee38 * ((ee45 - ee68)/ee3 + ee183 - 
-                                                                                         ee222))))) * ee16/ee90); //# weret (lsigma, ldelta)
-    out(j, 7) = -((0.5 * (ee80 * 
-                             ee177 * ee4) - (ee188/ee47 + 0.5 * (ee93 * ee181))) * 
-                     ee16/ee90); //# weret (lsigma, lkappa)
-    out(j, 8) = -((0.5 * (((((ee206 * ee2/ee169 + 1/ee75) * 
-                               ee4 - ee192) * ee12 + ee200 - ee193)/ee3 + ee200 - 
-                             ee193) * ee37 + ee121 * ee105 * ee113 * ee31) - (ee149 * 
-                                                                                ee145 * ee16/ee47 + 0.5 * (((ee211 + ee12 * (y * 
-                                                                                                                               (1/ee76 + ee2 * ee235/ee173) - ee204) - ee236)/ee3 + 
-                                                                                                              ee211 - ee236) * ee38 + ee107 * ee123 * ee115 * ee31))) * 
-                    ee16/ee47); // # weret (lxi, lxi)
-out(j, 9) =  -((0.5 * ((ee192 + (ee112 - 
-                                        ee79)/ee3 - ee88) * ee37 + ee121 * ee113 * ee108 * 
-                              ee31) - (ee149 * ee146 * ee16/ee47 + 0.5 * ((ee204 + 
-                                                                             (ee117 - ee83)/ee3 - ee89) * ee38 + ee123 * ee115 * 
-                                                                            ee109 * ee31))) * ee16/ee47); //# weret (lxi, ldelta)
-out(j, 10) = -((0.5 * (ee121 * 
-                             ee177) - (ee149 * ee126 * ee16/ee47 + 0.5 * (ee181 * 
-                                                                            ee123))) * ee16/ee47); //# weret (lxi, lkappa)
-out(j, 11) = -((0.5 * (((ee20 * 
-                               ee3 * ee33/ee134 + ee230) * ee33 - ee100) * ee37 - 
-                             ee113 * ee124 * ee108 * ee31) - (ee146 * ee163 * 
-                                                                ee16/ee47 + 0.5 * (((ee21 * ee3 * ee34/ee135 + ee231) * 
-                                                                                      ee34 - ee101) * ee38 - ee115 * ee125 * ee109 * ee31))) * 
-                     ee16/ee47); //# weret (ldelta, ldelta) 
-out(j, 12) = -((0.5 * (ee181 * ee125) - (ee163 * 
-                                               ee126 * ee16/ee47 + 0.5 * (ee177 * ee124))) * ee16/ee47); //# weret (ldelta, lkappa)
-out(j, 13) = -(((0.25 * 
-                        (ee39 * R_pow(ee84,2)) - (R_pow(ee126,2)/ee47 + 0.25 * (ee40 * 
-                                                                    R_pow(ee85,2)))) * ee16 + ee118 - ee119) * ee16/ee47); //# weret (lkappa, lkappa)
- 
-
-  }
-
-else {
-     	   
-    eee1 = xiv;
-    eee2 = exp(lsigma);
-    eee3 = 1 + y;
-    eee5 = eee3 * eee1/eee2;
-    eee6 = eee5 + 1;
-    eee7 = exp(ldelta);
-    eee8 = 1/eee1;
-    eee9 = 1 + eee7;
-    eee10 = eee9/eee1;
-    eee11 = R_pow(eee6,eee8);
-    eee12 = R_pow(eee6,eee10);
-    eee13 = 1/eee11;
-    eee14 = log1p(eee5);
-    eee15 = 1 + eee8;
-    eee16 = R_pow(eee6,eee15);
-    eee17 = 1/eee12;
-    eee18 = eee10 + 1;
-    eee19 = (eee17 - eee13)/eee7;
-    eee20 = R_pow(eee6,eee18);
-    eee22 = eee19 + 1 - eee13;
-    eee23 = eee12 * eee1;
-    eee24 = 1/eee16;
-    eee25 = exp(lkappa);
-    eee26 = eee16 * eee2;
-    eee27 = 2 * eee22;
-    eee28 = eee11 * eee1;
-    eee29 = eee14/eee23;
-    eee30 = eee20 * eee2;
-    eee31 = R_pow(eee6,(eee8 - 1));
-    eee33 = eee31 * eee3/eee2;
-    eee35 = eee11 * eee14/eee1;
-    eee36 = eee9/eee20;
-    eee37 = eee3/eee26;
-    eee38 = eee14/eee28;
-    eee39 = (eee36 - eee24)/eee7;
-    eee40 = (eee33 - eee35)/R_pow(eee6,(2/eee1));
-    eee41 = eee39 - eee24;
-    eee42 = R_pow(eee6,(eee10 - 1));
-    eee43 = eee22 * eee2;
-    eee44 = eee12 * eee14;
-    eee45 = eee3/eee30;
-    eee46 = (eee42 * eee3/eee2 - eee44/eee1) * eee9;
-    eee47 = 2 * eee43;
-    eee48 = R_pow(eee23,2);
-    eee49 = (eee9 * (eee29 - eee45) + eee37 - eee38)/eee7;
-    eee52 = eee11 * eee15 * eee3 * eee1;
-    eee53 = (eee13 - eee17)/eee7;
-    eee54 = R_pow(eee27,2);
-    eee55 = eee46/R_pow(eee6,(2 * eee10));
-    eee57 = eee49 + eee37 - eee38;
-    eee58 = eee53 - eee29;
-    eee60 = (eee40 - eee55)/eee7 + eee40;
-    eee61 = eee41 * eee3;
-    eee62 = R_pow(eee26,2);
-    eee63 = R_pow(eee28,2);
-    eee67 = eee52/eee2 - eee16 * eee14/eee1;
-    eee68 = eee19 + eee29;
-    eee69 = 2 * eee15;
-    eee70 = eee61 * eee25;
-    eee71 = R_pow(eee30,2);
-    eee74 = eee18 * eee12 * eee3 * eee1;
-    eee75 = R_pow(eee47,2);
-    eee76 = 1/eee20;
-    eee77 = 2 * eee18;
-    eee84 = (eee46 + eee12) * eee1 * eee14/eee48;
-    eee85 = (eee67 * eee2/eee62 + 1/eee26) * eee3;
-    eee87 = (eee26 - eee52)/eee62 + (eee31 * eee1 * eee14/eee63 - eee24)/eee2;
-    eee90 = (eee33 + eee11 - eee35) * eee1 * eee14/eee63;
-   // eee91 = eee67/R_pow(eee6,eee69);
-    eee93 = eee74/eee2 - eee20 * eee9 * eee14/eee1;
-    eee97 = eee42 * eee9 * eee1 * eee14/eee48;
-    eee99 = R_pow(eee6,(eee8 - eee69)) * eee15;
-    eee100 = 1/eee23;
-
-    
-	
-	out(j, 0) = -(eee70/eee47); //# weereetee lsigma
-    out(j, 1) = -(eee57 * eee25/eee27); //# weereetee lxi
-    out(j, 2) = -(eee58 * eee25/eee27); //# weereetee ldelta
-    out(j, 3) = -(0.5 * (eee25 * 
-                            log(eee22))); //# weereetee lkappa
-    out(j, 4) = -((((eee18 * 
-                       R_pow(eee6,(eee10 - eee77)) * eee9 - eee99)/eee7 - eee99) * eee3 * eee1/(2 * 
-                                                                                  (eee22 * R_pow(eee2,2))) - 2 * ((eee61 + eee43) * eee41/eee75)) * 
-                    eee3 * eee25); //# weereet (lsigma, lsigma)
-    out(j, 5) = -((((((eee97 - eee76)/eee2 + (eee30 - 
-                                             eee74)/eee71) * eee9 - eee87)/eee7 - eee87)/eee27 - 2 * (eee57 * 
-                                                                                                 eee41/(eee54 * eee2))) * eee3 * eee25); //# weereet (lsigma, xi)
-    out(j, 6) = -((((eee24 - 
-                       eee36)/eee7 + eee76 - eee97)/eee27 - 2 * (eee41 * eee58/eee54)) * 
-                    eee3 * eee25/eee2); // # weereet (lsigma, ldelta)
-    out(j, 7) =    -(0.5 * (eee70/eee43)); //# weereet (lsigma, lkappa)
-    out(j, 8) = -((((((eee93 * eee2/eee71 + 
-                         1/eee30) * eee3 - eee84) * eee9 + eee90 - eee85)/eee7 + eee90 - 
-                      eee85)/eee27 - 2 * (eee60 * eee57/eee54)) * eee25); // # weereet (lxi, lxi)  
-	out(j, 9) = -(((eee84 + 
-                       (eee55 - eee40)/eee7 - eee45)/eee27 - 2 * (eee60 * eee58/eee54)) * 
-                     eee25); //# weereet (lxi, ldelta)
-	out(j, 10) = -(0.5 * (eee60 * eee25/eee22)); // # weereet (lxi, lkappa)
-	out(j, 11) = -((((eee12 * eee7 * eee14/eee48 + eee100) * 
-                       eee14 - eee53)/eee27 + 2 * (eee68 * eee58/eee54)) * eee25); // # weereet (ldelta, ldelta)
-	out(j, 12) = 0.5 * (eee68 * eee25/eee22); //  # weereet (ldelta, lkappa)
-	out(j, 13) = -(0.5 * (eee25 *
-                               log(eee22))); //# weer.t (lkappa, lkappa)
-
-  }
-}
-
-   return out;
-}
-
-
-// //' Discrete Extended generalized Pareto distribution of type 5 (deGPD5) negative log-likelihood
-// //'
-// //' @param pars a list of vectors of coefficients for each deGPD parameter
-// //' @param X1 a design matrix for the deGPD log scale parameter
-// //' @param X2 a design matrix for the deGPD log shape parameter
-// //' @param X3 a design matrix for the deGPD log kappa
-// //' @param yvec a vector
-// //' @param dupid a scalar or vector, identifying duplicates in Xs; -1 corresponds to no duplicates
-// //' @return degpd5d0 a scalar, the negative log-liklihood
-// //' @return degpd5d12 a matrix, first then second derivatives w.r.t. deGPD5 parameters
-// //' @examples
-// //' ## to follow
-// //' @export
 // [[Rcpp::export]]
 double degpd5d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
-
-  arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
-  arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
-  arma::vec lkappavec = X3 * Rcpp::as<arma::vec>(pars[2]);
-  int nobs = yvec.size();
-
-  if (dcate == 1) {
-    lsigmavec = lsigmavec.elem(dupid);
-    lxivec = lxivec.elem(dupid);
-    lkappavec = lkappavec.elem(dupid);
-  }
-
-  {
-  arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
-  if (off0.n_elem > 0) lsigmavec += off0;
-  arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
-  if (off1.n_elem > 0) lxivec += off1;
-  arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
-  if (off2.n_elem > 0) lkappavec += off2;
-  }
-
-  double y, lsigma, xiv, lkappa;
-  double nllh = 0.0;
-
-  for (int j = 0; j < nobs; j++) {
-
-    y = yvec[j];
-    lsigma = lsigmavec[j];
-    xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);
-    lkappa = lkappavec[j];
-
-    double sigma = exp(lsigma);
-    double xi = xiv;
-    double kappa = exp(lkappa);
-    double sk = sqrt(kappa);
-
-    // GPD CDF at y and y+1
-    double v_lo = xi * y / sigma;
-    double t_lo = 1.0 + v_lo;
-    double v_hi = xi * (y + 1.0) / sigma;
-    double t_hi = 1.0 + v_hi;
-
-    // xi < 0 gives a finite upper endpoint -sigma/xi. y past it has zero
-    // probability; y+1 past it is the ENDPOINT CELL, which is legitimate --
-    // H(y+1) = 1 there, so F_hi = 1 and G_hi = G(1) = 1. The previous code
-    // aborted the whole sum on t_hi <= 0, which under the log link was
-    // unreachable but under the identity link would reject valid fits.
-    if (t_lo <= 0.0) { nllh += OOS_PEN_ID; continue; }
-
-    double F_lo = 1.0 - R_pow(t_lo, -1.0 / xi);
-    double F_hi = (t_hi <= 0.0) ? 1.0 : 1.0 - R_pow(t_hi, -1.0 / xi);
-
-    // Truncated normal G-function
-    double Fmin = R::pnorm(-sk, 0.0, 1.0, 1, 0);
-    double denom = 0.5 - Fmin;
-    if (denom < 1e-300) denom = 1e-300;
-    double G_lo = (R::pnorm(sk * (F_lo - 1.0), 0.0, 1.0, 1, 0) - Fmin) / denom;
-    double G_hi = (R::pnorm(sk * (F_hi - 1.0), 0.0, 1.0, 1, 0) - Fmin) / denom;
-
-    double pmf = G_hi - G_lo;
-    if (pmf <= 0.0) pmf = 1e-20;
-
-    nllh += -log(pmf);
-  }
-  return nllh;
+  if (xi_identity)
+    return arma::accu(degpd_identity_eval(pars, {X1, X2, X3}, yvec, dupid, dcate, offsets, 5, true).col(0));
+  return arma::accu(degpd_loglink_eval(pars, {X1, X2, X3}, yvec, dupid, dcate, offsets, 5, xi_max, false, true).col(0));
 }
 
-
-// //' @rdname degpd5d0
 // [[Rcpp::export]]
 arma::mat degpd5d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
 {
+  if (xi_identity)
+    return degpd_identity_eval(pars, {X1, X2, X3}, yvec, dupid, dcate, offsets, 5).cols(1, 9);
+  return degpd_loglink_eval(pars, {X1, X2, X3}, yvec, dupid, dcate, offsets, 5, xi_max, false).cols(1, 9);
+}
 
+// [[Rcpp::export]]
+double degpd6d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
+{
+  if (xi_identity)
+    return arma::accu(degpd_identity_eval(pars, {X1, X2, X3}, yvec, dupid, dcate, offsets, 6, true).col(0));
+  return arma::accu(degpd_loglink_eval(pars, {X1, X2, X3}, yvec, dupid, dcate, offsets, 6, xi_max, false, true).col(0));
+}
+
+// [[Rcpp::export]]
+arma::mat degpd6d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
+{
+  if (xi_identity)
+    return degpd_identity_eval(pars, {X1, X2, X3}, yvec, dupid, dcate, offsets, 6).cols(1, 9);
+  return degpd_loglink_eval(pars, {X1, X2, X3}, yvec, dupid, dcate, offsets, 6, xi_max, false).cols(1, 9);
+}
+
+// GENERATED by derive_degpd_d34.py (degpd1d34) -- do not edit by hand.
+// [[Rcpp::export]]
+arma::mat degpd1d34(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3,
+                  arma::vec yvec, const arma::uvec dupid, int dcate,
+                  const Rcpp::List& offsets, double xi_max)
+{
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
-  arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
+  arma::vec lxivec    = X2 * Rcpp::as<arma::vec>(pars[1]);
   arma::vec lkappavec = X3 * Rcpp::as<arma::vec>(pars[2]);
   int nobs = yvec.size();
-  arma::mat out = arma::mat(nobs, 9);
-
+  arma::mat out = arma::mat(nobs, 25, arma::fill::zeros);
   if (dcate == 1) {
     lsigmavec = lsigmavec.elem(dupid);
-    lxivec = lxivec.elem(dupid);
+    lxivec    = lxivec.elem(dupid);
     lkappavec = lkappavec.elem(dupid);
   }
-
   {
-  arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
-  if (off0.n_elem > 0) lsigmavec += off0;
-  arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
-  if (off1.n_elem > 0) lxivec += off1;
-  arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
-  if (off2.n_elem > 0) lkappavec += off2;
+    arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
+    if (off0.n_elem > 0) lsigmavec += off0;
+    arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
+    if (off1.n_elem > 0) lxivec += off1;
+    arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
+    if (off2.n_elem > 0) lkappavec += off2;
   }
-
-  double y, lsigma, xiv, lkappa;
-
-  // Analytic gradient + Hessian for model 5 (truncated-normal G). nll = -log(P),
-  // P = G(F_hi) - G(F_lo). The GPD CDF F (and its lsigma/lxi derivatives) and the
-  // truncated-normal G (and its F/kappa derivatives) are all closed form; see
-  // models56_analytic_derivs.md. Column order matches the FD version it replaces:
-  // grad 0..2 = (lsigma,lxi,lkappa); Hessian 3..8 = [ss,sx,sk,xx,xk,kk].
   for (int j = 0; j < nobs; j++) {
-
-    y = yvec[j];
-    lsigma = lsigmavec[j];
-    xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);  // chain rule applied in R
-    lkappa = lkappavec[j];
-
-    double sigma = exp(lsigma);
-    double xi = xiv;
-    double kappa = exp(lkappa);
-    double q = 1.0 / xi;
-    double sk = sqrt(kappa);
-    double skp = 0.5 / sk;                       // dsk/dkappa
-    double skpp = -skp / (2.0 * kappa);          // d2 sk/dkappa2
-    double Fmin = R::pnorm(-sk, 0.0, 1.0, 1, 0);
-    double phisk = R::dnorm(sk, 0.0, 1.0, 0);    // phi(sk) = phi(-sk)
-    double D = 0.5 - Fmin; if (D < 1e-300) D = 1e-300;
-    double Dk = skp * phisk;
-    double Dkk = phisk * (skpp - skp * skp * sk);
-    double Fmin_kk = phisk * (skp * skp * sk - skpp);
-
-    // theta-derivatives of G at the two endpoints (e=0: m=y, e=1: m=y+1)
-    double Gv[2], Gls[2], Glx[2], Glk[2], Glsls[2], Glslx[2], Glslk[2], Glxlx[2], Glxlk[2], Glklk[2];
-    bool bad = false;
-    for (int e = 0; e < 2; e++) {
-      double m = (e == 0) ? y : (y + 1.0);
-      double v = xi * m / sigma;
-      double t = 1.0 + v;
-      if (t <= 0.0) { bad = true; break; }
-      double L = log(t);
-      double w = R_pow(t, -q);                   // t^(-1/xi)
-      double F = 1.0 - w;
-      // GPD CDF derivatives via w = exp(-q L): F_th = -w e_th, F_thph = -w(e_th e_ph + e_thph)
-      double e_ls = q * v / t;
-      double e_lx = q * (L - v / t);
-      double e_lsls = -q * (v / t - v * v / (t * t));
-      double e_lslx = -q * v * v / (t * t);
-      double e_lxlx = -q * (L - v / t - v * v / (t * t));
-      double F_ls = -w * e_ls;
-      double F_lx = -w * e_lx;
-      double F_lsls = -w * (e_ls * e_ls + e_lsls);
-      double F_lslx = -w * (e_ls * e_lx + e_lslx);
-      double F_lxlx = -w * (e_lx * e_lx + e_lxlx);
-      // truncated-normal G(F, kappa)
-      double z = sk * (F - 1.0);
-      double phiz = R::dnorm(z, 0.0, 1.0, 0);
-      double Phiz = R::pnorm(z, 0.0, 1.0, 1, 0);
-      double N = Phiz - Fmin;
-      double G = N / D;
-      double G_F = phiz * sk / D;
-      double G_FF = -sk * sk * z * phiz / D;
-      double zk = skp * (F - 1.0);
-      double zkk = skpp * (F - 1.0);
-      double Nk = phiz * zk + skp * phisk;                 // dN/dkappa (Fmin_k = -skp phisk)
-      double G_K = (Nk * D - N * Dk) / (D * D);
-      double Nkk = phiz * (zkk - z * zk * zk) - Fmin_kk;
-      double G_KK = (Nkk * D - N * Dkk) / (D * D) - 2.0 * Dk * G_K / D;
-      double G_FK = ((-z * phiz) * zk * sk + phiz * skp) / D - phiz * sk * Dk / (D * D);
-      // chain to theta = (lsigma, lxi, lkappa); kappa = exp(lkappa)
-      Gv[e]    = G;
-      Gls[e]   = G_F * F_ls;
-      Glx[e]   = G_F * F_lx;
-      Glk[e]   = G_K * kappa;
-      Glsls[e] = G_FF * F_ls * F_ls + G_F * F_lsls;
-      Glslx[e] = G_FF * F_ls * F_lx + G_F * F_lslx;
-      Glxlx[e] = G_FF * F_lx * F_lx + G_F * F_lxlx;
-      Glslk[e] = G_FK * kappa * F_ls;
-      Glxlk[e] = G_FK * kappa * F_lx;
-      Glklk[e] = G_KK * kappa * kappa + G_K * kappa;
+    double y      = yvec[j];
+    double lsigma = lsigmavec[j];
+    double lxi    = lxivec[j];
+    double lkappa = lkappavec[j];
+    double xi = exp(bounded_lxi(lxi, xi_max, nullptr, nullptr));
+    double sigma  = exp(lsigma);
+    double t_lo   = 1.0 + xi * y / sigma;
+    double t_hi   = 1.0 + xi * (y + 1.0) / sigma;
+    // out-of-support: d0 charges a constant penalty, so every derivative is 0
+    if (t_lo <= 0.0) continue;
+    // y = 0: F_lo = 0 exactly; the general form would give 0^(kappa-k) = NaN
+    if (y <= 0.0) {
+      double x0 = exp(-2*lsigma);
+      double x1 = exp(lxi);
+      double x2 = exp(-lsigma);
+      double x3 = x1*x2;
+      double x4 = x3 + 1;
+      double x5 = pow(x4, -2);
+      double x6 = x0*x5;
+      double x7 = 1.0/x4;
+      double x8 = x2*x7;
+      double x9 = 3*x8;
+      double x10 = x1*x6;
+      double x11 = 3*x10;
+      double x12 = x3*x7;
+      double x13 = 3*x12;
+      double x14 = exp(2*lxi);
+      double x15 = 2*x14;
+      double x16 = x15*x6;
+      double x17 = exp(-lxi);
+      double x18 = pow(x4, -x17);
+      double x19 = 1 - x18;
+      double x20 = pow(x19, -2);
+      double x21 = pow(x4, -2*x17);
+      double x22 = x20*x21;
+      double x23 = 2*x22;
+      double x24 = 1.0/x19;
+      double x25 = x18*x24;
+      double x26 = x25*x6;
+      double x27 = exp(lkappa);
+      double x28 = x25*x8;
+      double x29 = x27*x28;
+      double x30 = x29*(x11*x25 + x11 - x13 + x16 + x23*x6 - x25*x9 + 3*x26 + x6 - x9 + 1);
+      double x31 = x17*log(x4);
+      double x32 = x31 - x8;
+      double x33 = x32*x8;
+      double x34 = x25*x32;
+      double x35 = 2*x10;
+      double x36 = -x31 + x8;
+      double x37 = 2*x12;
+      double x38 = -x25*x35 + x37;
+      double x39 = x29*(x12*x32 + x12*x34 - x16 + x23*x33 + x33 + x34*x9 - x34 - x35 + x36 + x38);
+      double x40 = x29*(x12 + x28 + x8 - 1);
+      double x41 = -x12;
+      double x42 = x10 + x36;
+      double x43 = x25*x42;
+      double x44 = pow(x32, 2);
+      double x45 = x23*x44;
+      double x46 = x25*x44;
+      double x47 = 3*x46;
+      double x48 = x42 + x44;
+      double x49 = x29*(x16 - x32*x37 - x34*x37 + x41 + x43 + x45 + x47 + x48);
+      double x50 = x32 + x34;
+      double x51 = x29*(x41 + x50);
+      double x52 = pow(x32, 3);
+      double x53 = 3*x42;
+      double x54 = exp(-3*lsigma)/pow(x4, 3);
+      double x55 = x15*x54;
+      double x56 = x25*x27;
+      double x57 = x56*(x23*x52 + 3*x25*x52 + x32*x53 + x32 + x34*x53 + x52 - x55);
+      double x58 = x56*(x46 + x48);
+      double x59 = x27*x34;
+      double x60 = -x27*log(x19);
+      double x61 = 6*x6;
+      double x62 = 7*x8;
+      double x63 = 6*x54;
+      double x64 = x1*x63;
+      double x65 = 18*x10;
+      double x66 = x14*x54;
+      double x67 = 11*x66;
+      double x68 = exp(3*lxi);
+      double x69 = x63*x68;
+      double x70 = x14*x6;
+      double x71 = pow(x19, -3);
+      double x72 = pow(x4, -3*x17);
+      double x73 = x71*x72;
+      double x74 = 12*x22;
+      double x75 = 7*x25;
+      double x76 = x1*x54;
+      double x77 = x25*x76;
+      double x78 = x32*x6;
+      double x79 = 9*x66;
+      double x80 = 4*x12;
+      double x81 = 9*x10;
+      double x82 = x13*x32;
+      double x83 = 6*x22;
+      double x84 = x13*x34;
+      double x85 = x10*x22*x32;
+      double x86 = x44*x8;
+      double x87 = x42*x8;
+      double x88 = x14*x63;
+      double x89 = x12*x44;
+      double x90 = 4*x32;
+      double x91 = 6*x73;
+      double x92 = 4*x34;
+      double x93 = x36 + x55;
+      double x94 = pow(x32, 4);
+      double x95 = 3*pow(x42, 2);
+      out(j, 0) = x30;
+      out(j, 1) = x39;
+      out(j, 2) = x40;
+      out(j, 3) = x49;
+      out(j, 4) = x51;
+      out(j, 5) = x29;
+      out(j, 6) = x57;
+      out(j, 7) = x58;
+      out(j, 8) = x59;
+      out(j, 9) = x60;
+      out(j, 10) = x29*(7*x12 + x25*x62 - x25*x65 + x25*x67 - 18*x26 + x54*x74 + x54*x75 + x54 - x6*x74 - x61 + x62 + x63*x73 + x64 - x65 + x67 + x69 - 12*x70 + x74*x76 + 18*x77 - 1);
+      out(j, 11) = x29*(x11*x32 + x15*x78 + x16*x34 - x22*x64 - 9*x25*x33 - x25*x79 + x25*x81 + x32*x61*x73 - x32*x9 - x33*x83 + 7*x34*x6 + x34*x81 + x50 - x69 + 10*x70 + x74*x78 - 3*x76 - 9*x77 + x78 - x79 - x80 + x81 - x82 - x84 + 6*x85);
+      out(j, 12) = x30;
+      out(j, 13) = x29*(-12*x10*x34 - x10*x90 - x11 + x12*x42 + x12*x43 + x12*x90 + x13*x46 - 4*x14*x78 + x22*x37*x44 + x23*x87 + x25*x88 + x32 + x34*x80 + x38 + x43*x9 - x43 - x44 - x45 + x46*x62 - x47 + x69 - x70*x92 - 8*x70 + x74*x86 - 8*x85 + x86*x91 + x86 + x87 + x88 + x89);
+      out(j, 14) = x39;
+      out(j, 15) = x40;
+      out(j, 16) = x29*(6*x0*x14*x18*x24*x32*x5 + 6*x0*x14*x32*x5 + 6*x0*x14*x5 - 9*x12*x46 - x12*x53 - x12 - x13*x43 - x13*x44 + 9*x18*x24*x32*x42 + 7*x18*x24*x52 + 6*x20*x21*x32*x42 + 12*x20*x21*x52 - x25*x93 + 3*x32*x42 + 6*x52*x71*x72 + x52 - x69 - x82 - x83*x89 - x84 - x93);
+      out(j, 17) = x49;
+      out(j, 18) = x51;
+      out(j, 19) = x29;
+      out(j, 20) = x56*(x25*x95 + x42*x44*x74 + 6*x42*x44 + x42 + 18*x43*x44 - 4*x66 + x74*x94 + x75*x94 - x90*x93 + x91*x94 - x92*x93 + x94 + x95 + 6*x68*exp(-4*lsigma)/pow(x4, 4));
+      out(j, 21) = x57;
+      out(j, 22) = x58;
+      out(j, 23) = x59;
+      out(j, 24) = x60;
+    } else if (t_hi <= 0.0) {
+      const double negpmf_s = degpd1_negpmf_endpoint(t_lo, xi, exp(lkappa));
+      const bool tiny_cell = negpmf_s > -1e-6;
+      double x0 = exp(2*lkappa);
+      double x1 = pow(y, 2);
+      double x2 = exp(-2*lsigma);
+      double x3 = exp(lxi);
+      double x4 = exp(-lsigma);
+      double x5 = x4*y;
+      double x6 = x3*x5;
+      double x7 = x6 + 1;
+      double x8 = pow(x7, -2);
+      double x9 = x1*x2*x8;
+      double x10 = exp(-lxi);
+      double x11 = pow(x7, -x10);
+      double x12 = 1 - x11;
+      double x13 = pow(x12, -2);
+      double x14 = pow(x7, -2*x10);
+      double x15 = x13*x14;
+      double x16 = x15*x9;
+      double x17 = x0*x16;
+      double x18 = exp(lkappa);
+      double x19 = 3*x18;
+      double x20 = 1.0/x12;
+      double x21 = x11*x20;
+      double x22 = x19*x21;
+      double x23 = x22*x9;
+      double x24 = x16*x19;
+      double x25 = 1.0/x7;
+      double x26 = x25*x5;
+      double x27 = x21*x26;
+      double x28 = x19*x27;
+      double x29 = x3*x9;
+      double x30 = x22*x29;
+      double x31 = pow(x12, x18);
+      double x32 = x31 - 1;
+      if (tiny_cell) x32 = negpmf_s;
+      double x33 = 1.0/x32;
+      double x34 = x31*x33;
+      double x35 = 3*x34;
+      double x36 = 2*x16;
+      double x37 = 2*x18;
+      double x38 = pow(x12, x37);
+      double x39 = pow(x32, -2);
+      double x40 = x38*x39;
+      double x41 = x0*x40;
+      double x42 = 3*x26;
+      double x43 = x25*x6;
+      double x44 = 3*x43;
+      double x45 = exp(2*lxi);
+      double x46 = 2*x45;
+      double x47 = x46*x9;
+      double x48 = 3*x29;
+      double x49 = x21*x42;
+      double x50 = x21*x9;
+      double x51 = 3*x50;
+      double x52 = x21*x48;
+      double x53 = x36 - x42 - x44 + x47 + x48 - x49 + x51 + x52 + x9 + 1;
+      double x54 = x18*x34;
+      double x55 = x27*x54;
+      double x56 = x10*log(x7);
+      double x57 = x26 - x56;
+      double x58 = x21*x57;
+      double x59 = x18*x58;
+      double x60 = x34*x59;
+      double x61 = x26*x57;
+      double x62 = x0*x15;
+      double x63 = x61*x62;
+      double x64 = 2*x40;
+      double x65 = x21*x29;
+      double x66 = x37*x65;
+      double x67 = x34*x66;
+      double x68 = x15*x61;
+      double x69 = 2*x29;
+      double x70 = x43*x57;
+      double x71 = x21*x69;
+      double x72 = x43*x58;
+      double x73 = -x26 + x56;
+      double x74 = -2*x25*x3*x4*y + x42*x58 - x58 + x61 + 2*x68 + x69 + x70 + x71 + x72 + x73;
+      double x75 = log(x12);
+      if (tiny_cell) x75 = log1p(-exp(-log(t_lo) / xi));
+      double x76 = x18*x75;
+      double x77 = x34*x76;
+      double x78 = x27*x37;
+      double x79 = x0*x75;
+      double x80 = x27*x79;
+      double x81 = x49*x79;
+      double x82 = x43*x76;
+      double x83 = x43*x77;
+      double x84 = x43 + x82 - x83;
+      double x85 = x26 + x27 - 1;
+      double x86 = pow(x57, 2);
+      double x87 = x15*x86;
+      double x88 = x0*x87;
+      double x89 = x29 + x57;
+      double x90 = x21*x89;
+      double x91 = x18*x90;
+      double x92 = x21*x86;
+      double x93 = x19*x92;
+      double x94 = x19*x87;
+      double x95 = x34*x91;
+      double x96 = 3*x88;
+      double x97 = x34*x96;
+      double x98 = 2*x87;
+      double x99 = x41*x98;
+      double x100 = x34*x93;
+      double x101 = x34*x94;
+      double x102 = x37*x58;
+      double x103 = x102*x43;
+      double x104 = x102*x34;
+      double x105 = x104*x43;
+      double x106 = -x103 + x105 + x47;
+      double x107 = 3*x92;
+      double x108 = 2*x43;
+      double x109 = x86 + x89;
+      double x110 = x107 + x108*x57 + x108*x58 + x109 - x43 + x90 + x98;
+      double x111 = x57*x76;
+      double x112 = x58*x76;
+      double x113 = x58*x79;
+      double x114 = x111*x34;
+      double x115 = x58*x77;
+      double x116 = x113*x64;
+      double x117 = x113*x35;
+      double x118 = x57 + x58;
+      double x119 = 3*x76;
+      double x120 = pow(x75, 2);
+      double x121 = x0*x120;
+      double x122 = x119*x34;
+      double x123 = x121*x34;
+      double x124 = 3*x123;
+      double x125 = x121*x40;
+      double x126 = 2*x125;
+      double x127 = x119 + x121 - x122 - x124 + x126 + 1;
+      double x128 = pow(x57, 3);
+      double x129 = x128*x15;
+      double x130 = x0*x129;
+      double x131 = 2*x129;
+      double x132 = x128*x21;
+      double x133 = x58*x89;
+      double x134 = 3*x89;
+      double x135 = x134*x57;
+      double x136 = pow(y, 3);
+      double x137 = exp(-3*lsigma);
+      double x138 = pow(x7, -3);
+      double x139 = x136*x137*x138;
+      double x140 = x139*x46 + x57;
+      double x141 = x128 + x135 + x140;
+      double x142 = x131 + 3*x132 + x134*x58 + x141;
+      double x143 = x18*x21;
+      double x144 = x143*x34;
+      double x145 = x37*x92;
+      double x146 = x79*x92;
+      double x147 = x107*x79;
+      double x148 = x109 + x92;
+      double x149 = x76*x86;
+      double x150 = x76*x89;
+      double x151 = -x149*x34 + x149 - x150*x34 + x150;
+      double x152 = -x127;
+      double x153 = 7*x26;
+      double x154 = 6*x9;
+      double x155 = 18*x29;
+      double x156 = 6*x139;
+      double x157 = x156*x3;
+      double x158 = x45*x9;
+      double x159 = x139*x45;
+      double x160 = 11*x159;
+      double x161 = exp(3*lxi);
+      double x162 = x156*x161;
+      double x163 = x153*x21;
+      double x164 = pow(x12, -3);
+      double x165 = pow(x7, -3*x10);
+      double x166 = x164*x165;
+      double x167 = x156*x166;
+      double x168 = x139*x15;
+      double x169 = 7*x21;
+      double x170 = x139*x169;
+      double x171 = 18*x18;
+      double x172 = x16*x171;
+      double x173 = x171*x50;
+      double x174 = 11*x18;
+      double x175 = x139*x166;
+      double x176 = x174*x175;
+      double x177 = x168*x171;
+      double x178 = x139*x3;
+      double x179 = 12*x15;
+      double x180 = x170*x18;
+      double x181 = x178*x21;
+      double x182 = x154*x62;
+      double x183 = exp(3*lkappa);
+      double x184 = x175*x183;
+      double x185 = x15*x171;
+      double x186 = x178*x185;
+      double x187 = x171*x181;
+      double x188 = x157*x62;
+      double x189 = 18*x34;
+      double x190 = x0*x189;
+      double x191 = 7*x34;
+      double x192 = 12*x40;
+      double x193 = x0*x192;
+      double x194 = pow(x12, x19);
+      double x195 = pow(x32, -3);
+      double x196 = x194*x195;
+      double x197 = x183*x196;
+      double x198 = x178*x62;
+      double x199 = x57*x9;
+      double x200 = 3*x178;
+      double x201 = 4*x43;
+      double x202 = 9*x159;
+      double x203 = x154*x166*x57;
+      double x204 = x42*x57*x62;
+      double x205 = x15*x57;
+      double x206 = x205*x29;
+      double x207 = 6*x206;
+      double x208 = x0*x205;
+      double x209 = 9*x29;
+      double x210 = 6*x40;
+      double x211 = x210*x63;
+      double x212 = x166*x183;
+      double x213 = 9*x34;
+      double x214 = x213*x63;
+      double x215 = x15*x18;
+      double x216 = x166*x199;
+      double x217 = -3*x11*x18*x20*x25*x3*x31*x33*x4*x57*y - 3*x11*x20*x25*x3*x4*x57*y + x162 + x19*x72 - 3*x25*x3*x4*x57*y;
+      double x218 = x119*x26;
+      double x219 = x154*x215;
+      double x220 = x119*x43;
+      double x221 = x119*x29;
+      double x222 = 6*x18;
+      double x223 = x222*x27;
+      double x224 = x183*x75;
+      double x225 = x16*x224;
+      double x226 = x222*x65;
+      double x227 = x119*x27;
+      double x228 = x16*x79;
+      double x229 = x37*x75;
+      double x230 = x16*x229;
+      double x231 = x122*x26;
+      double x232 = x122*x43;
+      double x233 = x154*x40;
+      double x234 = x122*x27;
+      double x235 = x65*x79;
+      double x236 = x158*x229;
+      double x237 = -x236*x34 + x236;
+      double x238 = x26*x86;
+      double x239 = x26*x89;
+      double x240 = x156*x45;
+      double x241 = 4*x29;
+      double x242 = x15*x239;
+      double x243 = x166*x238;
+      double x244 = 6*x243;
+      double x245 = x153*x92;
+      double x246 = x26*x87;
+      double x247 = x43*x90;
+      double x248 = x239*x62;
+      double x249 = x212*x238;
+      double x250 = x171*x246;
+      double x251 = x174*x243;
+      double x252 = x18*x245;
+      double x253 = x19*x26*x90;
+      double x254 = x19*x242;
+      double x255 = 6*x88;
+      double x256 = 8*x206;
+      double x257 = 12*x29;
+      double x258 = 12*x206;
+      double x259 = 4*x59;
+      double x260 = x201*x59;
+      double x261 = x26*x88;
+      double x262 = 6*x196;
+      double x263 = x201*x60;
+      double x264 = x44*x88;
+      double x265 = x259*x34;
+      double x266 = x229*x29;
+      double x267 = x224*x68;
+      double x268 = 4*x18;
+      double x269 = 6*x34;
+      double x270 = x113*x34;
+      double x271 = x268*x27;
+      double x272 = x120*x183;
+      double x273 = x27*x272;
+      double x274 = 10*x40;
+      double x275 = 15*x34;
+      double x276 = x108*x125 + x121*x43 - x123*x44 + x220 - x232 + x43;
+      double x277 = x140*x21;
+      double x278 = x128*x166;
+      double x279 = 6*x278;
+      double x280 = 7*x132;
+      double x281 = 12*x129;
+      double x282 = 6*x130;
+      double x283 = 6*x89;
+      double x284 = x205*x283;
+      double x285 = x154*x45;
+      double x286 = x43*x87;
+      double x287 = x43*x92;
+      double x288 = 9*x89;
+      double x289 = x255*x40;
+      double x290 = x18*x213;
+      double x291 = x222*x92;
+      double x292 = x222*x87;
+      double x293 = x37*x90;
+      double x294 = x224*x87;
+      double x295 = x79*x90;
+      double x296 = x229*x87;
+      double x297 = x213*x88;
+      double x298 = x229*x70;
+      double x299 = x119*x92 - x122*x92;
+      double x300 = x121*x57;
+      double x301 = x272*x58;
+      double x302 = 7*x76;
+      double x303 = x183*pow(x75, 3);
+      double x304 = 6*x121 - 18*x123 + 12*x125 - x191*x303 + x192*x303 - x262*x303 - x302*x34 + x302 + x303 + 1;
+      double x305 = pow(x57, 4);
+      double x306 = pow(x89, 2);
+      double x307 = 3*x306;
+      double x308 = 4*x140;
+      double x309 = x283*x86;
+      double x310 = x166*x305;
+      double x311 = 6*x310;
+      double x312 = x169*x305;
+      double x313 = x15*x305;
+      double x314 = 12*x313;
+      double x315 = x183*x310;
+      double x316 = x171*x313;
+      double x317 = x174*x310;
+      double x318 = x18*x312;
+      double x319 = x22*x306;
+      double x320 = x0*x313;
+      double x321 = x87*x89;
+      double x322 = 18*x86;
+      double x323 = x171*x321;
+      double x324 = x0*x310;
+      double x325 = x88*x89;
+      double x326 = x119*x89;
+      double x327 = x121*x86;
+      double x328 = x121*x89;
+      double x329 = x119*x86;
+      double x330 = x268*x92;
+      double x331 = x272*x92;
+      double x332 = -x304;
+      out(j, 0) = x55*(-x17*x35 + x17 + x23*x34 - x23 + x24*x34 - x24 - x28*x34 + x28 + x30*x34 - x30 + x36*x41 + x53);
+      out(j, 1) = x55*(3*x0*x13*x14*x25*x31*x33*x4*x57*y + 2*x1*x11*x18*x2*x20*x3*x8 + x11*x18*x20*x25*x3*x4*x57*y + 3*x11*x18*x20*x25*x4*x57*y + 3*x13*x14*x18*x25*x4*x57*y - x19*x26*x34*x58 - x19*x34*x68 - x43*x60 - x47 - x59 + x60 - x63*x64 - x63 - x67 - x74);
+      out(j, 2) = x55*(x26*x76 - x26*x77 + x27*x76 - x27*x77 + x34*x78 + x34*x81 - x64*x80 - x76 + x77 - x78 - x80 + x84 + x85);
+      out(j, 3) = x55*(x100 + x101 + x106 + x110 + x88 - x91 - x93 - x94 + x95 - x97 + x99);
+      out(j, 4) = x55*(x102 - x104 - x111 - x112 + x113 + x114 + x115 + x116 - x117 - x118 - x84);
+      out(j, 5) = x127*x55;
+      out(j, 6) = x144*(3*x0*x128*x13*x14*x31*x33 + 3*x11*x128*x18*x20 + 3*x11*x18*x20*x57*x89 + 3*x128*x13*x14*x18 - x129*x19*x34 - x130 - x131*x41 - x132*x19*x34 - x133*x19*x34 - x142);
+      out(j, 7) = x144*(x145*x34 - x145 - x146*x64 - x146 + x147*x34 + x148 + x151 + x76*x92 - x77*x92);
+      out(j, 8) = x152*x60;
+      out(j, 9) = x152*x77;
+      out(j, 10) = x55*(x0*x167 + x139 - x143*x153 + x143*x155 - x143*x160 + x144*x153 - x144*x155 + x144*x160 + x153 - x154 - x155*x21 - x155 + x156*x62 + x157 - 12*x158 - 12*x16 + x160*x21 + x160 + x162 + x163 + x167*x197 + x167 - x168*x190 + x168*x193 + 12*x168 + x17*x189 - x17*x192 + x170 - x172*x34 + x172 - x173*x34 + x173 - x175*x190 + x175*x193 + x176*x34 - x176 + x177*x34 - x177 + x178*x179 + x180*x34 - x180 + 18*x181 - x182 + x184*x191 - x184*x192 - x184 + x186*x34 - x186 + x187*x34 - x187 + x188 - x189*x198 + x192*x198 + 7*x43 - 18*x50 - 1);
+      out(j, 11) = x55*(9*x0*x1*x13*x14*x2*x3*x31*x33*x57*x8 + 18*x0*x1*x13*x14*x2*x31*x33*x57*x8 + 18*x0*x1*x164*x165*x2*x31*x33*x57*x8 + 9*x0*x13*x136*x137*x138*x14*x3*x31*x33 - x0*x203 + 9*x1*x11*x18*x2*x20*x3*x31*x33*x8 + 9*x1*x11*x18*x2*x20*x3*x57*x8 + 2*x1*x11*x18*x2*x20*x45*x57*x8 + 7*x1*x11*x18*x2*x20*x57*x8 + 9*x1*x11*x2*x20*x3*x8 + 9*x1*x13*x14*x18*x2*x3*x57*x8 + 18*x1*x13*x14*x18*x2*x57*x8 + 11*x1*x164*x165*x18*x2*x57*x8 + 12*x1*x164*x165*x183*x2*x38*x39*x57*x8 + x1*x164*x165*x183*x2*x57*x8 + 9*x1*x2*x3*x8 + 10*x1*x2*x45*x8 - x104*x158 + 9*x11*x136*x137*x138*x18*x20*x3 + 9*x11*x136*x137*x138*x18*x20*x45 + 9*x11*x18*x20*x25*x31*x33*x4*x57*y + 9*x11*x20*x25*x4*x57*y - x118 + 9*x13*x136*x137*x138*x14*x18*x3 + 9*x13*x14*x18*x25*x31*x33*x4*x57*y + 6*x13*x14*x25*x4*x57*y - x143*x209 - 9*x144*x178 - x144*x202 - x15*x157 - x154*x208 - x174*x216*x34 - x178*x213*x215 - x179*x199 - 9*x18*x68 - 9*x181 - x185*x199*x34 - x188*x40 - x191*x199*x212 - x191*x59*x9 - x192*x199*x62 - x193*x216 - x197*x203 - x199*x46 - x199 - x200*x62 - x200 - x201 - x202*x21 - x202 - x203 + x204 - x205*x209*x54 - x207*x41 - x207 - x208*x48 - x209*x58 - x209*x60 + x211 - x214 - x217 + 3*x25*x4*x57*y - 9*x26*x59 - x47*x58 - x48*x57 - 7*x58*x9 + x59 - x60);
+      out(j, 12) = x55*(x119*x50 - x122*x29 - x122*x50 - x122*x65 - x143*x154 + x144*x154 - x15*x154*x196*x224 - x15*x233*x79 - x17*x213 + 3*x17 + x182*x40 - x191*x225 + x192*x225 + x209*x21*x34*x79 + x21*x221 - x21*x233*x79 - x210*x235 + x210*x80 + x213*x228 + x213*x50*x79 - x213*x80 - x218 + x219*x34 - x219 - x220 + x221 - x223*x34 + x223 + x225 + x226*x34 - x226 - x227 - 3*x228 - x230*x34 + x230 + x231 + x232 + x234 + x237 - x51*x79 - x52*x79 + x53 + x76*x9 + x76 - x77*x9 - x77 + x81);
+      out(j, 13) = x55*(x0*x244 - x0*x258*x34 + x100*x43 - x100 + x101*x43 - x101 + x107*x43 - x107 + x108 - x134*x26*x34*x62 - x143*x240 + x144*x240 + x153*x212*x34*x86 - x158*x259 + x158*x265 + 4*x158*x58 - 8*x158 + x162 - x18*x258 - x189*x261 - x190*x243 - x192*x249 + x192*x261 + x193*x243 + 4*x199*x45 - x201*x58 + x208*x241 + x21*x240 + x238 + x239 + x240 + x241*x57 + 2*x242 + x244 + x245 + 12*x246 + x247 + x248*x64 + x248 + x249*x262 - x249 + x250*x34 - x250 + x251*x34 - x251 + x252*x34 - x252 + x253*x34 - x253 + x254*x34 - x254 + x255*x26 + x256*x41 + x256 + x257*x58 - x257*x59 + x257*x60 + x258*x54 + x260 - x263 - x264*x34 + x42*x90 + x43*x86 + x43*x88 + x43*x89 - x43*x91 - x43*x93 - x43*x94 + x43*x95 + x43*x98 + x43*x99 - x48 + x66 - x67 - 4*x70 - x71 + x73 - x86 - x88 - x90 + x91 + x93 + x94 - x95 + x97 - x98 - x99);
+      out(j, 14) = x55*(4*x0*x1*x11*x2*x20*x3*x38*x39*x75*x8 + 2*x0*x1*x11*x2*x20*x3*x75*x8 + 2*x0*x11*x20*x25*x3*x38*x39*x4*x57*x75*y + x0*x11*x20*x25*x3*x4*x57*x75*y + 6*x0*x11*x20*x25*x38*x39*x4*x57*x75*y + 3*x0*x11*x20*x25*x4*x57*x75*y + 6*x0*x13*x14*x25*x38*x39*x4*x57*x75*y + 3*x0*x13*x14*x25*x4*x57*x75*y + 2*x1*x11*x18*x2*x20*x3*x31*x33*x75*x8 + 4*x1*x11*x18*x2*x20*x3*x8 + 2*x1*x18*x2*x3*x31*x33*x75*x8 - x102 + x104 - x106 + x11*x18*x20*x25*x3*x31*x33*x4*x57*x75*y + 3*x11*x18*x20*x25*x31*x33*x4*x57*x75*y + 6*x11*x18*x20*x25*x4*x57*y - x111*x26 - x111*x43 + x111 - x112*x43 + x112 - x113*x213*x26 - x113 - x114 - x115 - x116 + x117 + 2*x13*x14*x18*x25*x31*x33*x4*x57*x75*y + 6*x13*x14*x18*x25*x4*x57*y + 6*x13*x14*x183*x194*x195*x25*x4*x57*x75*y + 7*x13*x14*x183*x25*x31*x33*x4*x57*x75*y + x18*x25*x3*x31*x33*x4*x57*x75*y + 2*x18*x25*x3*x4*x75*y + x18*x25*x31*x33*x4*x57*x75*y - x192*x267 - x204 - x21*x266 - x211 - x213*x68*x79 + x214 - x218*x58 - x222*x34*x68 - x229*x34*x43 - x229*x68 - x235*x269 - x237 - 6*x26*x60 - x266 - x267 - x268*x34*x65 - x270*x44 - x74);
+      out(j, 15) = x55*(-x119 + x121*x26 + x121*x27 - x121 + x122 - x123*x42 - x123*x49 + x124 + x126*x26 + x126*x27 - x126 + x163*x272*x34 - x192*x273 + x218 + x227 - x231 - x234 + x262*x273 + x271*x34 - x271 - x273 - x274*x80 + x275*x80 + x276 - 5*x80 + x85);
+      out(j, 16) = x55*(18*x0*x128*x13*x14*x31*x33 + 18*x0*x128*x164*x165*x31*x33 + 9*x0*x13*x14*x25*x3*x31*x33*x4*x86*y + 9*x0*x13*x14*x31*x33*x57*x89 - x0*x192*x278 - x0*x279 + 6*x1*x11*x18*x2*x20*x45*x57*x8 + 6*x1*x2*x45*x8 + 7*x11*x128*x18*x20 + x11*x140*x18*x20 + 9*x11*x18*x20*x25*x3*x4*x86*y + 3*x11*x18*x20*x25*x3*x4*x89*y + 9*x11*x18*x20*x57*x89 + 18*x128*x13*x14*x18 + 11*x128*x164*x165*x18 + 12*x128*x164*x165*x183*x38*x39 + x128*x164*x165*x183 - x129*x171*x34 + 9*x13*x14*x18*x25*x3*x4*x86*y + 9*x13*x14*x18*x57*x89 - x130*x192 - 9*x133 - x134*x43 - x135*x62 - x141 - x174*x278*x34 - x18*x205*x288*x34 - x18*x277*x34 - x18*x280*x34 - x183*x191*x278 - x19*x247*x34 - x197*x279 - x217 - x264 - x277 - x279 - x280 - x281 - x282 - x284*x41 - x284 - x285*x57 - x285*x58 - x285*x60 - x286*x290 - 6*x286 - x287*x290 - 9*x287 - x288*x60 - x289*x43 - x43 - x44*x86 - x44*x90);
+      out(j, 17) = x55*(x103*x75 - x105*x75 - x108*x113 + x110 - x113*x201*x40 + x113*x269*x43 - x146*x210 + x146*x213 - x147 + x151 - x191*x294 + x192*x294 + x237 - x260 - x262*x294 + x263 - x289*x75 + x289 + x291*x34 - x291 + x292*x34 - x292 + x293*x34 - x293 + x294 + x295*x35 - x295*x64 - x295 - x296*x34 + x296 + x297*x75 - x297 - x298*x34 + x298 + x299 + x47 - x75*x96 + x76*x90 - x77*x90 - x82 + x83 + x96);
+      out(j, 18) = x55*(3*x0*x11*x120*x20*x31*x33*x57 + 10*x0*x11*x20*x38*x39*x57*x75 + 5*x0*x11*x20*x57*x75 + 3*x0*x120*x31*x33*x57 + 12*x11*x120*x183*x20*x38*x39*x57 + x11*x120*x183*x20*x57 + 3*x11*x18*x20*x31*x33*x57*x75 + 4*x11*x18*x20*x57 - 3*x111 - x113*x275 - x118 - x119*x58 - x121*x58 - x126*x58 + 3*x18*x31*x33*x57*x75 - x191*x301 - x262*x301 - x265 - x276 - x300*x64 - x300);
+      out(j, 19) = x304*x55;
+      out(j, 20) = x144*(x0*x311 - 4*x159 + 6*x161*pow(y, 4)*exp(-4*lsigma)/pow(x7, 4) - x189*x320 - x189*x324 - x189*x325 + x191*x315 - x192*x315 + x192*x324 + x192*x325 + x197*x311 + x21*x307 + x305 + x307 + x308*x57 + x308*x58 - x308*x59 + x308*x60 + x309*x62 + x309 + x311 + x312 + x314*x41 + x314 - x315 + x316*x34 - x316 + x317*x34 - x317 + x318*x34 - x318 + x319*x34 - x319 + 6*x320 + 12*x321 + x322*x90 - x322*x91 + x322*x95 + x323*x34 - x323 + x89);
+      out(j, 21) = x144*(6*x0*x11*x128*x20*x38*x39*x75 + 3*x0*x11*x128*x20*x75 + 6*x0*x11*x20*x38*x39*x57*x75*x89 + 3*x0*x11*x20*x57*x75*x89 + 9*x0*x128*x13*x14*x31*x33 + 6*x0*x128*x13*x14*x38*x39*x75 + 3*x0*x128*x13*x14*x75 + 3*x11*x128*x18*x20*x31*x33*x75 + 6*x11*x128*x18*x20 + 3*x11*x18*x20*x31*x33*x57*x75*x89 + 6*x11*x18*x20*x57*x89 - x111*x134 - x119*x132 + 2*x128*x13*x14*x18*x31*x33*x75 + 6*x128*x13*x14*x18 + 6*x128*x13*x14*x183*x194*x195*x75 + 7*x128*x13*x14*x183*x31*x33*x75 + x128*x18*x31*x33*x75 - x128*x76 - x129*x222*x34 - x129*x224 - x129*x229 - x130*x213*x75 - 3*x130 - x132*x213*x79 - x132*x222*x34 + x140*x18*x31*x33*x75 - x140*x76 - x142 + 3*x18*x31*x33*x57*x75*x89 - x224*x281*x40 - x270*x288 - x282*x40 - x283*x60 - x326*x58);
+      out(j, 22) = x144*(-x107*x123 + x121*x92 - x123*x134 + x126*x92 - x146*x274 + x146*x275 - 5*x146 + x148 + x191*x331 - x192*x331 + x262*x331 + x299 - x326*x34 + x326 - x327*x35 + x327*x64 + x327 + x328*x64 + x328 - x329*x34 + x329 + x330*x34 - x330 - x331);
+      out(j, 23) = x332*x60;
+      out(j, 24) = x332*x77;
+    } else {
+      const double negpmf_s = degpd1_negpmf(t_lo, xi, sigma, exp(lkappa));
+      const bool tiny_cell = negpmf_s > -1e-6 && degpd1_upper_tail(t_lo, xi, exp(lkappa));
+      double x0 = exp(lxi);
+      double x1 = exp(-lsigma);
+      double x2 = x0*x1;
+      double x3 = x2*y + 1;
+      double x4 = 1.0/x3;
+      double x5 = x4*y;
+      double x6 = exp(-lxi);
+      double x7 = pow(x3, -x6);
+      double x8 = 1 - x7;
+      double x9 = exp(lkappa);
+      double x10 = pow(x8, x9);
+      double x11 = 1.0/x8;
+      double x12 = x11*x7;
+      double x13 = x10*x12;
+      double x14 = x13*x5;
+      double x15 = y + 1;
+      double x16 = x15*x2 + 1;
+      double x17 = 1.0/x16;
+      double x18 = x15*x17;
+      double x19 = pow(x16, -x6);
+      double x20 = 1 - x19;
+      double x21 = pow(x20, x9);
+      double x22 = 1.0/x20;
+      double x23 = x19*x22;
+      double x24 = x21*x23;
+      double x25 = x18*x24;
+      double x26 = x14 - x25;
+      double x27 = pow(x26, 3);
+      double x28 = exp(-2*lsigma);
+      double x29 = exp(2*lkappa);
+      double x30 = x10 - x21;
+      if (tiny_cell) x30 = negpmf_s;
+      double x31 = pow(x30, -2);
+      double x32 = x29*x31;
+      double x33 = 2*x32;
+      double x34 = x28*x33;
+      double x35 = x21*x9;
+      double x36 = pow(x20, -2);
+      double x37 = 2*x6;
+      double x38 = pow(x16, -x37);
+      double x39 = x36*x38;
+      double x40 = x35*x39;
+      double x41 = pow(x15, 2);
+      double x42 = pow(x16, -2);
+      double x43 = x41*x42;
+      double x44 = x1*x43;
+      double x45 = x40*x44;
+      double x46 = x10*x9;
+      double x47 = pow(x8, -2);
+      double x48 = pow(x3, -x37);
+      double x49 = x47*x48;
+      double x50 = x46*x49;
+      double x51 = pow(y, 2);
+      double x52 = pow(x3, -2);
+      double x53 = x51*x52;
+      double x54 = x1*x53;
+      double x55 = x50*x54;
+      double x56 = -x14 + x25;
+      double x57 = x13*x54;
+      double x58 = x10*x49;
+      double x59 = x54*x58;
+      double x60 = x24*x44;
+      double x61 = x21*x39;
+      double x62 = x44*x61;
+      double x63 = x2*x53;
+      double x64 = x13*x63;
+      double x65 = x2*x43;
+      double x66 = x24*x65;
+      double x67 = x64 - x66;
+      double x68 = x57 + x59 - x60 - x62 + x67;
+      double x69 = x56 + x68;
+      double x70 = x45 - x55 + x69;
+      double x71 = 1.0/x30;
+      double x72 = x71*x9;
+      double x73 = x1*x72;
+      double x74 = x26*x73;
+      double x75 = 3*x74;
+      double x76 = x10*x29;
+      double x77 = pow(x8, -3);
+      double x78 = 3*x6;
+      double x79 = pow(x3, -x78);
+      double x80 = x77*x79;
+      double x81 = x76*x80;
+      double x82 = pow(y, 3);
+      double x83 = pow(x3, -3);
+      double x84 = x82*x83;
+      double x85 = x28*x84;
+      double x86 = x81*x85;
+      double x87 = x21*x29;
+      double x88 = pow(x20, -3);
+      double x89 = pow(x16, -x78);
+      double x90 = x88*x89;
+      double x91 = x87*x90;
+      double x92 = pow(x15, 3);
+      double x93 = pow(x16, -3);
+      double x94 = x92*x93;
+      double x95 = x28*x94;
+      double x96 = x91*x95;
+      double x97 = x46*x80;
+      double x98 = 3*x85;
+      double x99 = 3*x45;
+      double x100 = 3*x55;
+      double x101 = x35*x90;
+      double x102 = 3*x95;
+      double x103 = x0*x28;
+      double x104 = x103*x84;
+      double x105 = x104*x50;
+      double x106 = x103*x94;
+      double x107 = x106*x40;
+      double x108 = x13*x85;
+      double x109 = x24*x95;
+      double x110 = 3*x49;
+      double x111 = x10*x110;
+      double x112 = x111*x54;
+      double x113 = 3*x61;
+      double x114 = 2*x90;
+      double x115 = x114*x21;
+      double x116 = 2*x80;
+      double x117 = x10*x116;
+      double x118 = x113*x44;
+      double x119 = x106*x24;
+      double x120 = x104*x13;
+      double x121 = exp(2*lxi);
+      double x122 = 2*x121;
+      double x123 = x108*x122 - x109*x122;
+      double x124 = x104*x111 - x106*x113 + x108 - x109 + x111*x85 - x112 - x113*x95 - x115*x95 + x117*x85 + x118 - 3*x119 + 3*x120 + x123 - 3*x57 + 3*x60 - 3*x64 + 3*x66;
+      double x125 = x100 + x101*x102 + x102*x40 - 3*x105 + 3*x107 + x124 + x26 - x50*x98 + x86 - x96 - x97*x98 - x99;
+      double x126 = x1*x5 - x6*log(x3);
+      double x127 = x1*x18 - x6*log(x16);
+      double x128 = x127*x21;
+      double x129 = x128*x23;
+      double x130 = -x10*x11*x126*x7 + x129;
+      double x131 = -x130;
+      double x132 = x70*x72;
+      double x133 = x18*x40;
+      double x134 = x127*x133;
+      double x135 = x5*x50;
+      double x136 = x126*x135;
+      double x137 = x10*x126;
+      double x138 = x12*x137;
+      double x139 = x138*x5;
+      double x140 = x49*x5;
+      double x141 = x137*x140;
+      double x142 = x129*x18;
+      double x143 = x128*x39;
+      double x144 = x143*x18;
+      double x145 = x139 + x141 - x142 - x144 + x67;
+      double x146 = x134 - x136 + x145;
+      double x147 = -x127;
+      double x148 = x147*x24;
+      double x149 = x148*x18;
+      double x150 = x18*x61;
+      double x151 = x147*x150;
+      double x152 = -x126;
+      double x153 = x13*x152;
+      double x154 = x153*x5;
+      double x155 = -x154;
+      double x156 = x5*x58;
+      double x157 = x152*x156;
+      double x158 = -x157;
+      double x159 = x149 + x151 + x155 + x158 + x67;
+      double x160 = x135*x152;
+      double x161 = x133*x147;
+      double x162 = x160 - x161;
+      double x163 = x159 + x162;
+      double x164 = pow(x26, 2);
+      double x165 = x1*x164;
+      double x166 = x165*x33;
+      double x167 = x147*x44;
+      double x168 = x152*x54;
+      double x169 = 3*x147;
+      double x170 = x101*x44;
+      double x171 = 3*x152;
+      double x172 = x171*x54;
+      double x173 = x152*x63;
+      double x174 = x173*x50;
+      double x175 = x147*x65;
+      double x176 = x175*x40;
+      double x177 = 2*x105;
+      double x178 = 2*x107;
+      double x179 = 2*x64;
+      double x180 = 2*x119;
+      double x181 = x106*x61;
+      double x182 = 2*x181;
+      double x183 = 2*x120;
+      double x184 = x104*x58;
+      double x185 = 2*x184;
+      double x186 = 2*x66;
+      double x187 = -x179 - x180 - x182 + x183 + x185 + x186;
+      double x188 = x123 - x177 + x178 + x187;
+      double x189 = x148*x44;
+      double x190 = x153*x54;
+      double x191 = x148*x65;
+      double x192 = x147*x61;
+      double x193 = x192*x65;
+      double x194 = x153*x63;
+      double x195 = x58*x63;
+      double x196 = x152*x195;
+      double x197 = -x112*x152 + x115*x167 - x117*x168 + x118*x147 - x149 - x151 + x154 + x157 + x189 - x190 + x191 + x193 - x194 - x196;
+      double x198 = -x160 + x161 + x167*x91 - x168*x81 - x169*x170 - x169*x45 + x171*x55 + x172*x97 + x174 - x176 + x188 + x197;
+      double x199 = log(x8);
+      if (tiny_cell) x199 = log1p(-exp(-log(t_lo) / xi));
+      double x200 = x10*x199;
+      double x201 = log(x20);
+      if (tiny_cell) x201 = log1p(-exp(-log(t_hi) / xi));
+      double x202 = x201*x21;
+      double x203 = x200 - x202;
+      double x204 = x200*x9;
+      double x205 = x12*x204;
+      double x206 = x205*x5;
+      double x207 = x202*x9;
+      double x208 = x207*x23;
+      double x209 = x18*x208;
+      double x210 = x206 - x209 + x26;
+      double x211 = 2*x55;
+      double x212 = x200*x29;
+      double x213 = x49*x54;
+      double x214 = x212*x213;
+      double x215 = x208*x44;
+      double x216 = x39*x44;
+      double x217 = x207*x216;
+      double x218 = x208*x65;
+      double x219 = x205*x63;
+      double x220 = -x64 + x66;
+      double x221 = x218 - x219 + x220;
+      double x222 = pow(x126, 2);
+      double x223 = x222*x50;
+      double x224 = pow(x127, 2);
+      double x225 = x224*x40;
+      double x226 = x224*x24;
+      double x227 = x21*x224;
+      double x228 = x227*x39;
+      double x229 = x13*x222;
+      double x230 = x10*x222;
+      double x231 = x230*x49;
+      double x232 = x103*x43 + x127;
+      double x233 = x232*x24;
+      double x234 = x103*x53 + x126;
+      double x235 = x13*x234;
+      double x236 = x233 - x235;
+      double x237 = x226 + x228 - x229 - x231 + x236;
+      double x238 = x223 - x225 + x237;
+      double x239 = x26*x72;
+      double x240 = x131*x72;
+      double x241 = 2*x240;
+      double x242 = pow(x131, 2);
+      double x243 = x26*x33;
+      double x244 = x5*x81;
+      double x245 = x222*x244;
+      double x246 = x18*x91;
+      double x247 = x224*x246;
+      double x248 = 3*x5;
+      double x249 = x248*x97;
+      double x250 = x222*x249;
+      double x251 = x223*x248;
+      double x252 = 3*x18;
+      double x253 = x224*x252;
+      double x254 = x101*x253;
+      double x255 = x225*x252;
+      double x256 = x126*x50;
+      double x257 = x256*x63;
+      double x258 = x127*x40;
+      double x259 = x258*x65;
+      double x260 = x133*x232;
+      double x261 = x135*x234;
+      double x262 = x235*x5;
+      double x263 = x156*x234;
+      double x264 = x18*x233;
+      double x265 = x150*x232;
+      double x266 = x262 + x263 - x264 - x265;
+      double x267 = x220 + x260 - x261 + x266;
+      double x268 = x229*x5;
+      double x269 = x18*x226;
+      double x270 = x228*x252;
+      double x271 = x114*x227;
+      double x272 = x18*x271;
+      double x273 = x116*x230;
+      double x274 = x273*x5;
+      double x275 = x231*x248;
+      double x276 = x129*x65;
+      double x277 = x143*x65;
+      double x278 = x138*x63;
+      double x279 = x137*x49;
+      double x280 = x279*x63;
+      double x281 = x123 + x268 - x269 - x270 - x272 + x274 + x275 - 2*x276 - 2*x277 + 2*x278 + 2*x280;
+      double x282 = x245 - x247 - x250 - x251 + x254 + x255 - 2*x257 + 2*x259 + x267 + x281;
+      double x283 = x127*x23;
+      double x284 = x207*x283;
+      double x285 = x10*x11*x126*x199*x7*x9 - x130 - x284;
+      double x286 = 2*x161;
+      double x287 = 2*x160;
+      double x288 = x140*x152;
+      double x289 = x212*x288;
+      double x290 = x147*x208;
+      double x291 = x18*x290;
+      double x292 = x18*x39;
+      double x293 = x147*x292;
+      double x294 = x207*x293;
+      double x295 = x152*x205;
+      double x296 = x295*x5;
+      double x297 = x204*x288;
+      double x298 = x202*x29;
+      double x299 = x293*x298;
+      double x300 = -x218 + x219;
+      double x301 = x159 - x286 + x287 + x289 + x291 + x294 - x296 - x297 - x299 + x300;
+      double x302 = pow(x199, 2);
+      double x303 = x302*x46;
+      double x304 = pow(x201, 2);
+      double x305 = x304*x35;
+      double x306 = x203 + x303 - x305;
+      double x307 = pow(x203, 2);
+      double x308 = x203*x72;
+      double x309 = 2*x308;
+      double x310 = x304*x87;
+      double x311 = x23*x310;
+      double x312 = x18*x311;
+      double x313 = x302*x76;
+      double x314 = x12*x313;
+      double x315 = x314*x5;
+      double x316 = 3*x206;
+      double x317 = 3*x209;
+      double x318 = x312 - x315 - x316 + x317 + x56;
+      double x319 = x148 - x153;
+      double x320 = x319*x72;
+      double x321 = x319*x33;
+      double x322 = pow(x152, 2);
+      double x323 = x322*x49;
+      double x324 = x323*x46;
+      double x325 = pow(x147, 2);
+      double x326 = x325*x40;
+      double x327 = x24*x325;
+      double x328 = x325*x61;
+      double x329 = x13*x322;
+      double x330 = x10*x323;
+      double x331 = x236 + x327 + x328 - x329 - x330;
+      double x332 = x324 - x326 + x331;
+      double x333 = pow(x152, 3);
+      double x334 = x333*x81;
+      double x335 = pow(x147, 3);
+      double x336 = x335*x91;
+      double x337 = 3*x333;
+      double x338 = x337*x97;
+      double x339 = x337*x50;
+      double x340 = 3*x335;
+      double x341 = x101*x340;
+      double x342 = x340*x40;
+      double x343 = x234*x50;
+      double x344 = x171*x343;
+      double x345 = x169*x232;
+      double x346 = x345*x40;
+      double x347 = x13*x333;
+      double x348 = exp(-3*lsigma);
+      double x349 = x121*x348;
+      double x350 = 2*x349;
+      double x351 = x126 + x350*x84;
+      double x352 = -x351;
+      double x353 = x13*x352;
+      double x354 = x24*x335;
+      double x355 = x127 + x350*x94;
+      double x356 = -x355;
+      double x357 = x24*x356;
+      double x358 = x113*x335;
+      double x359 = x21*x335;
+      double x360 = x114*x359;
+      double x361 = x10*x333;
+      double x362 = x116*x361;
+      double x363 = x110*x361;
+      double x364 = x169*x233;
+      double x365 = x147*x232;
+      double x366 = x113*x365;
+      double x367 = x171*x235;
+      double x368 = x152*x234;
+      double x369 = x111*x368;
+      double x370 = x347 + x353 - x354 - x357 - x358 - x360 + x362 + x363 - x364 - x366 + x367 + x369;
+      double x371 = x290 - x295 + x319;
+      double x372 = 2*x324;
+      double x373 = x131*x203;
+      double x374 = 2*x326;
+      double x375 = x205*x322;
+      double x376 = x205*x234;
+      double x377 = x204*x323;
+      double x378 = x325*x39;
+      double x379 = x298*x378;
+      double x380 = x212*x323;
+      double x381 = x208*x325;
+      double x382 = x208*x232;
+      double x383 = x207*x378;
+      double x384 = -x233 + x235 - x327 - x328 + x329 + x330;
+      double x385 = x12*x152;
+      double x386 = x313*x385;
+      double x387 = x147*x23;
+      double x388 = x310*x387;
+      double x389 = x169*x208;
+      double x390 = x171*x205;
+      double x391 = -x148 + x153;
+      double x392 = pow(x203, 3);
+      double x393 = pow(x199, 3);
+      double x394 = x393*x76;
+      double x395 = pow(x201, 3);
+      double x396 = x395*x87;
+      double x397 = x203 + 3*x303 - 3*x305 + x394 - x396;
+      double x398 = 3*x73;
+      double x399 = exp(3*lkappa);
+      double x400 = pow(x30, -3);
+      double x401 = 6*x399*x400;
+      double x402 = 12*x32;
+      double x403 = x164*x28;
+      double x404 = pow(y, 4)/pow(x3, 4);
+      double x405 = x348*x404;
+      double x406 = x13*x405;
+      double x407 = pow(x15, 4)/pow(x16, 4);
+      double x408 = x348*x407;
+      double x409 = x24*x408;
+      double x410 = 18*x58;
+      double x411 = 12*x80;
+      double x412 = x10*x411;
+      double x413 = x412*x85;
+      double x414 = 12*x90;
+      double x415 = x21*x414;
+      double x416 = x408*x415;
+      double x417 = x408*x61;
+      double x418 = pow(x20, -4);
+      double x419 = 4*x6;
+      double x420 = pow(x16, -x419);
+      double x421 = x418*x420;
+      double x422 = 6*x421;
+      double x423 = x21*x408;
+      double x424 = pow(x8, -4);
+      double x425 = pow(x3, -x419);
+      double x426 = x424*x425;
+      double x427 = 6*x426;
+      double x428 = x10*x405;
+      double x429 = 6*x109;
+      double x430 = 7*x49;
+      double x431 = x10*x430;
+      double x432 = x405*x412;
+      double x433 = x415*x95;
+      double x434 = 18*x95;
+      double x435 = x21*x399;
+      double x436 = x421*x435;
+      double x437 = x10*x399;
+      double x438 = x426*x437;
+      double x439 = 18*x97;
+      double x440 = x405*x439;
+      double x441 = 18*x101;
+      double x442 = x441*x95;
+      double x443 = x0*x417;
+      double x444 = 12*x121;
+      double x445 = 11*x46;
+      double x446 = x426*x445;
+      double x447 = 11*x349;
+      double x448 = x407*x447;
+      double x449 = 7*x50;
+      double x450 = 6*x81;
+      double x451 = x450*x85;
+      double x452 = 6*x0;
+      double x453 = x422*x87;
+      double x454 = 6*x91;
+      double x455 = x408*x454;
+      double x456 = x427*x76;
+      double x457 = x405*x450;
+      double x458 = x454*x95;
+      double x459 = x40*x408;
+      double x460 = x404*x447;
+      double x461 = 11*x35;
+      double x462 = x421*x461;
+      double x463 = x439*x85;
+      double x464 = 18*x50;
+      double x465 = x0*x405;
+      double x466 = x408*x441;
+      double x467 = x0*x459;
+      double x468 = 6*exp(3*lxi);
+      double x469 = x406*x468 - x409*x468;
+      double x470 = 3*x44;
+      double x471 = x126*x54;
+      double x472 = x44*x91;
+      double x473 = 3*x97;
+      double x474 = x163*x73;
+      double x475 = 2*x74;
+      double x476 = x146*x73;
+      double x477 = 4*x32;
+      double x478 = x146*x477;
+      double x479 = x27*x28*x401;
+      double x480 = x131*x26;
+      double x481 = x1*x480;
+      double x482 = 6*x32;
+      double x483 = x482*x70;
+      double x484 = x148*x95;
+      double x485 = x153*x85;
+      double x486 = 10*x121;
+      double x487 = 9*x184;
+      double x488 = 9*x147;
+      double x489 = 9*x349;
+      double x490 = x407*x489;
+      double x491 = x152*x85;
+      double x492 = x21*x90;
+      double x493 = 3*x0;
+      double x494 = 6*x168;
+      double x495 = x10*x80;
+      double x496 = x147*x95;
+      double x497 = x192*x95;
+      double x498 = 9*x152;
+      double x499 = x404*x489;
+      double x500 = 9*x465;
+      double x501 = 9*x97;
+      double x502 = x40*x496;
+      double x503 = 3*x104;
+      double x504 = x169*x472;
+      double x505 = 3*x81;
+      double x506 = 3*x106;
+      double x507 = 9*x101;
+      double x508 = x104*x81;
+      double x509 = x106*x91;
+      double x510 = x40*x65;
+      double x511 = x111*x173 - x113*x175 + x169*x510 - x171*x50*x63 - 3*x191 + 3*x194 + x469;
+      double x512 = x205*x54;
+      double x513 = x216*x298;
+      double x514 = x204*x213 - x206 + x209 - x211 - x214 - x215 - x217 + x300 + 2*x45 + x512 + x513 + x69;
+      double x515 = x1*x203*x26;
+      double x516 = 6*x97;
+      double x517 = 6*x50;
+      double x518 = 6*x55;
+      double x519 = 6*x101;
+      double x520 = 6*x40;
+      double x521 = x205*x85;
+      double x522 = x200*x399*x80;
+      double x523 = x208*x95;
+      double x524 = x202*x399*x90;
+      double x525 = 3*x512;
+      double x526 = x110*x54;
+      double x527 = x204*x526;
+      double x528 = x212*x80;
+      double x529 = x110*x85;
+      double x530 = x102*x39;
+      double x531 = x114*x207;
+      double x532 = x116*x204;
+      double x533 = 3*x215;
+      double x534 = 3*x217;
+      double x535 = x298*x90;
+      double x536 = 3*x219;
+      double x537 = x110*x212;
+      double x538 = x39*x506;
+      double x539 = 3*x218;
+      double x540 = x122*x521 - x122*x523;
+      double x541 = x33*x70;
+      double x542 = x101*x325;
+      double x543 = x123 + 2*x174 - 2*x176;
+      double x544 = x165*x401;
+      double x545 = x477*x481;
+      double x546 = x227*x44;
+      double x547 = 8*x121;
+      double x548 = 7*x44;
+      double x549 = 6*x349;
+      double x550 = x407*x549;
+      double x551 = x230*x54;
+      double x552 = x404*x549;
+      double x553 = 7*x54;
+      double x554 = x235*x63;
+      double x555 = x234*x81;
+      double x556 = x224*x44;
+      double x557 = x222*x54;
+      double x558 = x232*x65;
+      double x559 = 12*x106;
+      double x560 = 4*x129;
+      double x561 = x121*x95;
+      double x562 = 4*x561;
+      double x563 = 3*x234;
+      double x564 = 3*x65;
+      double x565 = 3*x63;
+      double x566 = 3*x232;
+      double x567 = 4*x138;
+      double x568 = x121*x85;
+      double x569 = 4*x568;
+      double x570 = 12*x104;
+      double x571 = x222*x81;
+      double x572 = 4*x259;
+      double x573 = 4*x257;
+      double x574 = x12*x126*x204;
+      double x575 = x126*x140;
+      double x576 = x127*x292;
+      double x577 = 2*x104;
+      double x578 = x298*x39;
+      double x579 = x207*x39;
+      double x580 = x26 - x312 + x315 + x316 - x317;
+      double x581 = x304*x435;
+      double x582 = x302*x437;
+      double x583 = -x311*x65 + x314*x63 + x536 - x539;
+      double x584 = pow(x126, 3);
+      double x585 = 3*x584;
+      double x586 = pow(x127, 3);
+      double x587 = 3*x10*x11*x126*x234*x7 + x10*x11*x351*x7 + x10*x11*x584*x7 + 3*x10*x126*x234*x47*x48 + x10*x29*x584*x77*x79 + 3*x10*x47*x48*x584 + 2*x10*x584*x77*x79 - x113*x586 - x115*x586 + 3*x127*x21*x232*x36*x38*x9 - x129*x566 - x143*x566 + 3*x21*x36*x38*x586*x9 + 3*x21*x586*x88*x89*x9 - x24*x355 - x24*x586 - x256*x563 - x50*x585 - x585*x97 - x586*x91;
+      double x588 = 3*x240;
+      double x589 = pow(x131, 3);
+      double x590 = x26*x401;
+      double x591 = x242*x482;
+      double x592 = x18*x359;
+      double x593 = x333*x5;
+      double x594 = 6*x18;
+      double x595 = 6*x322;
+      double x596 = 6*x121;
+      double x597 = 9*x65;
+      double x598 = x222*x49;
+      double x599 = x208*x224;
+      double x600 = x224*x39;
+      double x601 = x207*x600;
+      double x602 = x205*x222;
+      double x603 = x298*x600;
+      double x604 = -x376 + x382;
+      double x605 = -x204*x598 + x212*x598 + 2*x223 - 2*x225 + x237 + x599 + x601 - x602 - x603 + x604;
+      double x606 = x238*x72;
+      double x607 = 2*x285*x72;
+      double x608 = x242*x33;
+      double x609 = x203*x242;
+      double x610 = x373*x477;
+      double x611 = x203*x238;
+      double x612 = x285*x477;
+      double x613 = x222*x5;
+      double x614 = x18*x224;
+      double x615 = x140*x234;
+      double x616 = x232*x292;
+      double x617 = x110*x613;
+      double x618 = 2*x63;
+      double x619 = x126*x49*x618;
+      double x620 = 2*x65;
+      double x621 = x127*x620;
+      double x622 = 3*x10*x11*x126*x199*x7*x9 + x10*x11*x126*x29*x302*x7 - x130 - x283*x310 - 3*x284;
+      double x623 = x307*x33;
+      double x624 = x131*x307;
+      double x625 = 4*x152;
+      double x626 = 3*x308;
+      double x627 = x306*x72;
+      double x628 = 3*x627;
+      double x629 = x395*x435;
+      double x630 = pow(x152, 4);
+      double x631 = x10*x630;
+      double x632 = x426*x630;
+      double x633 = pow(x147, 4);
+      double x634 = x21*x633;
+      double x635 = 7*x633;
+      double x636 = x421*x633;
+      double x637 = pow(x234, 2);
+      double x638 = 3*x637;
+      double x639 = pow(x232, 2);
+      double x640 = 3*x639;
+      double x641 = x234*x322;
+      double x642 = 18*x234;
+      double x643 = x352*x625;
+      double x644 = 4*x349;
+      double x645 = x468*exp(-4*lsigma);
+      double x646 = x232*x325;
+      double x647 = 18*x232;
+      double x648 = 4*x356;
+      double x649 = x147*x648;
+      double x650 = x319*x401;
+      double x651 = x131*x319;
+      double x652 = -x334 + x336 + x338 + x339 - x341 - x342 + x344 - x346 - x347 - x353 + x354 + x357 + x358 + x360 - x362 - x363 + x364 + x366 - x367 - x369;
+      double x653 = x331 + x372 - x374 - x375 - x377 - x379 + x380 + x381 + x383 + x604;
+      double x654 = 6*x333;
+      double x655 = 6*x335;
+      double x656 = x110*x333;
+      double x657 = x340*x39;
+      double x658 = x110*x368;
+      double x659 = x345*x39;
+      double x660 = x319 - x386 + x388 + x389 - x390;
+      double x661 = x203*x319;
+      out(j, 0) = x73*(x125 + x27*x34 + x70*x75);
+      out(j, 1) = -x73*(x131*x132 + x131*x166 + x146*x74 + x163*x74 + x198);
+      out(j, 2) = x73*(x1*x10*x11*x199*x51*x52*x7*x9 + x1*x10*x11*x51*x52*x7 + x1*x10*x199*x47*x48*x51*x52*x9 + x1*x10*x47*x48*x51*x52 + x1*x201*x21*x29*x36*x38*x41*x42 + 2*x1*x21*x36*x38*x41*x42*x9 + 2*x1*x210*x26*x71*x9 - x132*x203 - x166*x203 - x210 - x211 - x214 - x215 - x217 - x221 - x60 - x62);
+      out(j, 3) = x73*(x163*x241 - x238*x239 + x242*x243 + x282);
+      out(j, 4) = x73*(2*x131*x203*x26*x29*x31 + x163*x203*x71*x9 - x210*x240 - x239*x285 - x301);
+      out(j, 5) = x73*(-x210*x309 - x239*x306 + 2*x26*x29*x307*x31 - x318);
+      out(j, 6) = x72*(x238*x320 + x241*x332 - x242*x321 + x334 - x336 - x338 - x339 + x341 + x342 - x344 + x346 + x370);
+      out(j, 7) = x72*(x240*x371 + x285*x320 + x308*x332 - x321*x373 - x372 + x374 + x375 + x376 + x377 + x379 - x380 - x381 - x382 - x383 + x384);
+      out(j, 8) = x72*(x306*x320 - x307*x321 + x309*x371 + x386 - x388 - x389 + x390 + x391);
+      out(j, 9) = x72*(3*x203*x306*x71*x9 - x33*x392 - x397);
+      out(j, 10) = x73*(-x0*x416 + x0*x432 - x0*x440 - x0*x455 + x0*x457 + x0*x466 - x104*x410 + x104*x464 - 18*x107 - x108*x444 - 6*x108 + x109*x444 + 18*x119 - 18*x120 + 4*x125*x74 + x13*x460 + 18*x181 - x24*x448 + pow(x26, 4)*x348*x401 + x398*pow(x70, 2) - x40*x434 + x40*x448 + x402*x403*x70 - x405*x438 - x405*x446 - x405*x449 + x405*x456 + x406*x452 + x406 + x408*x436 - x408*x453 + x408*x462 - x409*x452 - x409 + x410*x465 - x410*x85 - x413 - x416 - 7*x417 - x422*x423 + x427*x428 + x428*x430 + x429 + x431*x54 + x432 + x433 + x434*x61 - x440 - x442 - 18*x443 - x448*x61 - x449*x54 + 7*x45 - x451 - x455 + x457 + x458 + 7*x459 - x460*x50 + x460*x58 + x463 - x464*x465 + x464*x85 + x466 + 18*x467 + x469 + x56 + 7*x57 - 7*x60 - 7*x62 + 7*x64 - 7*x66);
+      out(j, 11) = -x73*(x0*x408*x507 - x10*x427*x491 - x101*x106*x488 - 6*x104*x152*x495 + x104*x498*x97 + x105*x498 + 9*x105 + 6*x106*x147*x492 - x107*x488 - 9*x107 - x108*x486 + x109*x486 + 9*x119 - 9*x120 + x122*x484 - x122*x485 + x122*x491*x50 - x122*x491*x58 + x122*x497 - x122*x502 + x125*x240 + x13*x499 + x131*x479 + x147*x433 - x147*x442 + x147*x458 + x148*x506 + x149 + x151 - x152*x413 - x152*x451 + x152*x463 - x152*x487 - x153*x503 + x155 + x158 + x162 + x163*x164*x34 - 6*x167*x492 + x167*x507 - x168*x501 + x169*x509 - x171*x508 + x172*x81 + x181*x488 + 9*x181 - 3*x189 + 3*x190 + x198*x475 + x21*x422*x496 - x24*x490 + x40*x490 + x403*x478 + x406*x493 - x408*x493*x91 - x409*x493 - x423*x452*x90 + x428*x452*x80 - x431*x491 - x436*x496 + x438*x491 - 9*x443 + x446*x491 + x449*x491 + x45*x488 + x453*x496 - x456*x491 - x462*x496 + x465*x505 + 9*x467 + x474*x70 + 2*x476*x70 + x481*x483 + x484 - x485 - x487 - x488*x62 - x490*x61 + x494*x495 + 7*x497 - x498*x55 + x498*x59 - x499*x50 + x499*x58 - x50*x500 + x500*x58 - x500*x97 - 7*x502 - x504 + x511 + 4*x64 - 4*x66 + x74*(-x100*x126 + x101*x127*x470 + x110*x137*x54 - x114*x128*x44 + x116*x137*x54 - x127*x472 + x127*x99 - x129*x44 - x134 + x136 + x138*x54 - x139 - x141 + x142 - x143*x470 + x144 + x188 - x257 + x259 - x276 - x277 + x278 + x280 - x471*x473 + x471*x81));
+      out(j, 12) = x73*(x102*x535 + x104*x110*x204 - x104*x517 - x104*x537 + x106*x520 + x124 - x125*x308 - x203*x479 + x204*x529 + x205*x503 - x207*x530 - x207*x538 - x208*x506 + x210*x398*x70 + x210*x403*x482 + x210 + x212*x526 - x212*x529 + x298*x530 + x298*x538 - 6*x45 - x483*x515 - 3*x513 + x514*x75 - x516*x85 - x517*x85 + x518 + x519*x95 + x520*x95 + x521 + x522*x85 - x523 - x524*x95 - x525 - x527 - x528*x98 - x531*x95 + x532*x85 + x533 + x534 - x536 + x539 + x540 + 3*x86 - 3*x96);
+      out(j, 13) = x73*(x101*x224*x564 - x104*x126*x411*x46 + 8*x104*x137*x80 + x104*x567 + x106*x127*x35*x414 - 8*x106*x128*x90 - x106*x560 - x108*x547 + x109*x547 + x112*x234 - x115*x232*x44 + x117*x234*x54 - x118*x232 + 4*x126*x508 - 4*x127*x509 + x13*x552 - x132*x238 - x143*x559 - x143*x562 + 2*x146*x474 + x163*x545 - x166*x238 + x170*x566 + x177 - x178 + x179 + x180 + x182 - x183 - x185 - x186 + x195*x234 + x198*x241 - x222*x473*x63 - x223*x553 - x223*x565 - x224*x65*x91 + x225*x548 + x225*x564 - x226*x44 - x226*x65 - x228*x548 - x228*x564 + x229*x54 + x229*x63 + x231*x553 + x231*x565 - x232*x472 - x233*x44 - x233*x65 + x235*x54 - x24*x550 + x242*x541 + x242*x544 - x245 + x247 + x250 + x251 - x254 - x255 - x256*x569 - x256*x570 + x258*x559 + x258*x562 - x260 + x261 - x262 - x263 + x264 + x265 - x268 + x269 + x270 - x271*x65 + x272 + x273*x63 - x274 - x275 + 4*x276 + 4*x277 - 4*x278 + x279*x569 + x279*x570 - 4*x280 + x282*x74 - x343*x63 - x349*x404*x517 + x349*x407*x520 + x40*x558 + x411*x551 - x414*x546 - x422*x546 + x427*x551 + x436*x556 - x438*x557 - x439*x557 + x441*x556 - x446*x557 + x45*x566 + x450*x557 - x453*x556 - x454*x556 + x456*x557 + x462*x556 + x469 + x478*x481 + x54*x555 - x54*x563*x97 - x55*x563 - x550*x61 + x552*x58 + x554 - x558*x61 - x560*x561 + x567*x568 + x571*x63 - x572 + x573 + x74*(-x115*x18*x325 + x117*x322*x5 - x18*x327 + 2*x191 + 2*x193 - 2*x194 - 2*x196 + x244*x322 - x246*x325 - x248*x324 + x248*x330 - x249*x322 + x252*x326 - x252*x328 + x252*x542 + x267 + x329*x5 + x543));
+      out(j, 14) = x73*(x0*x1*x10*x11*x152*x199*x51*x52*x7*x9 + 2*x0*x1*x10*x11*x199*x51*x52*x7*x9 + x0*x1*x10*x152*x199*x47*x48*x51*x52*x9 + x0*x1*x147*x201*x21*x29*x36*x38*x41*x42 + 2*x0*x10*x199*x28*x29*x47*x48*x82*x83 + 4*x0*x10*x28*x47*x48*x82*x83*x9 + 2*x0*x19*x201*x21*x22*x28*x9*x92*x93 + 2*x0*x201*x21*x28*x36*x38*x9*x92*x93 + x1*x10*x11*x152*x199*x51*x52*x7*x9 + x1*x10*x152*x199*x399*x51*x52*x77*x79 + 3*x1*x10*x152*x199*x47*x48*x51*x52*x9 + 2*x1*x10*x152*x199*x51*x52*x77*x79*x9 + 3*x1*x10*x152*x29*x51*x52*x77*x79 + 6*x1*x131*x164*x203*x399*x400 + 2*x1*x146*x203*x26*x29*x31 + 3*x1*x147*x201*x21*x29*x36*x38*x41*x42 + 3*x1*x147*x201*x21*x29*x41*x42*x88*x89 + 6*x1*x147*x21*x36*x38*x41*x42*x9 + 6*x1*x147*x21*x41*x42*x88*x89*x9 + 2*x1*x163*x203*x26*x29*x31 - 2*x106*x578 - 4*x107 + 2*x131*x203*x29*x31*x70 - x132*x285 - x152*x518 - x166*x285 - x167*x524 - x167*x531 - x168*x537 - x169*x217 - x172*x528 - x173*x212*x49 - x175*x579 - x187 - x197 + x198*x203*x71*x9 - x204*x49*x577 - x205*x577 - x210*x474 - x210*x476 - x210*x545 - 2*x218 - x240*x514 - x286 + x287 + x289 - x290*x44 - x290*x65 + x291 + x294 - x296 - x297 - x299 - x301*x74 - x494*x97 - x504 - x540 - x543 - x74*(2*x134 - 2*x136 + x145 - x18*x284 + x204*x575 - x207*x576 - x212*x575 + x298*x576 + x300 + x5*x574));
+      out(j, 15) = x73*(-x132*x306 - x166*x306 + 2*pow(x210, 2)*x73 - 8*x210*x32*x515 + x213*x313 - x213*x582 - 5*x214 - x216*x310 + x216*x581 + x307*x541 + x307*x544 - x309*x514 - x311*x44 + x314*x54 + x318 + 4*x45 + x475*x580 + 5*x513 + x525 + x527 - x533 - x534 - 4*x55 + x583 + x68);
+      out(j, 16) = x73*(3*x0*x1*x10*x234*x47*x48*x51*x52*x9 + 9*x0*x1*x10*x322*x47*x48*x51*x52*x9 + 9*x0*x1*x10*x322*x51*x52*x77*x79*x9 + 3*x0*x1*x19*x21*x22*x232*x41*x42 + 3*x0*x1*x19*x21*x22*x325*x41*x42 + 3*x0*x1*x21*x232*x36*x38*x41*x42 + 3*x0*x1*x21*x29*x325*x41*x42*x88*x89 + 9*x0*x1*x21*x325*x36*x38*x41*x42 + 6*x0*x1*x21*x325*x41*x42*x88*x89 + 6*x10*x11*x121*x152*x28*x7*x82*x83 + 6*x10*x11*x121*x28*x7*x82*x83 + 3*x10*x11*x152*x234*x4*x7*y + x10*x11*x333*x4*x7*y + x10*x11*x352*x4*x7*y + 6*x10*x121*x152*x28*x47*x48*x82*x83 + 3*x10*x152*x234*x29*x4*x77*x79*y + 9*x10*x152*x234*x4*x47*x48*y + 6*x10*x152*x234*x4*x77*x79*y + 6*x10*x29*x333*x4*x424*x425*y + 6*x10*x29*x333*x4*x77*x79*y + 6*x10*x333*x4*x424*x425*y + 7*x10*x333*x4*x47*x48*y + 12*x10*x333*x4*x77*x79*y + x10*x352*x4*x47*x48*y - x111*x234*x63 + 6*x121*x147*x21*x28*x36*x38*x9*x92*x93 - x121*x429 - x121*x491*x517 + 6*x131*x238*x26*x29*x31 - x135*x352 - 9*x135*x368 + 9*x147*x15*x17*x21*x232*x36*x38*x9 + 9*x147*x15*x17*x21*x232*x88*x89*x9 + 7*x15*x17*x21*x335*x36*x38*x9 + x15*x17*x21*x335*x399*x418*x420 + 11*x15*x17*x21*x335*x418*x420*x9 + 18*x15*x17*x21*x335*x88*x89*x9 + x15*x17*x21*x356*x36*x38*x9 - 7*x150*x335 - x150*x356 - 9*x151*x232 + 3*x163*x238*x71*x9 - x163*x591 - x169*x264 - x18*x335*x453 - x18*x354 - x18*x357 - x239*x587 - x246*x345 - x282*x588 - x322*x505*x63 - x326*x597 - x329*x565 - 9*x330*x63 - x336*x594 - x365*x492*x594 - x368*x5*x501 - x414*x592 - x422*x592 - x438*x593 - x439*x593 - x446*x593 - x449*x593 - x484*x596 - x495*x595*x63 - x497*x596 - x510*x566 - x511 - x542*x597 - 3*x554 - x589*x590 - x67);
+      out(j, 17) = x73*(x163*x607 - x163*x610 - x18*x382 - x18*x599 + x204*x615 + x204*x617 + x204*x619 - x207*x616 - x210*x606 + x210*x608 - x212*x615 - x212*x617 - x212*x619 + x221 - x222*x248*x528 - 6*x223*x5 + x225*x594 - x239*x605 + x241*x301 + x243*x611 + x248*x571 - x252*x601 + x252*x603 + x253*x535 - x253*x91 + 2*x260 - 2*x261 + x266 + x281 - x282*x308 - x284*x620 + x298*x616 + x376*x5 + x480*x612 + x5*x602 - x516*x613 + x519*x614 + x522*x613 - x524*x614 - x531*x614 + x532*x613 + x540 + x572 - x573 + x574*x618 + x578*x621 - x579*x621 - x590*x609);
+      out(j, 18) = x73*(3*x10*x11*x152*x199*x4*x7*x9*y + x10*x11*x152*x29*x302*x4*x7*y + 3*x10*x152*x199*x4*x47*x48*x9*y + x10*x152*x29*x302*x4*x47*x48*y + 4*x131*x203*x210*x29*x31 + 2*x131*x26*x29*x306*x31 - x135*x625 + 5*x147*x15*x17*x201*x21*x29*x36*x38 + x147*x15*x17*x21*x304*x36*x38*x399 + 4*x147*x15*x17*x21*x36*x38*x9 - x159 + x163*x306*x71*x9 - x163*x623 - x169*x207*x292 - x169*x209 - x18*x388 + 4*x203*x26*x285*x29*x31 + 2*x203*x301*x71*x9 - x210*x607 - x239*x622 - x240*x580 - x288*x582 - 5*x289 - x293*x310 - x583 - x590*x624);
+      out(j, 19) = x73*(7*x10*x11*x199*x4*x7*x9*y + 6*x10*x11*x29*x302*x4*x7*y + x10*x11*x393*x399*x4*x7*y - x18*x23*x629 + 6*x203*x26*x29*x306*x31 - 7*x209 + 6*x210*x29*x307*x31 - x210*x628 - x239*x397 - 6*x312 - x392*x590 - x56 - x580*x626);
+      out(j, 20) = x72*(x111*x637 - x113*x639 + x13*x630 + x13*x638 + x13*(x234 + x404*x645 - x644*x84) - x148*x648 - 6*x233*x325 + x235*x595 - x238*x482*x651 - x24*x633 - x24*x640 - x24*(x232 + x407*x645 - x644*x94) + x320*x587 - x324*x642 + x326*x647 - x328*x647 + x330*x642 - x332*x591 + 3*x332*x606 + x353*x625 + x40*x635 + x40*x640 + x40*x649 + x411*x631 + x412*x641 - x414*x634 - x415*x646 - x422*x634 + x427*x631 + x430*x631 + x435*x636 - x437*x632 - x439*x630 - x439*x641 + x441*x633 - x445*x632 - x449*x630 + x450*x630 - x453*x633 - x454*x633 - x454*x646 + x456*x630 + x461*x636 - x50*x638 - x50*x643 + x542*x647 + x555*x595 + x58*x643 + x588*x652 + x589*x650 - x61*x635 - x61*x649);
+      out(j, 21) = x72*(x101*x655 - x169*x382 + x171*x376 + x204*x656 + x204*x658 + x205*x333 + x205*x352 - x207*x657 - x207*x659 - x208*x335 - x208*x356 - x212*x656 - x212*x658 + x241*x653 + x298*x657 + x298*x659 + x308*x652 + x320*x605 - x321*x611 + x332*x607 - x332*x610 + x333*x522 + x333*x532 + 3*x334 - x335*x524 - x335*x531 - 3*x336 - x337*x528 + x340*x535 + x365*x520 - x368*x517 + x370 + x371*x606 - x371*x608 + x40*x655 - x50*x654 + x609*x650 - x612*x651 - x654*x97);
+      out(j, 22) = x72*(-x131*x306*x321 - x232*x311 + x234*x314 + x240*x660 + x309*x653 - x310*x378 - x311*x325 + x313*x323 + x314*x322 + x320*x622 - x323*x582 - 4*x324 + 4*x326 - x332*x623 + x332*x627 + x371*x607 - x371*x610 + 3*x375 + 3*x376 + 3*x377 + x378*x581 + 5*x379 - 5*x380 - 3*x381 - 3*x382 - 3*x383 + x384 - x612*x661 + x624*x650);
+      out(j, 23) = x72*(-7*x290 + 7*x295 - x306*x482*x661 - x307*x371*x482 + x320*x397 + x371*x628 + x385*x393*x437 + 6*x386 - x387*x629 - 6*x388 + x391 + x392*x650 + x626*x660);
+      out(j, 24) = x72*(-pow(x199, 4)*x437 - x200 + pow(x201, 4)*x435 + x202 + pow(x203, 4)*x401 - 7*x303 + 7*x305 + 3*pow(x306, 2)*x72 - x306*x307*x402 + 4*x308*x397 - 6*x394 + 6*x396);
     }
-    if (bad) { for (int c = 0; c < 9; c++) out(j, c) = 0.0; continue; }
-
-    double P = Gv[1] - Gv[0]; if (P <= 0.0) P = 1e-20;
-    double Pls = Gls[1]   - Gls[0],   Plx = Glx[1]   - Glx[0],   Plk = Glk[1]   - Glk[0];
-    double Pss = Glsls[1] - Glsls[0], Psx = Glslx[1] - Glslx[0], Psk = Glslk[1] - Glslk[0];
-    double Pxx = Glxlx[1] - Glxlx[0], Pxk = Glxlk[1] - Glxlk[0], Pkk = Glklk[1] - Glklk[0];
-    double iP = 1.0 / P, iP2 = iP * iP;
-    out(j, 0) = -Pls * iP;
-    out(j, 1) = -Plx * iP;
-    out(j, 2) = -Plk * iP;
-    out(j, 3) = -Pss * iP + Pls * Pls * iP2;
-    out(j, 4) = -Psx * iP + Pls * Plx * iP2;
-    out(j, 5) = -Psk * iP + Pls * Plk * iP2;
-    out(j, 6) = -Pxx * iP + Plx * Plx * iP2;
-    out(j, 7) = -Pxk * iP + Plx * Plk * iP2;
-    out(j, 8) = -Pkk * iP + Plk * Plk * iP2;
   }
   return out;
 }
 
-
-// //' Discrete Extended generalized Pareto distribution of type 6 (deGPD6) negative log-likelihood
-// //'
-// //' @param pars a list of vectors of coefficients for each deGPD parameter
-// //' @param X1 a design matrix for the deGPD log scale parameter
-// //' @param X2 a design matrix for the deGPD log shape parameter
-// //' @param X3 a design matrix for the deGPD log kappa
-// //' @param yvec a vector
-// //' @param dupid a scalar or vector, identifying duplicates in Xs; -1 corresponds to no duplicates
-// //' @return degpd6d0 a scalar, the negative log-liklihood
-// //' @return degpd6d12 a matrix, first then second derivatives w.r.t. deGPD6 parameters
-// //' @examples
-// //' ## to follow
-// //' @export
+// GENERATED by derive_degpd_d34.py (degpd1id34) -- do not edit by hand.
 // [[Rcpp::export]]
-double degpd6d0(const Rcpp::List& pars, const arma::mat& X1, const arma::mat& X2, const arma::mat& X3, arma::vec yvec, const arma::uvec& dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
+arma::mat degpd1id34(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3,
+                  arma::vec yvec, const arma::uvec dupid, int dcate,
+                  const Rcpp::List& offsets, double xi_max)
 {
-
   arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
-  arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
+  arma::vec lxivec    = X2 * Rcpp::as<arma::vec>(pars[1]);
   arma::vec lkappavec = X3 * Rcpp::as<arma::vec>(pars[2]);
   int nobs = yvec.size();
-
+  arma::mat out = arma::mat(nobs, 25, arma::fill::zeros);
   if (dcate == 1) {
     lsigmavec = lsigmavec.elem(dupid);
-    lxivec = lxivec.elem(dupid);
+    lxivec    = lxivec.elem(dupid);
     lkappavec = lkappavec.elem(dupid);
   }
-
   {
-  arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
-  if (off0.n_elem > 0) lsigmavec += off0;
-  arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
-  if (off1.n_elem > 0) lxivec += off1;
-  arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
-  if (off2.n_elem > 0) lkappavec += off2;
+    arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
+    if (off0.n_elem > 0) lsigmavec += off0;
+    arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
+    if (off1.n_elem > 0) lxivec += off1;
+    arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
+    if (off2.n_elem > 0) lkappavec += off2;
   }
-
-  double y, lsigma, xiv, lkappa;
-  double nllh = 0.0;
-
   for (int j = 0; j < nobs; j++) {
-
-    y = yvec[j];
-    lsigma = lsigmavec[j];
-    xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);
-    lkappa = lkappavec[j];
-
-    double sigma = exp(lsigma);
-    double xi = xiv;
-    double kappa = exp(lkappa);
-
-    // GPD CDF at y and y+1
-    double v_lo = xi * y / sigma;
-    double t_lo = 1.0 + v_lo;
-    double v_hi = xi * (y + 1.0) / sigma;
-    double t_hi = 1.0 + v_hi;
-
-    // See the note in degpd5d0: t_hi <= 0 is the endpoint cell (F_hi = 1), not a
-    // failure. Only y itself past the endpoint has zero probability.
-    if (t_lo <= 0.0) { nllh += OOS_PEN_ID; continue; }
-
-    double F_lo = 1.0 - R_pow(t_lo, -1.0 / xi);
-    double F_hi = (t_hi <= 0.0) ? 1.0 : 1.0 - R_pow(t_hi, -1.0 / xi);
-
-    // Truncated Beta G-function
-    // G(u; kappa) = [pbeta((0.5 - 1/32)*u + 1/32, kappa, kappa) - pbeta(1/32, kappa, kappa)]
-    //             / [pbeta(0.5, kappa, kappa) - pbeta(1/32, kappa, kappa)]
-    double c1 = 0.5 - 1.0 / 32.0;  // = 15/32
-    double c2 = 1.0 / 32.0;         // = 1/32
-    double pb_min = R::pbeta(c2, kappa, kappa, 1, 0);
-    double pb_half = R::pbeta(0.5, kappa, kappa, 1, 0);
-    double denom_b = pb_half - pb_min;
-    if (denom_b < 1e-300) denom_b = 1e-300;
-
-    double u_lo = c1 * F_lo + c2;
-    double u_hi = c1 * F_hi + c2;
-    double G_lo = (R::pbeta(u_lo, kappa, kappa, 1, 0) - pb_min) / denom_b;
-    double G_hi = (R::pbeta(u_hi, kappa, kappa, 1, 0) - pb_min) / denom_b;
-
-    double pmf = G_hi - G_lo;
-    if (pmf <= 0.0) pmf = 1e-20;
-
-    nllh += -log(pmf);
-  }
-  return nllh;
-}
-
-
-// //' @rdname degpd6d0
-// [[Rcpp::export]]
-arma::mat degpd6d12(const Rcpp::List& pars, arma::mat X1, arma::mat X2, arma::mat X3, arma::vec yvec, const arma::uvec dupid, int dcate, const Rcpp::List& offsets, double xi_max, bool xi_identity = false)
-{
-
-  arma::vec lsigmavec = X1 * Rcpp::as<arma::vec>(pars[0]);
-  arma::vec lxivec = X2 * Rcpp::as<arma::vec>(pars[1]);
-  arma::vec lkappavec = X3 * Rcpp::as<arma::vec>(pars[2]);
-  int nobs = yvec.size();
-  arma::mat out = arma::mat(nobs, 9);
-
-  if (dcate == 1) {
-    lsigmavec = lsigmavec.elem(dupid);
-    lxivec = lxivec.elem(dupid);
-    lkappavec = lkappavec.elem(dupid);
-  }
-
-  {
-  arma::vec off0 = Rcpp::as<arma::vec>(offsets[0]);
-  if (off0.n_elem > 0) lsigmavec += off0;
-  arma::vec off1 = Rcpp::as<arma::vec>(offsets[1]);
-  if (off1.n_elem > 0) lxivec += off1;
-  arma::vec off2 = Rcpp::as<arma::vec>(offsets[2]);
-  if (off2.n_elem > 0) lkappavec += off2;
-  }
-
-  double y, lsigma, xiv, lkappa;
-
-  // Fully analytic gradient + Hessian for model 6 (truncated-beta G). Same assembly as
-  // model 5, but tb_Gtheta supplies the truncated-beta G derivatives; its kappa pieces
-  // come from incbeta_kk_derivs (adaptive Gauss-Kronrod quadrature for d/dkappa pbeta,
-  // which has no elementary closed form). See gfunc_derivs.h and models56_analytic_derivs.md.
-  for (int j = 0; j < nobs; j++) {
-
-    y = yvec[j];
-    lsigma = lsigmavec[j];
-    xiv = degpd_xi_value(lxivec[j], xi_max, xi_identity);  // chain rule applied in R
-    lkappa = lkappavec[j];
-    double sigma = exp(lsigma), xi = xiv, kappa = exp(lkappa);
-
-    FDeriv flo = gpd_Fderiv(y, sigma, xi);
-    FDeriv fhi = gpd_Fderiv(y + 1.0, sigma, xi);
-    if (!flo.ok || !fhi.ok) { for (int c = 0; c < 9; c++) out(j, c) = 0.0; continue; }
-    TBkappa kk = tb_kappa(kappa);
-    GTheta glo = tb_Gtheta(flo, kk), ghi = tb_Gtheta(fhi, kk);
-
-    double P = ghi.G - glo.G; if (P <= 0.0) P = 1e-20;
-    double iP = 1.0 / P, iP2 = iP * iP;
-    double Pls = ghi.ls - glo.ls, Plx = ghi.lx - glo.lx, Plk = ghi.lk - glo.lk;
-    double Pss = ghi.lsls - glo.lsls, Psx = ghi.lslx - glo.lslx, Psk = ghi.lslk - glo.lslk;
-    double Pxx = ghi.lxlx - glo.lxlx, Pxk = ghi.lxlk - glo.lxlk, Pkk = ghi.lklk - glo.lklk;
-    out(j, 0) = -Pls * iP;
-    out(j, 1) = -Plx * iP;
-    out(j, 2) = -Plk * iP;
-    out(j, 3) = -Pss * iP + Pls * Pls * iP2;
-    out(j, 4) = -Psx * iP + Pls * Plx * iP2;
-    out(j, 5) = -Psk * iP + Pls * Plk * iP2;
-    out(j, 6) = -Pxx * iP + Plx * Plx * iP2;
-    out(j, 7) = -Pxk * iP + Plx * Plk * iP2;
-    out(j, 8) = -Pkk * iP + Plk * Plk * iP2;
+    double y      = yvec[j];
+    double lsigma = lsigmavec[j];
+    double lxi    = lxivec[j];
+    double lkappa = lkappavec[j];
+    if (std::abs(lxi) < 0.05)
+      Rcpp::stop("analytic DEGPD d34 is unstable near zero shape");
+    double xi = lxi;
+    double sigma  = exp(lsigma);
+    double t_lo   = 1.0 + xi * y / sigma;
+    double t_hi   = 1.0 + xi * (y + 1.0) / sigma;
+    // out-of-support: d0 charges a constant penalty, so every derivative is 0
+    if (t_lo <= 0.0) continue;
+    // y = 0: F_lo = 0 exactly; the general form would give 0^(kappa-k) = NaN
+    if (y <= 0.0) {
+      double x0 = exp(-2*lsigma);
+      double x1 = exp(-lsigma);
+      double x2 = lxi*x1;
+      double x3 = x2 + 1;
+      double x4 = pow(x3, -2);
+      double x5 = x0*x4;
+      double x6 = 1.0/x3;
+      double x7 = x1*x6;
+      double x8 = 3*x7;
+      double x9 = lxi*x5;
+      double x10 = 3*x9;
+      double x11 = x2*x6;
+      double x12 = pow(lxi, 2);
+      double x13 = 2*x5;
+      double x14 = 1.0/lxi;
+      double x15 = pow(x3, -x14);
+      double x16 = 1 - x15;
+      double x17 = pow(x16, -2);
+      double x18 = 2*x14;
+      double x19 = pow(x3, -x18);
+      double x20 = x17*x19;
+      double x21 = 1.0/x16;
+      double x22 = x15*x21;
+      double x23 = 3*x22;
+      double x24 = exp(lkappa);
+      double x25 = x22*x7;
+      double x26 = x24*x25;
+      double x27 = x26*(x10*x22 + x10 - 3*x11 + x12*x13 + x13*x20 - x22*x8 + x23*x5 + x5 - x8 + 1);
+      double x28 = lxi*x13;
+      double x29 = log(x3);
+      double x30 = -x14*x29 + x7;
+      double x31 = x14*x30;
+      double x32 = x30*x7;
+      double x33 = x22*x31;
+      double x34 = x22*x32;
+      double x35 = x18*x32;
+      double x36 = x26*(2*x1*x6 - x13*x22 - x13 - x20*x35 - x28 - x31*x7 + x31 - x32 - x33*x8 + x33 - x34);
+      double x37 = x26*(x11 + x25 + x7 - 1);
+      double x38 = 1.0/x12;
+      double x39 = pow(x30, 2);
+      double x40 = x38*x39;
+      double x41 = x18*x7;
+      double x42 = -2*x29*x38 + x41 + x5;
+      double x43 = x14*x42;
+      double x44 = 2*x20;
+      double x45 = x40*x44;
+      double x46 = x23*x40;
+      double x47 = x22*x43;
+      double x48 = x26*(x13 + x18*x34 + x35 + x40 + x43 + x45 + x46 + x47);
+      double x49 = x31 + x33;
+      double x50 = -x26*(x49 + x7);
+      double x51 = pow(x30, 3);
+      double x52 = x38*x51;
+      double x53 = 3*x42;
+      double x54 = pow(lxi, 3);
+      double x55 = 1.0/x54;
+      double x56 = exp(-3*lsigma)/pow(x3, 3);
+      double x57 = 6*x38;
+      double x58 = 3*x14;
+      double x59 = -6*x29*x55 + x5*x58 + 2*x56 + x57*x7;
+      double x60 = x14*x22*x24;
+      double x61 = -x60*(x23*x52 + x31*x53 + x33*x53 + x44*x52 + x52 + x59);
+      double x62 = x14*x39;
+      double x63 = x22*x62;
+      double x64 = x60*(x42 + x62 + x63);
+      double x65 = -x24*x33;
+      double x66 = -x24*log(x16);
+      double x67 = 7*x7;
+      double x68 = 18*x9;
+      double x69 = 12*x5;
+      double x70 = 6*x56;
+      double x71 = 11*x12*x56;
+      double x72 = 18*x22;
+      double x73 = x20*x69;
+      double x74 = pow(x3, -x58)/pow(x16, 3);
+      double x75 = x22*x67;
+      double x76 = 7*x22;
+      double x77 = 12*x20;
+      double x78 = x56*x77;
+      double x79 = 6*x5;
+      double x80 = lxi*x70 - x79;
+      double x81 = 4*x7;
+      double x82 = x30*x5;
+      double x83 = 9*x56;
+      double x84 = lxi*x83;
+      double x85 = x31*x5;
+      double x86 = x28*x30;
+      double x87 = x20*x30;
+      double x88 = x31*x79;
+      double x89 = x42*x7;
+      double x90 = 4*x82;
+      double x91 = x40*x7;
+      double x92 = 6*x74;
+      double x93 = x47*x8 + x70;
+      double x94 = x14*x59;
+      double x95 = x51*x55;
+      double x96 = x30*x38;
+      double x97 = pow(x30, 4)*x55;
+      double x98 = pow(x42, 2)*x58;
+      double x99 = x40*x42;
+      double x100 = 4*x59;
+      out(j, 0) = x27;
+      out(j, 1) = x36;
+      out(j, 2) = x37;
+      out(j, 3) = x48;
+      out(j, 4) = x50;
+      out(j, 5) = x26;
+      out(j, 6) = x61;
+      out(j, 7) = x64;
+      out(j, 8) = x65;
+      out(j, 9) = x66;
+      out(j, 10) = x26*(lxi*x56*x72 + lxi*x78 + 7*x11 - x12*x69 - x22*x68 + x22*x71 - x5*x72 + x54*x70 + x56*x76 + x56 + x67 - x68 + x70*x74 + x71 - x73 + x75 + x78 + x80 - 1);
+      out(j, 11) = x26*(10*lxi*x0*x4 + 9*x0*x15*x21*x4 + 9*x0*x4 + 9*x1*x14*x15*x21*x30*x6 + 6*x1*x14*x17*x19*x30*x6 + 3*x1*x14*x30*x6 + 3*x1*x15*x21*x30*x6 + 3*x1*x30*x6 - x12*x70 - x20*x70 - 9*x22*x30*x5 - x22*x83 - x22*x84 - x22*x86 - x31*x73 - 7*x33*x5 - x49 - 3*x56 - x74*x88 - x79*x87 - x81 - 3*x82 - x84 - x85 - x86);
+      out(j, 12) = x27;
+      out(j, 13) = x26*(x18*x20*x89 + x20*x39*x41 + 8*x20*x85 + x22*x70 + x22*x89 + x22*x90 - x31*x81 + x33*x69 - x33*x81 + x40*x75 - x40 + x43*x7 - x43 - x45 - x46 - x47 + x62*x7 + x63*x8 + x77*x91 + x80 + 4*x85 + x89 + x90 + x91*x92 + x91 + x93);
+      out(j, 14) = x36;
+      out(j, 15) = x37;
+      out(j, 16) = -x26*(6*x20*x91 + 9*x22*x42*x96 + x22*x94 + 9*x25*x40 + x33*x79 + x40*x8 + x42*x57*x87 + x43*x8 + x53*x96 + x76*x95 + x77*x95 + x88 + x92*x95 + x93 + x94 + x95);
+      out(j, 17) = x48;
+      out(j, 18) = x50;
+      out(j, 19) = x26;
+      out(j, 20) = x60*(x100*x31 + x100*x33 + 8*x14*x56 + x22*x98 + x38*x69 + 24*x55*x7 + x72*x99 + x76*x97 + x77*x97 + x77*x99 + x92*x97 + x97 + x98 + 6*x99 + 6*exp(-4*lsigma)/pow(x3, 4) - 24*x29/pow(lxi, 4));
+      out(j, 21) = x61;
+      out(j, 22) = x64;
+      out(j, 23) = x65;
+      out(j, 24) = x66;
+    } else if (t_hi <= 0.0) {
+      const double negpmf_s = degpd1_negpmf_endpoint(t_lo, xi, exp(lkappa));
+      const bool tiny_cell = negpmf_s > -1e-6;
+      double x0 = pow(y, 2);
+      double x1 = exp(-2*lsigma);
+      double x2 = exp(-lsigma);
+      double x3 = x2*y;
+      double x4 = lxi*x3;
+      double x5 = x4 + 1;
+      double x6 = pow(x5, -2);
+      double x7 = x0*x1*x6;
+      double x8 = exp(2*lkappa);
+      double x9 = 1.0/lxi;
+      double x10 = pow(x5, -x9);
+      double x11 = 1 - x10;
+      double x12 = pow(x11, -2);
+      double x13 = 2*x9;
+      double x14 = pow(x5, -x13);
+      double x15 = x12*x14;
+      double x16 = x15*x8;
+      double x17 = x16*x7;
+      double x18 = exp(lkappa);
+      double x19 = 3*x18;
+      double x20 = 1.0/x11;
+      double x21 = x10*x20;
+      double x22 = x19*x21;
+      double x23 = x22*x7;
+      double x24 = x15*x7;
+      double x25 = x19*x24;
+      double x26 = 1.0/x5;
+      double x27 = x26*x3;
+      double x28 = x21*x27;
+      double x29 = x19*x28;
+      double x30 = lxi*x7;
+      double x31 = x22*x30;
+      double x32 = pow(x11, x18);
+      double x33 = x32 - 1;
+      if (tiny_cell) x33 = negpmf_s;
+      double x34 = 1.0/x33;
+      double x35 = x32*x34;
+      double x36 = 3*x35;
+      double x37 = 2*x7;
+      double x38 = x15*x37;
+      double x39 = 2*x18;
+      double x40 = pow(x11, x39);
+      double x41 = pow(x33, -2);
+      double x42 = x40*x41;
+      double x43 = x42*x8;
+      double x44 = 3*x27;
+      double x45 = x26*x4;
+      double x46 = 3*x45;
+      double x47 = pow(lxi, 2);
+      double x48 = 3*x30;
+      double x49 = x21*x44;
+      double x50 = 3*x21;
+      double x51 = x50*x7;
+      double x52 = x21*x48;
+      double x53 = x37*x47 + x38 - x44 - x46 + x48 - x49 + x51 + x52 + x7 + 1;
+      double x54 = x18*x35;
+      double x55 = x28*x54;
+      double x56 = log(x5);
+      double x57 = x27 - x56*x9;
+      double x58 = x57*x9;
+      double x59 = x21*x58;
+      double x60 = x18*x59;
+      double x61 = x35*x60;
+      double x62 = x27*x58;
+      double x63 = x16*x62;
+      double x64 = x21*x7;
+      double x65 = x27*x57;
+      double x66 = x21*x65;
+      double x67 = x18*x66;
+      double x68 = x35*x67;
+      double x69 = x13*x65;
+      double x70 = x16*x42;
+      double x71 = x19*x59;
+      double x72 = x15*x62;
+      double x73 = lxi*x37;
+      double x74 = x15*x69;
+      double x75 = -2*x2*x26*y + x21*x37 + x37 + x44*x59 - x58 - x59 + x62 + x65 + x66 + x73 + x74;
+      double x76 = log(x11);
+      if (tiny_cell) x76 = log1p(-exp(-log(t_lo) / xi));
+      double x77 = x18*x76;
+      double x78 = x35*x77;
+      double x79 = x28*x39;
+      double x80 = x76*x8;
+      double x81 = x28*x80;
+      double x82 = 2*x27;
+      double x83 = x21*x80;
+      double x84 = x42*x83;
+      double x85 = x49*x80;
+      double x86 = x27*x77 - x27*x78 + x27;
+      double x87 = x28 + x45 - 1;
+      double x88 = 1.0/x47;
+      double x89 = pow(x57, 2);
+      double x90 = x88*x89;
+      double x91 = x15*x90;
+      double x92 = x8*x91;
+      double x93 = x13*x27;
+      double x94 = -2*x56*x88 + x7 + x93;
+      double x95 = x9*x94;
+      double x96 = x21*x95;
+      double x97 = x18*x96;
+      double x98 = x22*x90;
+      double x99 = x19*x91;
+      double x100 = x35*x97;
+      double x101 = 3*x92;
+      double x102 = x101*x35;
+      double x103 = 2*x91;
+      double x104 = x103*x43;
+      double x105 = x35*x98;
+      double x106 = x35*x99;
+      double x107 = x50*x90;
+      double x108 = x13*x66;
+      double x109 = x103 + x107 + x108 + x37 + x69 + x90 + x95 + x96;
+      double x110 = x58*x77;
+      double x111 = x18*x21;
+      double x112 = x13*x57;
+      double x113 = x111*x112;
+      double x114 = x59*x77;
+      double x115 = x59*x80;
+      double x116 = x58*x78;
+      double x117 = x113*x35;
+      double x118 = x59*x78;
+      double x119 = x112*x84;
+      double x120 = x115*x36;
+      double x121 = x58 + x59;
+      double x122 = 3*x77;
+      double x123 = pow(x76, 2);
+      double x124 = x123*x8;
+      double x125 = x122*x35;
+      double x126 = x124*x35;
+      double x127 = 3*x126;
+      double x128 = x124*x42;
+      double x129 = 2*x128;
+      double x130 = x122 + x124 - x125 - x127 + x129 + 1;
+      double x131 = pow(x57, 3);
+      double x132 = x131*x88;
+      double x133 = x132*x15;
+      double x134 = x133*x8;
+      double x135 = 2*x133;
+      double x136 = 3*x94;
+      double x137 = pow(lxi, 3);
+      double x138 = 1.0/x137;
+      double x139 = pow(y, 3);
+      double x140 = exp(-3*lsigma);
+      double x141 = pow(x5, -3);
+      double x142 = x139*x140*x141;
+      double x143 = 6*x27;
+      double x144 = 3*x9;
+      double x145 = -6*x138*x56 + 2*x142 + x143*x88 + x144*x7;
+      double x146 = x132*x50 + x132 + x135 + x136*x58 + x136*x59 + x145;
+      double x147 = x111*x35;
+      double x148 = x147*x9;
+      double x149 = x77*x94;
+      double x150 = x89*x9;
+      double x151 = x111*x13;
+      double x152 = x151*x89;
+      double x153 = x150*x21;
+      double x154 = x153*x80;
+      double x155 = x13*x89;
+      double x156 = x150 + x153 + x94;
+      double x157 = -x130;
+      double x158 = 7*x27;
+      double x159 = 18*x30;
+      double x160 = 12*x7;
+      double x161 = 6*x142;
+      double x162 = 11*x142;
+      double x163 = x162*x47;
+      double x164 = 18*x21;
+      double x165 = x15*x160;
+      double x166 = pow(x11, -3);
+      double x167 = pow(x5, -x144);
+      double x168 = x166*x167;
+      double x169 = x161*x168;
+      double x170 = x158*x21;
+      double x171 = 7*x21;
+      double x172 = x142*x171;
+      double x173 = 12*x15;
+      double x174 = x142*x173;
+      double x175 = exp(3*lkappa);
+      double x176 = x168*x175;
+      double x177 = x142*x176;
+      double x178 = 18*x15;
+      double x179 = x178*x18;
+      double x180 = x142*x179;
+      double x181 = x162*x168*x18;
+      double x182 = x111*x158;
+      double x183 = x172*x18;
+      double x184 = 6*x7;
+      double x185 = x16*x184;
+      double x186 = x16*x161;
+      double x187 = lxi*x174;
+      double x188 = lxi*x142;
+      double x189 = x179*x7;
+      double x190 = 18*x111;
+      double x191 = lxi*x180;
+      double x192 = lxi*x161;
+      double x193 = x147*x7;
+      double x194 = 18*x35;
+      double x195 = x194*x8;
+      double x196 = x142*x168;
+      double x197 = x16*x194;
+      double x198 = x160*x70;
+      double x199 = 12*x42;
+      double x200 = pow(x11, x19);
+      double x201 = pow(x33, -3);
+      double x202 = x200*x201;
+      double x203 = x176*x202;
+      double x204 = x147*x158;
+      double x205 = 7*x35;
+      double x206 = x199*x8;
+      double x207 = 18*x147;
+      double x208 = -x184 + x192;
+      double x209 = 3*x142;
+      double x210 = 4*x27;
+      double x211 = x57*x7;
+      double x212 = 3*x211;
+      double x213 = 9*x142;
+      double x214 = lxi*x213;
+      double x215 = x58*x7;
+      double x216 = x57*x73;
+      double x217 = x15*x184;
+      double x218 = 9*x7;
+      double x219 = x21*x218;
+      double x220 = x184*x58;
+      double x221 = x168*x220;
+      double x222 = x165*x58;
+      double x223 = x16*x44*x58;
+      double x224 = 9*x27;
+      double x225 = x15*x18;
+      double x226 = x185*x42;
+      double x227 = x218*x57;
+      double x228 = 6*x42;
+      double x229 = x228*x63;
+      double x230 = x21*x30;
+      double x231 = 9*x35;
+      double x232 = x231*x63;
+      double x233 = 11*x168;
+      double x234 = x233*x54;
+      double x235 = x160*x58;
+      double x236 = x122*x27;
+      double x237 = x111*x184;
+      double x238 = x18*x217;
+      double x239 = x122*x45;
+      double x240 = x39*x76;
+      double x241 = x240*x7;
+      double x242 = x241*x47;
+      double x243 = x122*x30;
+      double x244 = 3*x17;
+      double x245 = 6*x18;
+      double x246 = x245*x28;
+      double x247 = x175*x76;
+      double x248 = x24*x247;
+      double x249 = x122*x28;
+      double x250 = x15*x241;
+      double x251 = x125*x27;
+      double x252 = x16*x35;
+      double x253 = x218*x252;
+      double x254 = x125*x45;
+      double x255 = x147*x184;
+      double x256 = x184*x84;
+      double x257 = x125*x28;
+      double x258 = x35*x80;
+      double x259 = x219*x258;
+      double x260 = x247*x42;
+      double x261 = x27*x94;
+      double x262 = 4*x211;
+      double x263 = x150*x27;
+      double x264 = x27*x95;
+      double x265 = x27*x90;
+      double x266 = 4*x58;
+      double x267 = x89*x93;
+      double x268 = x13*x261;
+      double x269 = x143*x90;
+      double x270 = x168*x269;
+      double x271 = 8*x215;
+      double x272 = x27*x91;
+      double x273 = x176*x265;
+      double x274 = 18*x18;
+      double x275 = x272*x274;
+      double x276 = x19*x27;
+      double x277 = x153*x276;
+      double x278 = x15*x19;
+      double x279 = x263*x278;
+      double x280 = x264*x278;
+      double x281 = x210*x60;
+      double x282 = x143*x92;
+      double x283 = x27*x92;
+      double x284 = x210*x61;
+      double x285 = x44*x95;
+      double x286 = x276*x96;
+      double x287 = x161 + x286*x35 - x286 + x44*x96;
+      double x288 = x35*x83;
+      double x289 = -x241*x35 + x241;
+      double x290 = x123*x175;
+      double x291 = x28*x290;
+      double x292 = 10*x42;
+      double x293 = x128*x82;
+      double x294 = 6*x202;
+      double x295 = 15*x35;
+      double x296 = x124*x27 - x126*x44 + x236 - x251 + x27 + x293;
+      double x297 = x145*x9;
+      double x298 = x131*x138;
+      double x299 = x57*x88;
+      double x300 = x136*x299;
+      double x301 = x21*x297;
+      double x302 = 6*x298;
+      double x303 = x168*x302;
+      double x304 = x171*x298;
+      double x305 = x173*x298;
+      double x306 = 6*x94;
+      double x307 = x299*x306;
+      double x308 = x21*x94;
+      double x309 = 9*x299;
+      double x310 = 9*x90;
+      double x311 = x28*x310;
+      double x312 = x18*x298;
+      double x313 = x309*x94;
+      double x314 = 6*x111;
+      double x315 = x314*x90;
+      double x316 = x245*x91;
+      double x317 = x151*x94;
+      double x318 = x247*x91;
+      double x319 = x80*x96;
+      double x320 = x240*x91;
+      double x321 = x122*x21;
+      double x322 = x231*x92;
+      double x323 = x228*x92;
+      double x324 = x112*x128;
+      double x325 = 4*x60;
+      double x326 = x290*x59;
+      double x327 = 7*x77;
+      double x328 = x175*pow(x76, 3);
+      double x329 = 6*x124 - 18*x126 + 12*x128 + x199*x328 - x205*x328 - x294*x328 - x327*x35 + x327 + x328 + 1;
+      double x330 = x138*pow(x57, 4);
+      double x331 = x144*pow(x94, 2);
+      double x332 = x168*x330;
+      double x333 = 6*x332;
+      double x334 = x173*x330;
+      double x335 = x171*x330;
+      double x336 = 11*x18*x332;
+      double x337 = x179*x330;
+      double x338 = x18*x335;
+      double x339 = x176*x330;
+      double x340 = x16*x330;
+      double x341 = x306*x90;
+      double x342 = x21*x331;
+      double x343 = x18*x342;
+      double x344 = x91*x94;
+      double x345 = x90*x94;
+      double x346 = x274*x344;
+      double x347 = x145*x325;
+      double x348 = x92*x94;
+      double x349 = x122*x94;
+      double x350 = x133*x247;
+      double x351 = x124*x94;
+      double x352 = x124*x150;
+      double x353 = 4*x153*x18;
+      double x354 = x153*x290;
+      double x355 = x128*x155;
+      double x356 = -x329;
+      out(j, 0) = x55*(-x17*x36 + x17 + x23*x35 - x23 + x25*x35 - x25 - x29*x35 + x29 + x31*x35 - x31 + x38*x43 + x53);
+      out(j, 1) = x55*(2*x0*x1*x10*x18*x20*x6 + 3*x10*x18*x2*x20*x26*x57*x9*y + x10*x18*x2*x20*x26*x57*y + 3*x12*x14*x18*x2*x26*x57*x9*y + 3*x12*x14*x2*x26*x32*x34*x57*x8*x9*y - x19*x35*x72 - x27*x35*x71 - x35*x39*x64 - x60 + x61 - x63 - x68 - x69*x70 - x75);
+      out(j, 2) = x55*(x28*x77 - x28*x78 + x35*x79 + x35*x85 + x45*x77 - x45*x78 - x77 + x78 - x79 - x81 - x82*x84 + x86 + x87);
+      out(j, 3) = x55*(x100 - x102 + x104 + x105 + x106 + x109 - x13*x67 + x13*x68 + x92 - x97 - x98 - x99);
+      out(j, 4) = x55*(-x110 + x113 - x114 + x115 + x116 - x117 + x118 + x119 - x120 - x121 - x86);
+      out(j, 5) = x130*x55;
+      out(j, 6) = x148*(3*x10*x131*x18*x20*x88 + 3*x10*x18*x20*x57*x9*x94 + 3*x12*x131*x14*x18*x88 + 3*x12*x131*x14*x32*x34*x8*x88 - x132*x22*x35 - x133*x19*x35 - x134 - x135*x43 - x146 - x35*x71*x94);
+      out(j, 7) = x148*(-x149*x35 + x149 + x150*x77 - x150*x78 + x152*x35 - x152 + x153*x77 - x153*x78 + x154*x36 - x154 - x155*x84 + x156);
+      out(j, 8) = x157*x61;
+      out(j, 9) = x157*x78;
+      out(j, 10) = x55*(x111*x159 - x111*x163 + 18*x111*x7 + x137*x161 - x142*x197 + x142 - x147*x159 + x147*x163 + x158 - x159*x21 - x159 + x16*x192 - x160*x47 + x161*x203 + x163*x21 + x163 + x164*x188 - x164*x7 - x165 + x169*x8 + x169 + x17*x194 + x170 + x172 + x174*x43 + x174 - x177*x199 + x177*x205 - x177 + x180*x35 - x180 + x181*x35 - x181 - x182 + x183*x35 - x183 - x185 + x186 + x187*x43 + x187 - x188*x190 - x188*x197 + x188*x207 - x189*x35 + x189 + x191*x35 - x191 - 18*x193 - x195*x196 + x196*x206 - x198 + x204 + x208 + 7*x45 - 1);
+      out(j, 11) = x55*(2*lxi*x0*x1*x10*x18*x20*x57*x6 + 10*lxi*x0*x1*x6 + 9*lxi*x10*x139*x140*x141*x18*x20 + 9*x0*x1*x10*x18*x20*x32*x34*x6 + 7*x0*x1*x10*x18*x20*x57*x6*x9 + 9*x0*x1*x10*x18*x20*x57*x6 + 9*x0*x1*x10*x20*x6 + 18*x0*x1*x12*x14*x18*x57*x6*x9 + 9*x0*x1*x12*x14*x18*x57*x6 + 18*x0*x1*x12*x14*x32*x34*x57*x6*x8*x9 + 9*x0*x1*x12*x14*x32*x34*x57*x6*x8 + 12*x0*x1*x166*x167*x175*x40*x41*x57*x6*x9 + x0*x1*x166*x167*x175*x57*x6*x9 + 11*x0*x1*x166*x167*x18*x57*x6*x9 + 18*x0*x1*x166*x167*x32*x34*x57*x6*x8*x9 + 9*x0*x1*x6 + 9*x10*x139*x140*x141*x18*x20 + 9*x10*x18*x2*x20*x26*x32*x34*x57*x9*y + 3*x10*x18*x2*x20*x26*x32*x34*x57*y + 9*x10*x2*x20*x26*x57*x9*y + 3*x10*x2*x20*x26*x57*y - x111*x218 + 9*x12*x139*x14*x140*x141*x18 + 9*x12*x139*x14*x140*x141*x32*x34*x8 + 9*x12*x14*x18*x2*x26*x32*x34*x57*x9*y + 6*x12*x14*x2*x26*x57*x9*y - x121 - x147*x213 - x147*x214 - x147*x227 - x15*x161 - x16*x209 - x16*x212 - x16*x220 - x161*x47 - x168*x235*x43 - x176*x205*x215 - x179*x215*x35 - x186*x42 - x19*x66 - x198*x58 + 3*x2*x26*x57*x9*y + 3*x2*x26*x57*y - x203*x220 - x205*x60*x7 - x209 - x21*x213 - x21*x214 - x21*x216 - x210 - x212 - x213*x225*x35 - x214 - x215*x234 - x215 - x216 - x217*x57 - x219*x57 - x221*x8 - x221 - x222 + x223 - x224*x60 - x225*x227*x35 - 9*x225*x62 - x226*x57 + x229 - x230*x35*x39*x57 - x232 - 7*x59*x7 + x60 - x61);
+      out(j, 12) = x55*(-lxi*x237 + lxi*x255 - lxi*x256 + lxi*x259 + x122*x64 - x125*x230 - x125*x30 - x125*x64 + x165*x260 - x202*x217*x247 - x205*x248 + x21*x243 - x226*x76 + x226 + x228*x81 - x231*x81 - x236 - x237 + x238*x35 - x238 - x239 - x242*x35 + x242 + x243 - x244*x76 + x244 - x246*x35 + x246 + x248 - x249 - x250*x35 + x250 + x251 + x253*x76 - x253 + x254 + x255 - x256 + x257 + x259 - x51*x80 - x52*x80 + x53 + x7*x77 - x7*x78 + x77 - x78 + x85);
+      out(j, 13) = x55*(-x100 + x102 - x103 - x104 - x105 - x106 - x107 - x111*x161 - x111*x261 - x111*x262 + x147*x161 + x147*x261 + x147*x262 + x15*x267 + x15*x268 + x15*x271 - x150*x252*x44 + x153*x44 + x158*x176*x35*x90 + x16*x263 + x16*x264 + x160*x59 - x160*x60 + x160*x61 + x161*x21 - x168*x195*x265 + x168*x206*x265 + x17*x266 + x170*x90 - x18*x222 - x18*x233*x265 - x182*x90 - x194*x283 - x199*x273 + x199*x283 + x203*x269 + x204*x90 + x208 + x21*x261 + x21*x262 - x210*x58 - x210*x59 + x222*x54 + x234*x265 - x235*x252 - x252*x285 + x261 + x262 + x263 + x264 + x265 + x266*x7 + x267*x70 + x268*x70 + x270*x8 + x270 + x271*x70 + 12*x272 - x273 + x275*x35 - x275 + x277*x35 - x277 + x279*x35 - x279 + x280*x35 - x280 + x281 + x282 - x284 + x287 - x90 - x92 - x95 - x96 + x97 + x98 + x99);
+      out(j, 14) = x55*(2*lxi*x0*x1*x18*x32*x34*x6*x76 + 2*x0*x1*x10*x18*x20*x32*x34*x6*x76 + 4*x0*x1*x10*x18*x20*x6 + 4*x0*x1*x10*x20*x40*x41*x6*x76*x8 + 2*x0*x1*x10*x20*x6*x76*x8 + 3*x10*x18*x2*x20*x26*x32*x34*x57*x76*x9*y + x10*x18*x2*x20*x26*x32*x34*x57*x76*y + 6*x10*x18*x2*x20*x26*x57*x9*y + 2*x10*x18*x2*x20*x26*x57*y + 6*x10*x2*x20*x26*x40*x41*x57*x76*x8*x9*y + 2*x10*x2*x20*x26*x40*x41*x57*x76*x8*y + 3*x10*x2*x20*x26*x57*x76*x8*x9*y + x10*x2*x20*x26*x57*x76*x8*y - x110*x27 + x110 - x113 + x114 - x115*x224*x35 - x115 - x116 + x117 - x118 - x119 + 6*x12*x14*x175*x2*x200*x201*x26*x57*x76*x9*y + 7*x12*x14*x175*x2*x26*x32*x34*x57*x76*x9*y + 2*x12*x14*x18*x2*x26*x32*x34*x57*x76*x9*y + 6*x12*x14*x18*x2*x26*x57*x9*y + 6*x12*x14*x2*x26*x40*x41*x57*x76*x8*x9*y + 3*x12*x14*x2*x26*x57*x76*x8*x9*y + x120 - x143*x61 - x173*x260*x62 + x18*x2*x26*x32*x34*x57*x76*x9*y + x18*x2*x26*x32*x34*x57*x76*y + 2*x18*x2*x26*x76*y - x184*x288 - 4*x193 - x21*x241 - x21*x258*x44*x57 - x223 - x229 - x232*x76 + x232 - x236*x59 - x240*x27*x35 - x240*x30 - x245*x35*x72 - x247*x72 - x289 - x35*x39*x66 - x65*x77 - x66*x77 - x74*x77 - x75);
+      out(j, 15) = x55*(-x111*x210 - x122 + x124*x28 + x124*x45 - x124 + x125 - x126*x46 - x126*x49 + x127 + x129*x45 - x129 + x147*x210 + x170*x290*x35 - x199*x291 + x21*x293 + x239 + x249 - x254 - x257 + x291*x294 - x291 - x292*x81 + x295*x81 + x296 - 5*x81 + x87);
+      out(j, 16) = x55*(6*x0*x1*x10*x18*x20*x57*x6*x9 + 7*x10*x131*x138*x18*x20 + x10*x145*x18*x20*x9 + 9*x10*x18*x2*x20*x26*x88*x89*y + 9*x10*x18*x20*x57*x88*x94 + 18*x12*x131*x138*x14*x18 + 18*x12*x131*x138*x14*x32*x34*x8 + 9*x12*x14*x18*x2*x26*x88*x89*y + 9*x12*x14*x18*x57*x88*x94 + 9*x12*x14*x2*x26*x32*x34*x8*x88*x89*y + 9*x12*x14*x32*x34*x57*x8*x88*x94 + 12*x131*x138*x166*x167*x175*x40*x41 + x131*x138*x166*x167*x175 + 11*x131*x138*x166*x167*x18 + 18*x131*x138*x166*x167*x32*x34*x8 - x143*x91 - x147*x313 - x15*x307 - x16*x300 - x16*x302 - x168*x206*x298 - x175*x202*x303 - x176*x205*x298 - x178*x312*x35 - x18*x301*x35 - x18*x304*x35 - x184*x59 - x184*x61 - x220 - x224*x54*x91 - x225*x313*x35 - x233*x312*x35 - x282*x42 - x285 - x287 - x297 - x298 - x300 - x301 - x303*x8 - x303 - x304 - x305*x43 - x305 - x307*x70 - x308*x309 - x311*x54 - x311 - x44*x90 - x44*x92);
+      out(j, 17) = x55*(-x101*x76 + x101 - x107*x80 + x108*x77 - x108*x78 - x108*x80 + x109 + x115*x143*x35 - x115*x210*x42 - x125*x21*x90 - x13*x308*x42*x80 + x199*x318 - x205*x318 - x228*x83*x90 - x281 + x284 + x288*x310 + x289 - x294*x318 + x315*x35 - x315 + x316*x35 - x316 + x317*x35 - x317 + x318 + x319*x36 - x319 - x320*x35 + x320 + x321*x90 + x322*x76 - x322 - x323*x76 + x323 + x69*x77 - x69*x78 + x77*x90 + x77*x95 + x77*x96 - x78*x90 - x78*x95 - x78*x96);
+      out(j, 18) = x55*(12*x10*x123*x175*x20*x40*x41*x57*x9 + x10*x123*x175*x20*x57*x9 + 3*x10*x123*x20*x32*x34*x57*x8*x9 + 3*x10*x18*x20*x32*x34*x57*x76*x9 + 4*x10*x18*x20*x57*x9 + 10*x10*x20*x40*x41*x57*x76*x8*x9 + 5*x10*x20*x57*x76*x8*x9 - x115*x295 - x121 - x122*x58 - x122*x59 + 3*x123*x32*x34*x57*x8*x9 - x124*x58 - x124*x59 + 3*x18*x32*x34*x57*x76*x9 - x205*x326 - x21*x324 - x294*x326 - x296 - x324 - x325*x35);
+      out(j, 19) = x329*x55;
+      out(j, 20) = x148*(24*x138*x27 + 8*x142*x9 + x145*x266 + 4*x145*x59 + x16*x341 + x160*x88 + x164*x345 - x190*x345 - x194*x340 - x194*x348 - x195*x332 - x199*x339 + x199*x348 + x205*x339 + x206*x332 + x207*x345 + x294*x339 + x330 + x331 + x333*x8 + x333 + x334*x43 + x334 + x335 + x336*x35 - x336 + x337*x35 - x337 + x338*x35 - x338 - x339 + 6*x340 + x341 + x342 + x343*x35 - x343 + 12*x344 + x346*x35 - x346 + x347*x35 - x347 + 6*pow(y, 4)*exp(-4*lsigma)/pow(x5, 4) - 24*x56/pow(lxi, 4));
+      out(j, 21) = x148*(3*x10*x131*x18*x20*x32*x34*x76*x88 + 6*x10*x131*x18*x20*x88 + 6*x10*x131*x20*x40*x41*x76*x8*x88 + 3*x10*x131*x20*x76*x8*x88 + 3*x10*x18*x20*x32*x34*x57*x76*x9*x94 + 6*x10*x18*x20*x57*x9*x94 + 6*x10*x20*x40*x41*x57*x76*x8*x9*x94 + 3*x10*x20*x57*x76*x8*x9*x94 - x115*x231*x94 + 6*x12*x131*x14*x175*x200*x201*x76*x88 + 7*x12*x131*x14*x175*x32*x34*x76*x88 + 2*x12*x131*x14*x18*x32*x34*x76*x88 + 6*x12*x131*x14*x18*x88 + 9*x12*x131*x14*x32*x34*x8*x88 + 6*x12*x131*x14*x40*x41*x76*x8*x88 + 3*x12*x131*x14*x76*x8*x88 + x131*x18*x32*x34*x76*x88 - x132*x231*x83 - x132*x314*x35 - x132*x321 - x132*x77 - x133*x240 - x133*x245*x35 - x134*x228 - x134*x231*x76 - 3*x134 + x145*x18*x32*x34*x76 - x145*x77 - x146 + 3*x18*x32*x34*x57*x76*x9*x94 - x199*x350 - x306*x61 - x349*x58 - x349*x59 - x350);
+      out(j, 22) = x148*(x122*x150 + x122*x153 + x124*x153 - x125*x150 - x125*x153 - x127*x153 - x154*x292 + x154*x295 - 5*x154 + x156 - x199*x354 + x205*x354 + x21*x355 + x294*x354 - x349*x35 + x349 + x35*x353 - x351*x36 + 2*x351*x42 + x351 - x352*x36 + x352 - x353 - x354 + x355);
+      out(j, 23) = x356*x61;
+      out(j, 24) = x356*x78;
+    } else {
+      const double negpmf_s = degpd1_negpmf(t_lo, xi, sigma, exp(lkappa));
+      const bool tiny_cell = negpmf_s > -1e-6 && degpd1_upper_tail(t_lo, xi, exp(lkappa));
+      double x0 = exp(-lsigma);
+      double x1 = lxi*x0;
+      double x2 = x1*y + 1;
+      double x3 = 1.0/x2;
+      double x4 = x3*y;
+      double x5 = 1.0/lxi;
+      double x6 = pow(x2, -x5);
+      double x7 = 1 - x6;
+      double x8 = exp(lkappa);
+      double x9 = pow(x7, x8);
+      double x10 = 1.0/x7;
+      double x11 = x10*x6;
+      double x12 = x11*x9;
+      double x13 = x12*x4;
+      double x14 = y + 1;
+      double x15 = x1*x14 + 1;
+      double x16 = 1.0/x15;
+      double x17 = x14*x16;
+      double x18 = pow(x15, -x5);
+      double x19 = 1 - x18;
+      double x20 = pow(x19, x8);
+      double x21 = 1.0/x19;
+      double x22 = x18*x21;
+      double x23 = x20*x22;
+      double x24 = x17*x23;
+      double x25 = x13 - x24;
+      double x26 = pow(x25, 3);
+      double x27 = exp(-2*lsigma);
+      double x28 = exp(2*lkappa);
+      double x29 = -x20 + x9;
+      if (tiny_cell) x29 = negpmf_s;
+      double x30 = pow(x29, -2);
+      double x31 = x28*x30;
+      double x32 = 2*x31;
+      double x33 = x27*x32;
+      double x34 = pow(x14, 2);
+      double x35 = pow(x15, -2);
+      double x36 = x34*x35;
+      double x37 = x0*x36;
+      double x38 = x20*x8;
+      double x39 = pow(x19, -2);
+      double x40 = 2*x5;
+      double x41 = pow(x15, -x40);
+      double x42 = x39*x41;
+      double x43 = x38*x42;
+      double x44 = x37*x43;
+      double x45 = pow(y, 2);
+      double x46 = pow(x2, -2);
+      double x47 = x45*x46;
+      double x48 = x0*x47;
+      double x49 = x8*x9;
+      double x50 = pow(x7, -2);
+      double x51 = pow(x2, -x40);
+      double x52 = x50*x51;
+      double x53 = x49*x52;
+      double x54 = x48*x53;
+      double x55 = -x13 + x24;
+      double x56 = x52*x9;
+      double x57 = x48*x56;
+      double x58 = x20*x42;
+      double x59 = x37*x58;
+      double x60 = x1*x47;
+      double x61 = x12*x60;
+      double x62 = x1*x36;
+      double x63 = x23*x62;
+      double x64 = x12*x48;
+      double x65 = x23*x37;
+      double x66 = x64 - x65;
+      double x67 = x57 - x59 + x61 - x63 + x66;
+      double x68 = x55 + x67;
+      double x69 = x44 - x54 + x68;
+      double x70 = 1.0/x29;
+      double x71 = x70*x8;
+      double x72 = x0*x71;
+      double x73 = x25*x72;
+      double x74 = 3*x73;
+      double x75 = pow(y, 3);
+      double x76 = pow(x2, -3);
+      double x77 = x75*x76;
+      double x78 = x27*x77;
+      double x79 = x28*x9;
+      double x80 = pow(x7, -3);
+      double x81 = 3*x5;
+      double x82 = pow(x2, -x81);
+      double x83 = x80*x82;
+      double x84 = x79*x83;
+      double x85 = x78*x84;
+      double x86 = pow(x14, 3);
+      double x87 = pow(x15, -3);
+      double x88 = x86*x87;
+      double x89 = x27*x88;
+      double x90 = x20*x28;
+      double x91 = pow(x19, -3);
+      double x92 = pow(x15, -x81);
+      double x93 = x91*x92;
+      double x94 = x90*x93;
+      double x95 = x89*x94;
+      double x96 = x49*x83;
+      double x97 = 3*x78;
+      double x98 = 3*x44;
+      double x99 = 3*x54;
+      double x100 = x38*x93;
+      double x101 = 3*x89;
+      double x102 = 3*lxi;
+      double x103 = x53*x78;
+      double x104 = x43*x89;
+      double x105 = x12*x78;
+      double x106 = x23*x89;
+      double x107 = 3*x57;
+      double x108 = x58*x89;
+      double x109 = 3*x108;
+      double x110 = x20*x93;
+      double x111 = 2*x89;
+      double x112 = 2*x78;
+      double x113 = x83*x9;
+      double x114 = x56*x78;
+      double x115 = 3*x114;
+      double x116 = 3*x59;
+      double x117 = pow(lxi, 2);
+      double x118 = 2*x23;
+      double x119 = x118*x89;
+      double x120 = 2*x12;
+      double x121 = x120*x78;
+      double x122 = -lxi*x109 + lxi*x115 + x102*x105 - x102*x106 + x105 - x106 - x107 - x109 - x110*x111 + x112*x113 + x115 + x116 - x117*x119 + x117*x121 - 3*x61 + 3*x63 - 3*x64 + 3*x65;
+      double x123 = x100*x101 + x101*x43 - x102*x103 + x102*x104 + x122 + x25 - x53*x97 + x85 - x95 - x96*x97 - x98 + x99;
+      double x124 = log(x2);
+      double x125 = x0*x4;
+      double x126 = -x124*x5 + x125;
+      double x127 = log(x15);
+      double x128 = x0*x17;
+      double x129 = -x127*x5 + x128;
+      double x130 = x129*x20;
+      double x131 = x130*x22;
+      double x132 = -x10*x126*x6*x9 + x131;
+      double x133 = -x132;
+      double x134 = x5*x71;
+      double x135 = x133*x134;
+      double x136 = x17*x5;
+      double x137 = x136*x43;
+      double x138 = x129*x137;
+      double x139 = x4*x5;
+      double x140 = x139*x53;
+      double x141 = x126*x140;
+      double x142 = x126*x9;
+      double x143 = x11*x142;
+      double x144 = x139*x143;
+      double x145 = x142*x52;
+      double x146 = x139*x145;
+      double x147 = x131*x136;
+      double x148 = x130*x42;
+      double x149 = x136*x148;
+      double x150 = x144 + x146 - x147 - x149 + x66;
+      double x151 = x138 - x141 + x150;
+      double x152 = -x129;
+      double x153 = x152*x23;
+      double x154 = x136*x153;
+      double x155 = x136*x58;
+      double x156 = x152*x155;
+      double x157 = -x126;
+      double x158 = x12*x157;
+      double x159 = x139*x158;
+      double x160 = -x159;
+      double x161 = x139*x56;
+      double x162 = x157*x161;
+      double x163 = -x162;
+      double x164 = x154 + x156 + x160 + x163 + x66;
+      double x165 = x140*x157;
+      double x166 = x137*x152;
+      double x167 = x165 - x166;
+      double x168 = x164 + x167;
+      double x169 = x133*x40;
+      double x170 = pow(x25, 2);
+      double x171 = x0*x170;
+      double x172 = x171*x31;
+      double x173 = x157*x54;
+      double x174 = x152*x44;
+      double x175 = x152*x5;
+      double x176 = x37*x94;
+      double x177 = x157*x5;
+      double x178 = x48*x84;
+      double x179 = x152*x81;
+      double x180 = x100*x37;
+      double x181 = x157*x81;
+      double x182 = x48*x96;
+      double x183 = x112*x53;
+      double x184 = x111*x43;
+      double x185 = 2*x108;
+      double x186 = x112*x56;
+      double x187 = -x119 + x121;
+      double x188 = -lxi*x119 + lxi*x121 + x118*x37 - x120*x48 - x185 + x186 + x187;
+      double x189 = -x183 + x184 + x188;
+      double x190 = x153*x37;
+      double x191 = x152*x59;
+      double x192 = x158*x48;
+      double x193 = x157*x57;
+      double x194 = x113*x157;
+      double x195 = x40*x48;
+      double x196 = x110*x152;
+      double x197 = x37*x40;
+      double x198 = -x154 - x156 + x159 + x162 + x190*x5 + x190 + x191*x81 + x191 - x192*x5 - x192 - x193*x81 - x193 - x194*x195 + x196*x197;
+      double x199 = -x165 + x166 + x173 - x174 + x175*x176 - x177*x178 - x179*x180 - x179*x44 + x181*x182 + x181*x54 + x189 + x198;
+      double x200 = log(x7);
+      if (tiny_cell) x200 = log1p(-exp(-log(t_lo) / xi));
+      double x201 = x200*x9;
+      double x202 = log(x19);
+      if (tiny_cell) x202 = log1p(-exp(-log(t_hi) / xi));
+      double x203 = x20*x202;
+      double x204 = x201 - x203;
+      double x205 = x204*x71;
+      double x206 = x201*x8;
+      double x207 = x11*x206;
+      double x208 = x207*x4;
+      double x209 = x203*x8;
+      double x210 = x209*x22;
+      double x211 = x17*x210;
+      double x212 = x208 - x211 + x25;
+      double x213 = x171*x32;
+      double x214 = 2*x54;
+      double x215 = x201*x28;
+      double x216 = x48*x52;
+      double x217 = x215*x216;
+      double x218 = x210*x37;
+      double x219 = x37*x42;
+      double x220 = x209*x219;
+      double x221 = x207*x48;
+      double x222 = x210*x62;
+      double x223 = pow(x126, 2);
+      double x224 = x223*x5;
+      double x225 = pow(x129, 2);
+      double x226 = x225*x5;
+      double x227 = x226*x23;
+      double x228 = x12*x224;
+      double x229 = 1.0/x117;
+      double x230 = 2*x229;
+      double x231 = x27*x36;
+      double x232 = -x127*x230 + x128*x40 + x231;
+      double x233 = x23*x232;
+      double x234 = x27*x47;
+      double x235 = -x124*x230 + x125*x40 + x234;
+      double x236 = x12*x235;
+      double x237 = x233 - x236;
+      double x238 = -x224*x56 + x226*x58 + x227 - x228 + x237;
+      double x239 = x224*x53 - x226*x43 + x238;
+      double x240 = x134*x25;
+      double x241 = x133*x71;
+      double x242 = x241*x40;
+      double x243 = pow(x133, 2);
+      double x244 = x243*x31;
+      double x245 = x230*x244;
+      double x246 = x229*x84;
+      double x247 = x223*x4;
+      double x248 = x246*x247;
+      double x249 = x229*x94;
+      double x250 = x17*x225;
+      double x251 = x249*x250;
+      double x252 = 3*x229;
+      double x253 = x247*x252;
+      double x254 = x253*x96;
+      double x255 = x253*x53;
+      double x256 = x250*x252;
+      double x257 = x100*x256;
+      double x258 = x256*x43;
+      double x259 = x126*x54;
+      double x260 = x129*x44;
+      double x261 = x137*x232;
+      double x262 = x140*x235;
+      double x263 = x139*x236;
+      double x264 = x161*x235;
+      double x265 = x136*x233;
+      double x266 = x155*x232;
+      double x267 = x187 + x263 + x264 - x265 - x266;
+      double x268 = x261 - x262 + x267;
+      double x269 = x13*x229;
+      double x270 = x223*x269;
+      double x271 = x229*x24;
+      double x272 = x225*x271;
+      double x273 = x252*x58;
+      double x274 = x250*x273;
+      double x275 = x230*x93;
+      double x276 = x20*x275;
+      double x277 = x250*x276;
+      double x278 = x230*x83;
+      double x279 = x278*x9;
+      double x280 = x247*x279;
+      double x281 = x252*x56;
+      double x282 = x247*x281;
+      double x283 = x131*x37;
+      double x284 = x148*x37;
+      double x285 = x143*x48;
+      double x286 = x145*x48;
+      double x287 = x270 - x272 - x274 - x277 + x280 + x282 - x283*x40 - x284*x40 + x285*x40 + x286*x40;
+      double x288 = x248 - x251 - x254 - x255 + x257 + x258 - x259*x40 + x260*x40 + x268 + x287;
+      double x289 = x129*x22;
+      double x290 = x209*x289;
+      double x291 = x10*x126*x200*x6*x8*x9 - x132 - x290;
+      double x292 = x40*x43;
+      double x293 = x17*x292;
+      double x294 = x152*x293;
+      double x295 = x40*x53;
+      double x296 = x295*x4;
+      double x297 = x157*x296;
+      double x298 = x139*x157;
+      double x299 = x215*x52;
+      double x300 = x298*x299;
+      double x301 = x152*x210;
+      double x302 = x136*x301;
+      double x303 = x209*x42;
+      double x304 = x136*x152;
+      double x305 = x303*x304;
+      double x306 = x157*x207;
+      double x307 = x139*x306;
+      double x308 = x206*x52;
+      double x309 = x298*x308;
+      double x310 = x203*x28;
+      double x311 = x310*x42;
+      double x312 = x304*x311;
+      double x313 = -x218 + x221;
+      double x314 = x164 - x294 + x297 + x300 + x302 + x305 - x307 - x309 - x312 + x313;
+      double x315 = pow(x200, 2);
+      double x316 = x315*x49;
+      double x317 = pow(x202, 2);
+      double x318 = x317*x38;
+      double x319 = x204 + x316 - x318;
+      double x320 = x319*x71;
+      double x321 = pow(x204, 2);
+      double x322 = 2*x205;
+      double x323 = x317*x90;
+      double x324 = x22*x323;
+      double x325 = x17*x324;
+      double x326 = x315*x79;
+      double x327 = x11*x326;
+      double x328 = x327*x4;
+      double x329 = 3*x208;
+      double x330 = 3*x211;
+      double x331 = x325 - x328 - x329 + x330 + x55;
+      double x332 = x153 - x158;
+      double x333 = x134*x332;
+      double x334 = pow(x157, 2);
+      double x335 = x334*x5;
+      double x336 = pow(x152, 2);
+      double x337 = x336*x5;
+      double x338 = x23*x337;
+      double x339 = x337*x58;
+      double x340 = x12*x335;
+      double x341 = x335*x56;
+      double x342 = x237 + x338 + x339 - x340 - x341;
+      double x343 = x335*x53 - x337*x43 + x342;
+      double x344 = pow(x157, 3);
+      double x345 = x229*x344;
+      double x346 = x345*x84;
+      double x347 = pow(x152, 3);
+      double x348 = x229*x347;
+      double x349 = x348*x94;
+      double x350 = x252*x344;
+      double x351 = x350*x96;
+      double x352 = x350*x53;
+      double x353 = x252*x347;
+      double x354 = x100*x353;
+      double x355 = x353*x43;
+      double x356 = x235*x53;
+      double x357 = x181*x356;
+      double x358 = x232*x43;
+      double x359 = x179*x358;
+      double x360 = pow(lxi, 3);
+      double x361 = 1.0/x360;
+      double x362 = exp(-3*lsigma);
+      double x363 = 2*x362;
+      double x364 = 6*x229;
+      double x365 = -6*x124*x361 + x125*x364 + x234*x81 + x363*x77;
+      double x366 = -x365;
+      double x367 = x12*x366;
+      double x368 = -6*x127*x361 + x128*x364 + x231*x81 + x363*x88;
+      double x369 = -x368;
+      double x370 = x23*x369;
+      double x371 = x12*x229;
+      double x372 = x344*x371;
+      double x373 = x229*x23;
+      double x374 = x347*x373;
+      double x375 = x347*x58;
+      double x376 = x252*x375;
+      double x377 = x20*x347;
+      double x378 = x275*x377;
+      double x379 = x278*x344*x9;
+      double x380 = x281*x344;
+      double x381 = x179*x233;
+      double x382 = x232*x58;
+      double x383 = x179*x382;
+      double x384 = x181*x236;
+      double x385 = x235*x56;
+      double x386 = x181*x385;
+      double x387 = x367 - x370 + x372 - x374 - x376 - x378 + x379 + x380 - x381 - x383 + x384 + x386;
+      double x388 = x301 - x306 + x332;
+      double x389 = x207*x235;
+      double x390 = x210*x232;
+      double x391 = x295*x334;
+      double x392 = x204*x31;
+      double x393 = x292*x336;
+      double x394 = x207*x335;
+      double x395 = x335*x52;
+      double x396 = x206*x395;
+      double x397 = x337*x42;
+      double x398 = x310*x397;
+      double x399 = x215*x395;
+      double x400 = x210*x337;
+      double x401 = x209*x397;
+      double x402 = -x233 + x236 - x338 - x339 + x340 + x341;
+      double x403 = x32*x321;
+      double x404 = x11*x157;
+      double x405 = x326*x404;
+      double x406 = x152*x22;
+      double x407 = x323*x406;
+      double x408 = 3*x301;
+      double x409 = 3*x306;
+      double x410 = -x153 + x158;
+      double x411 = pow(x204, 3);
+      double x412 = pow(x200, 3);
+      double x413 = x412*x79;
+      double x414 = pow(x202, 3);
+      double x415 = x414*x90;
+      double x416 = x204 + 3*x316 - 3*x318 + x413 - x415;
+      double x417 = 3*x72;
+      double x418 = exp(3*lkappa);
+      double x419 = pow(x29, -3);
+      double x420 = x418*x419;
+      double x421 = 6*x420;
+      double x422 = x31*x69;
+      double x423 = x170*x27;
+      double x424 = pow(y, 4)/pow(x2, 4);
+      double x425 = x362*x424;
+      double x426 = x12*x425;
+      double x427 = pow(x14, 4)/pow(x15, 4);
+      double x428 = x362*x427;
+      double x429 = x23*x428;
+      double x430 = 18*x114;
+      double x431 = 12*x113;
+      double x432 = x431*x78;
+      double x433 = 12*x110;
+      double x434 = x428*x433;
+      double x435 = 7*x59;
+      double x436 = 7*x58;
+      double x437 = 6*x428;
+      double x438 = pow(x19, -4);
+      double x439 = 4*x5;
+      double x440 = pow(x15, -x439);
+      double x441 = x438*x440;
+      double x442 = x20*x441;
+      double x443 = 6*x425;
+      double x444 = pow(x7, -4);
+      double x445 = pow(x2, -x439);
+      double x446 = x444*x445;
+      double x447 = x446*x9;
+      double x448 = 7*x57;
+      double x449 = 7*x56;
+      double x450 = x425*x431;
+      double x451 = x433*x89;
+      double x452 = 18*x108;
+      double x453 = x20*x418;
+      double x454 = x441*x453;
+      double x455 = x418*x9;
+      double x456 = x446*x455;
+      double x457 = 18*lxi;
+      double x458 = x428*x58;
+      double x459 = 18*x96;
+      double x460 = x425*x459;
+      double x461 = 18*x100;
+      double x462 = x461*x89;
+      double x463 = 12*x117;
+      double x464 = 11*x117;
+      double x465 = 11*x446*x49;
+      double x466 = 7*x54;
+      double x467 = 7*x53;
+      double x468 = 6*x429;
+      double x469 = 6*x85;
+      double x470 = x441*x90;
+      double x471 = x437*x94;
+      double x472 = 6*x426;
+      double x473 = x446*x79;
+      double x474 = x443*x84;
+      double x475 = 6*x95;
+      double x476 = 7*x44;
+      double x477 = 7*x43;
+      double x478 = x425*x56;
+      double x479 = 11*x38*x441;
+      double x480 = x459*x78;
+      double x481 = x428*x461;
+      double x482 = x425*x53;
+      double x483 = x428*x43;
+      double x484 = -lxi*x468 + lxi*x472 - 6*x105 + 6*x106;
+      double x485 = x130*x93;
+      double x486 = x142*x83;
+      double x487 = x126*x5;
+      double x488 = x129*x5;
+      double x489 = x168*x72;
+      double x490 = 2*x73;
+      double x491 = x151*x72;
+      double x492 = x31*x423;
+      double x493 = 9*x114;
+      double x494 = 9*x458;
+      double x495 = x26*x27;
+      double x496 = x133*x5;
+      double x497 = x421*x496;
+      double x498 = 9*x478;
+      double x499 = 9*x108;
+      double x500 = 10*lxi;
+      double x501 = 9*lxi;
+      double x502 = 9*x425;
+      double x503 = 9*x104;
+      double x504 = 6*x78;
+      double x505 = 6*x0*x25;
+      double x506 = 6*x89;
+      double x507 = 9*x103;
+      double x508 = 9*x428;
+      double x509 = x5*x89;
+      double x510 = x5*x78;
+      double x511 = 9*x5;
+      double x512 = 9*x152;
+      double x513 = x157*x510;
+      double x514 = x177*x504;
+      double x515 = 6*x5;
+      double x516 = 3*x85;
+      double x517 = lxi*x112;
+      double x518 = lxi*x157;
+      double x519 = lxi*x152;
+      double x520 = 3*x95;
+      double x521 = x48*x515;
+      double x522 = x175*x506;
+      double x523 = x152*x509;
+      double x524 = 9*x157*x96;
+      double x525 = x176*x179;
+      double x526 = x204*x421;
+      double x527 = x206*x216;
+      double x528 = x219*x310;
+      double x529 = x207*x60;
+      double x530 = -x208 + x211 - x214 - x217 - x220 - x222 + x313 + 2*x44 + x527 + x528 + x529 + x68;
+      double x531 = 6*x103;
+      double x532 = 6*x104;
+      double x533 = x207*x78;
+      double x534 = x201*x418*x83;
+      double x535 = x210*x89;
+      double x536 = x203*x418*x93;
+      double x537 = 3*x221;
+      double x538 = 3*x527;
+      double x539 = x215*x83;
+      double x540 = x209*x93;
+      double x541 = 3*x218;
+      double x542 = 3*x220;
+      double x543 = x310*x93;
+      double x544 = 3*x529;
+      double x545 = x102*x78;
+      double x546 = x102*x89;
+      double x547 = x111*x210;
+      double x548 = x112*x207;
+      double x549 = 3*x222;
+      double x550 = x17*x336;
+      double x551 = x334*x4;
+      double x552 = x334*x53;
+      double x553 = x336*x43;
+      double x554 = x17*x252;
+      double x555 = x134*x69;
+      double x556 = x239*x40;
+      double x557 = x171*x421;
+      double x558 = x229*x243;
+      double x559 = x236*x48;
+      double x560 = x235*x57;
+      double x561 = x233*x37;
+      double x562 = x232*x59;
+      double x563 = 4*x89;
+      double x564 = x0*x25;
+      double x565 = x133*x439;
+      double x566 = x31*x565;
+      double x567 = 4*x78;
+      double x568 = x223*x48;
+      double x569 = x225*x37;
+      double x570 = 12*x509;
+      double x571 = x229*x569;
+      double x572 = x225*x229;
+      double x573 = x364*x569;
+      double x574 = x225*x81;
+      double x575 = x223*x81;
+      double x576 = 4*x104;
+      double x577 = x364*x568;
+      double x578 = x223*x229;
+      double x579 = 12*x510;
+      double x580 = x229*x568;
+      double x581 = x235*x84;
+      double x582 = x232*x94;
+      double x583 = x37*x5;
+      double x584 = x260*x439;
+      double x585 = x235*x81;
+      double x586 = x232*x81;
+      double x587 = x259*x439;
+      double x588 = x44*x586 - x468 + x472 - x54*x585 + x560*x81 - x562*x81;
+      double x589 = x11*x126*x206;
+      double x590 = x126*x139;
+      double x591 = x129*x136;
+      double x592 = x291*x40;
+      double x593 = -x547 + x548;
+      double x594 = x25 - x325 + x328 + x329 - x330;
+      double x595 = x317*x453;
+      double x596 = x315*x455;
+      double x597 = -x324*x37 + x327*x48 + x537 - x541;
+      double x598 = pow(x126, 3);
+      double x599 = x252*x598;
+      double x600 = pow(x129, 3);
+      double x601 = 3*x10*x126*x235*x5*x6*x9 + x10*x229*x598*x6*x9 + x10*x365*x6*x9 + 3*x126*x235*x5*x50*x51*x9 - x126*x53*x585 + 3*x129*x20*x232*x39*x41*x5*x8 - x131*x586 - x148*x586 + 3*x20*x229*x39*x41*x600*x8 + 3*x20*x229*x600*x8*x91*x92 + x229*x28*x598*x80*x82*x9 + 3*x229*x50*x51*x598*x9 + 2*x229*x598*x80*x82*x9 - x23*x368 - x249*x600 - x252*x58*x600 - x276*x600 - x373*x600 - x53*x599 - x599*x96;
+      double x602 = x241*x81;
+      double x603 = 6*x361;
+      double x604 = pow(x133, 3)*x420*x603;
+      double x605 = x244*x364;
+      double x606 = x441*x603;
+      double x607 = x17*x377;
+      double x608 = 12*x361;
+      double x609 = x608*x93;
+      double x610 = x344*x361*x4;
+      double x611 = x152*x554;
+      double x612 = x152*x515;
+      double x613 = x606*x90;
+      double x614 = x17*x347;
+      double x615 = x603*x94;
+      double x616 = x334*x364;
+      double x617 = x229*x334;
+      double x618 = x157*x356;
+      double x619 = x229*x336;
+      double x620 = 9*x619;
+      double x621 = x224*x52;
+      double x622 = x226*x42;
+      double x623 = -x389 + x390;
+      double x624 = -x206*x621 - x207*x224 + x209*x622 + x210*x226 + x215*x621 + x223*x295 - x225*x292 + x238 - x310*x622 + x623;
+      double x625 = x134*x239;
+      double x626 = x526*x558;
+      double x627 = x392*x565;
+      double x628 = 4*x229*x291;
+      double x629 = x247*x364;
+      double x630 = x250*x364;
+      double x631 = x139*x235;
+      double x632 = x136*x232;
+      double x633 = x209*x275;
+      double x634 = x206*x278;
+      double x635 = x126*x40;
+      double x636 = x129*x40;
+      double x637 = 3*x10*x126*x200*x6*x8*x9 + x10*x126*x28*x315*x6*x9 - x132 - x289*x323 - 3*x290;
+      double x638 = x592*x71;
+      double x639 = x321*x497;
+      double x640 = x157*x439;
+      double x641 = x416*x71;
+      double x642 = 3*x205;
+      double x643 = 3*x320;
+      double x644 = x411*x421;
+      double x645 = x414*x453;
+      double x646 = pow(x157, 4);
+      double x647 = x361*x646;
+      double x648 = x646*x9;
+      double x649 = x446*x603;
+      double x650 = pow(x152, 4);
+      double x651 = x20*x650;
+      double x652 = x361*x650;
+      double x653 = pow(x235, 2)*x81;
+      double x654 = pow(x232, 2)*x81;
+      double x655 = x235*x617;
+      double x656 = 12/pow(lxi, 4);
+      double x657 = 3*exp(-4*lsigma);
+      double x658 = x362*x439;
+      double x659 = 18*x619;
+      double x660 = x336*x364;
+      double x661 = x366*x640;
+      double x662 = x152*x439;
+      double x663 = x369*x662;
+      double x664 = x31*x332;
+      double x665 = x133*x664;
+      double x666 = -x346 + x349 + x351 + x352 - x354 - x355 + x357 - x359 - x367 + x370 - x372 + x374 + x376 + x378 - x379 - x380 + x381 + x383 - x384 - x386;
+      double x667 = x342 + x391 - x393 - x394 - x396 - x398 + x399 + x400 + x401 + x623;
+      double x668 = x344*x364;
+      double x669 = x332*x392;
+      double x670 = x347*x364;
+      double x671 = x215*x350;
+      double x672 = x353*x42;
+      double x673 = x181*x235;
+      double x674 = x179*x232;
+      double x675 = x332 - x405 + x407 + x408 - x409;
+      double x676 = x336*x81;
+      double x677 = x334*x81;
+      double x678 = x31*x321;
+      out(j, 0) = x72*(x123 + x26*x33 + x69*x74);
+      out(j, 1) = -x72*(x135*x69 + x151*x73 + x168*x73 + x169*x172 + x199);
+      out(j, 2) = x72*(lxi*x0*x10*x200*x45*x46*x6*x8*x9 + lxi*x0*x10*x45*x46*x6*x9 + x0*x20*x202*x28*x34*x35*x39*x41 + 2*x0*x20*x34*x35*x39*x41*x8 + x0*x200*x45*x46*x50*x51*x8*x9 + 2*x0*x212*x25*x70*x8 + x0*x45*x46*x50*x51*x9 - x204*x213 - x205*x69 - x212 - x214 - x217 - x218 - x220 + x221 - x222 - x59 - x63 + x64 - x65);
+      out(j, 3) = x72*(x168*x242 - x239*x240 + x245*x25 + x288);
+      out(j, 4) = x72*(2*x133*x204*x25*x28*x30*x5 - x135*x212 + x168*x204*x70*x8 - x240*x291 - x314);
+      out(j, 5) = x72*(-x212*x322 + 2*x25*x28*x30*x321 - x25*x320 - x331);
+      out(j, 6) = x134*(x239*x333 + x242*x343 - x245*x332 + x346 - x349 - x351 - x352 + x354 + x355 - x357 + x359 + x387);
+      out(j, 7) = x134*(x135*x388 - x169*x332*x392 + x205*x343 + x291*x333 + x389 - x390 - x391 + x393 + x394 + x396 + x398 - x399 - x400 - x401 + x402);
+      out(j, 8) = x134*(x320*x332 + x322*x388 - x332*x403 + x405 - x407 - x408 + x409 + x410);
+      out(j, 9) = x71*(3*x204*x319*x70*x8 - x32*x411 - x416);
+      out(j, 10) = x72*(-lxi*x430 - lxi*x434 + lxi*x450 + lxi*x452 - lxi*x460 - lxi*x471 + lxi*x474 + lxi*x481 + x103*x457 + 18*x103 - x104*x457 - 18*x104 - x105*x457 - x105*x463 + x106*x457 + x106*x463 + 4*x123*x73 + pow(x25, 4)*x362*x421 - x360*x468 + x360*x472 + x417*pow(x69, 2) + 12*x422*x423 + x425*x449 - x425*x456 - x425*x465 - x425*x467 + x426*x464 + x426 - x428*x436 + x428*x454 + x428*x477 + x428*x479 - x429*x464 - x429 - x430 - x432 - x434 - x435 - x437*x442 - x437*x470 + x443*x447 + x443*x473 + x448 + x450 + x451 + x452 - x457*x458 + x457*x478 - x457*x482 + x457*x483 - x458*x464 - x460 - x462 + x464*x478 - x464*x482 + x464*x483 - x466 - x469 - x471 + x474 + x475 + x476 + x480 + x481 + x484 + x55 + 7*x61 - 7*x63 + 7*x64 - 7*x65);
+      out(j, 11) = -x72*(lxi*x111*x153 - lxi*x494 + lxi*x498 + x100*x508 - x100*x512*x89 + x101*x153 - x105*x500 - 9*x105 + x106*x500 + 9*x106 + x107*x157 - x110*x437 + x113*x443 - x116*x152 - x117*x468 + x117*x472 + x123*x135 + 4*x151*x492 + x152*x499 - x152*x503 + x152*x520 + x152*x98 + x153*x509 + x154 + x156 - x157*x493 + x157*x507 - x157*x516 - x157*x99 - x158*x510 - x158*x517 - x158*x97 + x160 + x163 + x167 + x168*x170*x33 - x173*x511 + x174*x511 + 9*x175*x180 + x175*x451 - x175*x462 + x175*x475 - 9*x177*x182 - x177*x432 - x177*x469 + x177*x480 + x178*x181 + x183*x518 - x184*x519 + x185*x519 - x186*x518 - x190*x81 - 3*x190 - x191*x511 + x192*x81 + 3*x192 + x193*x511 - x194*x504 + x194*x521 - x196*x37*x515 + x196*x506 + x199*x490 + x422*x496*x505 + 3*x425*x84 + x426*x501 + 3*x426 - 3*x428*x94 - x429*x501 - 3*x429 + x43*x508 + x436*x523 + x442*x522 - x447*x514 - x449*x513 - x454*x523 + x456*x513 + x465*x513 + x467*x513 + x470*x522 - x473*x514 - x477*x523 - x479*x523 - x482*x501 + x483*x501 + x489*x69 + 2*x491*x69 - x493 - x494 + x495*x497 + x498 + x499 - x502*x53 - x502*x96 - x503 + x507 + x524*x78 - x525 + 4*x64 - 4*x65 + x73*(-x126*x182*x81 + x129*x180*x81 - x138 + x141 - x144 - x146 + x147 + x149 - x176*x488 + x178*x487 + x189 + x195*x486 - x197*x485 - x259*x81 - x259 + x260*x81 + x260 - x283*x5 - x283 - x284*x81 - x284 + x285*x5 + x285 + x286*x81 + x286));
+      out(j, 12) = x72*(-lxi*x531 + lxi*x532 + x100*x506 - x101*x303 + x101*x311 + x101*x543 + x102*x533 - x102*x535 - x111*x540 + x112*x206*x83 - x117*x547 + x117*x548 + x122 - x123*x205 - x204*x422*x505 + x212*x417*x69 + 6*x212*x492 + x212 + 3*x217 - x299*x545 - x299*x97 - x303*x546 + x308*x545 + x308*x97 + x311*x546 - 6*x44 - x495*x526 - x504*x96 + x516 - x520 - 3*x528 + x530*x74 - x531 + x532 + x533 + x534*x78 - x535 - x536*x89 - x537 - x538 - x539*x97 + 6*x54 + x541 + x542 - x544 + x549);
+      out(j, 13) = x72*(x100*x129*x570 + x100*x569*x81 - 4*x103*x126 - 12*x103*x487 + 12*x104*x488 - x110*x197*x232 - x110*x40*x569 + x113*x195*x235 + x113*x40*x568 + x126*x439*x85 - x126*x579*x96 - x129*x439*x95 + x129*x576 - x131*x439*x89 - x131*x563 + x143*x439*x78 + x143*x567 + x145*x567 + x145*x579 - x148*x563 - x148*x570 + 2*x151*x489 + x151*x564*x566 + x168*x564*x566 - x172*x556 - x176*x226 + x178*x224 + x180*x586 - x182*x585 + x199*x242 - x227*x37 + x228*x48 + x232*x44 - x235*x54 - x239*x555 + x245*x69 - x248 + x251 + x254 + x255 - x257 - x258 - x261 + x262 - x263 - x264 + x265 + x266 - x270 + x272 + x274 + x277 - x280 - x282 + x283*x439 + x284*x439 - x285*x439 - x286*x439 + x288*x73 + x371*x568 - x373*x569 + x43*x437 + x431*x580 - x433*x571 - x435*x572 - x437*x58 + x44*x574 - x442*x573 - x443*x53 + x443*x56 + x447*x577 + x448*x578 + x454*x571 - x456*x580 - x459*x580 + x461*x571 - x465*x580 - x466*x578 - x470*x573 + x473*x577 + x476*x572 + x479*x571 + x48*x5*x581 + x484 - 8*x485*x509 + 8*x486*x510 + x5*x559 - x5*x561 - x54*x575 + x557*x558 + x559 + x560 - x561 - x562 - x568*x81*x96 + x57*x575 - x573*x94 - x574*x59 + x577*x84 - x582*x583 - x584 + x587 + x588 + x73*(x100*x252*x550 + x173*x40 - x174*x40 + x190*x40 + x191*x40 - x192*x40 - x193*x40 + x246*x551 - x249*x550 - x252*x4*x552 - x252*x551*x96 + x268 + x269*x334 - x271*x336 - x273*x550 - x276*x550 + x279*x551 + x281*x551 + x553*x554));
+      out(j, 14) = x72*(2*lxi*x18*x20*x202*x21*x27*x8*x86*x87 + x0*x10*x157*x200*x45*x46*x5*x6*x8*x9 + x0*x10*x157*x200*x45*x46*x6*x8*x9 + 2*x0*x10*x200*x45*x46*x6*x8*x9 + 6*x0*x133*x170*x204*x418*x419*x5 + 2*x0*x151*x204*x25*x28*x30 + 3*x0*x152*x20*x202*x28*x34*x35*x39*x41*x5 + x0*x152*x20*x202*x28*x34*x35*x39*x41 + 3*x0*x152*x20*x202*x28*x34*x35*x5*x91*x92 + 6*x0*x152*x20*x34*x35*x39*x41*x5*x8 + 2*x0*x152*x20*x34*x35*x39*x41*x8 + 6*x0*x152*x20*x34*x35*x5*x8*x91*x92 + x0*x157*x200*x418*x45*x46*x5*x80*x82*x9 + 3*x0*x157*x200*x45*x46*x5*x50*x51*x8*x9 + 2*x0*x157*x200*x45*x46*x5*x8*x80*x82*x9 + x0*x157*x200*x45*x46*x50*x51*x8*x9 + 3*x0*x157*x28*x45*x46*x5*x80*x82*x9 + 2*x0*x168*x204*x25*x28*x30 - x111*x311 - x112*x308 + 2*x133*x204*x28*x30*x5*x69 - x135*x530 - x152*x197*x540 - x152*x220 - x157*x217 - x157*x521*x96 - x172*x592 - x173*x515 - 2*x173 - x175*x37*x536 - x179*x220 - x181*x217 - x181*x48*x539 - x188 - x198 + x199*x204*x70*x8 + 2*x20*x202*x27*x39*x41*x8*x86*x87 + 2*x200*x27*x28*x50*x51*x75*x76*x9 - x207*x517 - x212*x489 - x212*x491 - x212*x564*x566 - 2*x218 + 4*x27*x50*x51*x75*x76*x8*x9 - x291*x555 - x294 + x297 + x300 - x301*x37 - x301*x583 + x302 + x305 - x307 - x309 - x312 - x314*x73 - x525 - x576 - x593 - x73*(-x126*x296 + x129*x293 - x136*x290 + x139*x589 + x150 - x299*x590 - x303*x591 + x308*x590 + x311*x591 + x313));
+      out(j, 15) = x72*(2*pow(x212, 2)*x72 - 8*x212*x392*x564 - x213*x319 + x216*x326 - x216*x596 - 5*x217 - x219*x323 + x219*x595 - x320*x69 + x321*x557 - x322*x530 - x324*x62 + x327*x60 + x331 + x403*x69 + 4*x44 + x490*x594 + 5*x528 + x538 - 4*x54 - x542 + x544 - x549 + x597 + x67);
+      out(j, 16) = x72*(3*x0*x18*x20*x21*x229*x336*x34*x35 + 3*x0*x18*x20*x21*x232*x34*x35*x5 + 3*x0*x20*x229*x28*x336*x34*x35*x91*x92 + 9*x0*x20*x229*x336*x34*x35*x39*x41 + 6*x0*x20*x229*x336*x34*x35*x91*x92 + 9*x0*x229*x334*x45*x46*x50*x51*x8*x9 + 9*x0*x229*x334*x45*x46*x8*x80*x82*x9 + 3*x10*x157*x229*x235*x3*x6*x9*y + 6*x10*x157*x27*x5*x6*x75*x76*x9 + x10*x3*x344*x361*x6*x9*y + x10*x3*x366*x5*x6*x9*y - x108*x612 - x113*x48*x616 + 6*x133*x229*x239*x25*x28*x30 - x136*x370 + 9*x14*x152*x16*x20*x229*x232*x39*x41*x8 + 9*x14*x152*x16*x20*x229*x232*x8*x91*x92 + 7*x14*x16*x20*x347*x361*x39*x41*x8 + x14*x16*x20*x347*x361*x418*x438*x440 + 11*x14*x16*x20*x347*x361*x438*x440*x8 + 18*x14*x16*x20*x347*x361*x8*x91*x92 + x14*x16*x20*x369*x39*x41*x5*x8 - x140*x366 + 6*x152*x20*x27*x39*x41*x5*x8*x86*x87 - x153*x5*x506 - x155*x369 + 3*x157*x229*x235*x28*x3*x80*x82*x9*y + 9*x157*x229*x235*x3*x50*x51*x9*y + 6*x157*x229*x235*x3*x80*x82*x9*y + 6*x157*x27*x5*x50*x51*x75*x76*x9 + 3*x168*x239*x5*x70*x8 - x168*x605 - x17*x196*x232*x364 - x17*x229*x382*x512 - 7*x17*x361*x375 - x177*x531 - x178*x252*x334 - x180*x620 - x229*x235*x4*x524 - 9*x229*x4*x618 - x233*x611 - x24*x347*x361 - x240*x601 - x25*x604 + 6*x28*x3*x344*x361*x444*x445*x9*y + 6*x28*x3*x344*x361*x80*x82*x9*y - x288*x602 + 6*x3*x344*x361*x444*x445*x9*y + 7*x3*x344*x361*x50*x51*x9*y + 12*x3*x344*x361*x80*x82*x9*y + x3*x366*x5*x50*x51*x9*y - 3*x334*x371*x48 - x44*x620 - x456*x610 - x459*x610 - x465*x610 - x467*x610 - x559*x81 - 9*x57*x617 - x582*x611 - x588 - x606*x607 - x607*x609 - x613*x614 - x614*x615);
+      out(j, 17) = x72*(x100*x630 + x133*x25*x31*x628 - x136*x390 + x139*x389 + x168*x592*x71 - x168*x627 + x195*x589 - x197*x290 - x205*x288 + x208*x578 - x211*x572 + x212*x245 - x212*x625 - x217*x635 - x220*x636 + x229*x247*x534 - x229*x250*x536 + x232*x293 - x235*x296 - x240*x624 + x242*x314 + x247*x634 + x25*x392*x556 - x25*x626 - x250*x633 - x253*x299 + x253*x308 - x253*x539 + x253*x84 - x256*x303 + x256*x311 + x256*x543 - x256*x94 + x267 + x287 - x299*x631 - x303*x632 + x308*x631 + x311*x632 + x43*x630 + x527*x635 + x528*x636 - x53*x629 + x584 - x587 + x593 - x629*x96);
+      out(j, 18) = x72*(3*x10*x157*x200*x3*x5*x6*x8*x9*y + x10*x157*x28*x3*x315*x5*x6*x9*y + 4*x133*x204*x212*x28*x30*x5 + 2*x133*x25*x28*x30*x319*x5 - x135*x594 - x136*x407 + 5*x14*x152*x16*x20*x202*x28*x39*x41*x5 + x14*x152*x16*x20*x317*x39*x41*x418*x5 + 4*x14*x152*x16*x20*x39*x41*x5*x8 + 3*x157*x200*x3*x5*x50*x51*x8*x9*y + x157*x28*x3*x315*x5*x50*x51*x9*y - x164 + x168*x319*x70*x8 - x168*x403 - x17*x179*x303 - x17*x301*x81 + 4*x204*x25*x28*x291*x30*x5 + 2*x204*x314*x70*x8 - x212*x638 - x240*x637 - x25*x639 - x298*x52*x596 - 5*x300 - x304*x323*x42 - x4*x53*x640 - x597);
+      out(j, 19) = x72*(7*x10*x200*x3*x6*x8*x9*y + 6*x10*x28*x3*x315*x6*x9*y + x10*x3*x412*x418*x6*x9*y - x17*x22*x645 + 6*x204*x25*x28*x30*x319 - 7*x211 + 6*x212*x28*x30*x321 - x212*x643 - x25*x641 - x25*x644 - 6*x325 - x55 - x594*x642);
+      out(j, 20) = x134*(x100*x232*x659 - x118*(-x127*x656 + x128*x608 + x231*x364 + x427*x657 + x658*x88) + x12*x647 + x12*x653 + x120*(-x124*x656 + x125*x608 + x234*x364 + x424*x657 + x658*x77) - x23*x652 - x23*x654 - x232*x433*x619 - x233*x660 + x236*x616 + x239*x343*x71*x81 - x239*x364*x665 + x332*x604 + x333*x601 - x343*x605 + x358*x659 + x367*x640 - x370*x662 - x382*x659 + 18*x385*x617 + x43*x654 + x43*x663 + x431*x655 - x436*x652 + x449*x647 + x454*x652 - x456*x647 - x459*x647 - x459*x655 + x461*x652 - x465*x647 - x467*x647 + x477*x652 + x479*x652 - x53*x653 - 18*x53*x655 - x53*x661 + x56*x653 + x56*x661 - x58*x654 - x58*x663 + x581*x616 - x582*x660 + x602*x666 + x603*x646*x84 - x606*x651 + x608*x648*x83 - x609*x651 - x613*x650 - x615*x650 + x646*x649*x79 + x648*x649);
+      out(j, 21) = x134*(x100*x670 + x205*x666 + x207*x345 + x207*x366 - x209*x672 - x210*x348 - x210*x369 + x242*x667 - x245*x388 - x299*x673 - x301*x586 - x303*x674 + x306*x585 + x308*x350 + x308*x673 + x310*x672 + x311*x674 + x332*x626 + x333*x624 - x343*x627 + x343*x638 + x344*x634 + x345*x534 - x347*x633 - x348*x536 + x350*x84 + x353*x543 - x353*x94 + x358*x612 + x387 + x388*x625 + x43*x670 - x515*x618 - x52*x671 - x53*x668 - x556*x669 - x628*x665 - x668*x96 - x671*x83);
+      out(j, 22) = x134*(x135*x675 - x169*x319*x664 + x207*x677 - x210*x676 - x232*x324 + x235*x327 - x291*x439*x669 - x303*x676 + x308*x677 + x320*x343 + x322*x667 - x323*x397 - x324*x337 + x326*x395 + x327*x335 + x332*x639 + x333*x637 - x343*x403 - x388*x627 + x388*x638 + 3*x389 - 3*x390 - x395*x596 + x397*x595 + 5*x398 - 5*x399 + x402 - x439*x552 + x439*x553);
+      out(j, 23) = x134*(-7*x301 + 7*x306 - 6*x319*x332*x392 + x332*x641 + x332*x644 + x388*x643 - 6*x388*x678 + x404*x412*x455 + 6*x405 - x406*x645 - 6*x407 + x410 + x642*x675);
+      out(j, 24) = x71*(-pow(x200, 4)*x455 - x201 + pow(x202, 4)*x453 + x203 + pow(x204, 4)*x421 + 4*x205*x416 - 7*x316 + 7*x318 + 3*pow(x319, 2)*x71 - 12*x319*x678 - 6*x413 + 6*x415);
+    }
   }
   return out;
 }
