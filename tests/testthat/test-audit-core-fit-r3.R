@@ -716,10 +716,9 @@ test_that("E-03: smoothing-parameter covariance is reliable without third deriva
   expect_equal(as.vector(fz$Vlsp), as.vector(solve(reml_hessian(fz))), tolerance = 1e-3)
 
   set.seed(11)
-  ## PIG data by inversion, the draws rpig() gave before it sampled the mixture exactly:
-  ## this curvature comparison was calibrated on them (with other draws the s(x2) smooth
-  ## is penalised far harder and numDeriv's step is too coarse for 1e-4)
-  yp <- qpig(runif(n), mu = exp(1 + sin(2 * pi * x)), sigma = exp(-1 + x2))
+  ## Give both smooths curvature: a linear log dispersion is in the penalty's null
+  ## space and makes the inverse Hessian sensitive to the reference difference step.
+  yp <- qpig(runif(n), mu = exp(1 + sin(2 * pi * x)), sigma = exp(-0.5 + sin(2 * pi * x2)))
   fp <- egpd(list(y ~ s(x, k = 8), ~ s(x2, k = 6)), data.frame(y = yp, x = x, x2 = x2),
              family = "pig")
   expect_equal(as.vector(fp$Vlsp), as.vector(solve(reml_hessian(fp))), tolerance = 1e-4)

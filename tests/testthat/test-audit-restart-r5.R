@@ -219,8 +219,8 @@ test_that("fit_hurdle() keeps the start with the lowest REML criterion", {
     egpd(y ~ s(x, k = 8), dpos, family = "ztgwaring", inits = s)))
   ll <- vapply(fits, function(f) f$logLik, 0)
   nr <- vapply(fits, function(f) f$negREML, 0)
-  ## the highest log-likelihood (headtree's choice) has a REML criterion 0.07 worse
-  expect_gt(nr[which.max(ll)] - min(nr), 0.05)
+  ## The rankings can agree; what matters is that regular smooth fits are scored by REML.
+  expect_identical(egpd:::.start_criterion(fits, ll), -nr)
   b <- r5_choice(-nr, ll)
   h <- suppressWarnings(fit_hurdle(y ~ s(x, k = 8), d, family = "gwaring"))
   expect_identical(h$positive$coefficients, fits[[b]]$coefficients)
