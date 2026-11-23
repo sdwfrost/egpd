@@ -61,9 +61,15 @@ test_that("VA-02: a compact fit with commensurate row counts uses the right REML
   x <- rep(xu, 2)
   d2 <- data.frame(y = va02_rgen(length(x), x), x = x)
   f2 <- list(y ~ s(x, k = 6), ~1, ~ s(x, k = 5))
-  fc <- egpd(f2, d2, family = "egpd", compact = TRUE, restarts = FALSE)
-  fn <- egpd(f2, d2, family = "egpd", restarts = FALSE)
-  expect_equal(fc$sp, fn$sp, tolerance = 1e-3)
+  ## Compare gradients at the same point, not the stopping points on a flat REML curve.
+  sp <- c(0.15, 2)
+  ctl <- list(inner = list(gradtol = 1e-8))
+  fc <- egpd(f2, d2, family = "egpd", compact = TRUE, restarts = FALSE, sp = sp, control = ctl)
+  fn <- egpd(f2, d2, family = "egpd", restarts = FALSE, sp = sp, control = ctl)
+  expect_null(fc$likfns$d340)
+  gc <- egpd:::.reml1.fd(log(sp), fc$likfns, fc$likdata, fc$Sdata, beta = fc$coefficients)
+  gn <- egpd:::.reml1(log(sp), fn$likfns, fn$likdata, fn$Sdata, beta = fn$coefficients)
+  expect_lt(max(abs(gc - gn)), 1e-3)
   expect_equal(fc$logLik, fn$logLik, tolerance = 1e-6)
 })
 

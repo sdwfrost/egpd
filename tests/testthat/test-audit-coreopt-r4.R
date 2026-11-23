@@ -298,9 +298,12 @@ test_that("VA-10: a coefficient search that stops on an unbounded objective is n
     egpd:::.search.dir(g, diag(c(if (pars[1] < 1) -0.01 / (1 - pars[1])^2 else 0, 2)), kept)
   }
   ctl <- list(steptol = 1e-12, itlim = 100, fntol = 1e-8, gradtol = 1e-4, stepmax = 100)
+  ## Exercise the curvature check, not the separate large-decrement stopping rule.
+  dectol <- 0.1
   fit <- egpd:::.fit_inner(c(0, 0), fn, sfn, likdata = list(control = list(inner = ctl)),
-                           likfns = NULL)
+                           likfns = NULL, dectol = dectol)
   expect_gt(fit$pars[1], 0.99)
+  expect_lt(0.5 * fit$decrement, dectol)
   expect_equal(fit$convergence, 3L)
   expect_match(fit$report, "not convex along its gradient")
 })

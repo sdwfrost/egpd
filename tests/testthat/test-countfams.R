@@ -1,6 +1,6 @@
 ## Generalized Poisson, generalized Waring and Poisson-lognormal (src/countfams.cpp).
 ## Every pmf is checked against an INDEPENDENT computation, never against itself:
-##   gpois    vs gamlss.dist::dGPO
+##   gpois    vs the Consul-Jain probability mass function
 ##   gwaring  vs its beta-negative-binomial representation, integrated numerically
 ##   plnorm   vs direct quadrature of the Poisson-normal mixture
 
@@ -43,14 +43,14 @@ test_that("generalized Waring equals the beta-negative-binomial BNB(r=k, alpha=r
   }
 })
 
-test_that("generalized Poisson matches gamlss.dist::dGPO", {
-  skip_if_not_installed("gamlss.dist")
-  # gamlss GPO has Var = mu (1 + sigma mu)^2, so lambda = sigma mu / (1 + sigma mu).
-  for (pr in list(c(20, 0.05), c(500, 0.01))) {
-    mu <- pr[1]; sg <- pr[2]; lam <- sg * mu / (1 + sg * mu)
-    for (y in c(0, 3, 20, 200))
-      expect_equal(dgpois(y, mu = mu, lambda = lam),
-                   gamlss.dist::dGPO(y, mu = mu, sigma = sg), tolerance = 1e-10)
+test_that("generalized Poisson matches the Consul-Jain mass in the mean parameterisation", {
+  for (pr in list(c(20, 1/2), c(500, 5/6))) {
+    mu <- pr[1]; lambda <- pr[2]; theta <- mu * (1 - lambda)
+    for (y in c(0, 3, 20, 200)) {
+      rate <- theta + lambda * y
+      ref <- exp(log(theta) + (y - 1) * log(rate) - rate - lgamma(y + 1))
+      expect_equal(dgpois(y, mu = mu, lambda = lambda) / ref, 1, tolerance = 1e-10)
+    }
   }
 })
 

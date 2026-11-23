@@ -152,10 +152,8 @@ test_that("fits without smooths are still chosen by the log-likelihood", {
 
 test_that("REML is not compared across fits that ran to a boundary of a link", {
   ## Every start ends with xi -> 0 (log xi < -9), where the likelihood is flat in log xi
-  ## and the REML criterion falls by half a unit per unit of log xi the fit drifted:
-  ## two starts drifted to log xi = -55 and so have a REML criterion 16 units lower,
-  ## with log-likelihoods 1-2 units lower and smoothing parameters 2-3 times larger. The
-  ## fits are compared by the log-likelihood, as before.
+  ## and the REML criterion falls by half a unit per unit of log xi the fit drifted.
+  ## Its ranking can coincide with the likelihood ranking, so check the criterion itself.
   set.seed(13)
   n <- 150
   x <- runif(n)
@@ -166,9 +164,8 @@ test_that("REML is not compared across fits that ran to a boundary of a link", {
   fits <- lapply(r5_starts(d$y, 3), function(s) suppressWarnings(
     egpd(fl, d, family = "degpd", inits = s, restarts = FALSE)))
   ll <- vapply(fits, function(f) f$logLik, 0)
-  nr <- vapply(fits, function(f) f$negREML, 0)
   expect_true(all(vapply(fits, function(f) all(f$logshape$fitted < -9), NA)))
-  expect_lt(ll[which.min(nr)], max(ll) - 0.5)
+  expect_identical(egpd:::.start_criterion(fits, ll), ll)
   f <- suppressWarnings(egpd(fl, d, family = "degpd"))
   expect_identical(f$coefficients, fits[[which.max(ll)]]$coefficients)
 })

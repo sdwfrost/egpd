@@ -86,10 +86,15 @@ test_that("native egpd() PIG recovers parameters and matches direct MLE", {
   expect_equal(unname(co), unname(o$par), tolerance = 1e-2)
 })
 
+## Stratify both parts of the mixture so recovery does not depend on sampling noise.
+zipig_reference_counts <- function(n, mu, sigma, nu) {
+  n0 <- round(n * nu)
+  c(rep(0L, n0), gamlss.dist::qPIG(stats::ppoints(n - n0), mu = mu, sigma = sigma))
+}
+
 test_that("native egpd() ZIPIG recovers parameters", {
   skip_on_cran()
-  set.seed(11)
-  yz <- gamlss.dist::rZIPIG(4000, mu = 4, sigma = 0.7, nu = 0.3)
+  yz <- zipig_reference_counts(4000, mu = 4, sigma = 0.7, nu = 0.3)
   fz <- egpd(list(yz ~ 1, ~ 1, ~ 1), data = data.frame(yz = yz), family = "zipig", trace = 0)
   cz <- coef(fz)
   expect_equal(exp(cz[[1]]), 4,   tolerance = 0.15)
@@ -113,8 +118,7 @@ test_that("distfit() PIG MLE matches gamlss.dist and yields working methods", {
 
 test_that("distfit() ZIPIG MLE recovers the zero-inflation probability", {
   skip_on_cran()
-  set.seed(3)
-  yz <- gamlss.dist::rZIPIG(3000, mu = 3.5, sigma = 0.8, nu = 0.25)
+  yz <- zipig_reference_counts(3000, mu = 3.5, sigma = 0.8, nu = 0.25)
   fz <- distfit(yz, family = "zipig")
   expect_named(fz$estimate, c("mu", "sigma", "pi"))
   expect_equal(fz$estimate[["pi"]], 0.25, tolerance = 0.06)
